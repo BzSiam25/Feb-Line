@@ -1,4 +1,14 @@
 <?php
+if (
+    empty($is_embedded_knit_card_generation) &&
+    ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET' &&
+    isset($_GET['program_id']) &&
+    intval($_GET['program_id']) > 0
+) {
+    header('Location: knit_card.php?generate_program_id=' . intval($_GET['program_id']));
+    exit();
+}
+
 date_default_timezone_set('Asia/Dhaka');
 $bdHour  = (int)date('G');
 $bdMin   = (int)date('i');
@@ -15,8 +25,10 @@ if ($totMins >= 360 && $totMins <= 840) {
     $shift = 'C';
 }
 
-session_start();
-include 'config.php';
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+include_once __DIR__ . '/config.php';
 
 if (!isset($_SESSION['username'])) {
     echo "<script>alert('You must be logged in'); window.location.href='login.php';</script>";
@@ -50,16 +62,18 @@ $stmt->close();
 
 // 2. Fetch already carded quantity for this program from knit_card dynamically
 $already_carded = 0.00;
+$rolls_complete = 0;
 $kc_prog_col = get_knit_card_program_col($db);
 $p_kptid = intval($prog['KPTID']);
 $p_prog_no = !empty($prog['PROGRAM_NO']) ? strval($prog['PROGRAM_NO']) : strval($p_kptid);
-$sum_stmt = $db->prepare("SELECT SUM(QTY) AS total_carded FROM knit_card WHERE ({$kc_prog_col} = ? OR {$kc_prog_col} = ?)");
+$sum_stmt = $db->prepare("SELECT SUM(QTY) AS total_carded, COUNT(*) AS rolls_complete FROM knit_card WHERE ({$kc_prog_col} = ? OR {$kc_prog_col} = ?)");
 if ($sum_stmt) {
     $sum_stmt->bind_param("ss", $p_prog_no, $p_kptid);
     $sum_stmt->execute();
     $res_sum = $sum_stmt->get_result();
     if ($res_sum && $row_sum = $res_sum->fetch_assoc()) {
         $already_carded = floatval($row_sum['total_carded'] ?? 0);
+        $rolls_complete = intval($row_sum['rolls_complete'] ?? 0);
     }
     $sum_stmt->close();
 }
@@ -115,10 +129,7 @@ $default_qty        = $remaining_qty;
 $authorised_by      = '';
 $error              = '';
 
-// ── Knit Card Operator (the operator SCANNED on the Knit Card page) ──
-// IMPORTANT: only $_SESSION['knit_card_operator'] (set by the scan on knit_card.php) or the
-// operator chosen/scanned on this form is used. $_SESSION['operator_id'] / ['username'] belong
-// to the LOGGED-IN account and must never end up on the knit card.
+// The scanned operator from the Knit Card page is authoritative for this card.
 $operator_id   = '';
 $operator_name = '';
 
@@ -126,15 +137,6 @@ $operator_name = '';
 $uid_col_chk = @$db->query("SHOW COLUMNS FROM knit_card LIKE 'UID'");
 if ($uid_col_chk && $uid_col_chk->num_rows === 0) {
     @$db->query("ALTER TABLE knit_card ADD COLUMN UID varchar(100) DEFAULT NULL AFTER UNAME");
-}
-
-// Registered operators for the dropdown
-$operators = [];
-$op_all_res = $db->query("SELECT OPERATOR_ID, OPERATOR_NAME FROM knitting_operator ORDER BY OPERATOR_NAME ASC");
-if ($op_all_res) {
-    while ($orow = $op_all_res->fetch_assoc()) {
-        $operators[] = $orow;
-    }
 }
 
 function kc_lookup_operator($db, $value) {
@@ -151,33 +153,13 @@ function kc_lookup_operator($db, $value) {
 }
 
 $operator_error = '';
-if (isset($_POST['operator_id'])) {
-    // Operator chosen / scanned on this form
-    $posted_op = kc_lookup_operator($db, $_POST['operator_id']);
-    if ($posted_op) {
-        $operator_id   = $posted_op['OPERATOR_ID'];
-        $operator_name = $posted_op['OPERATOR_NAME'];
-    } else {
-        $operator_error = trim((string)$_POST['operator_id']) === ''
-            ? "Please scan or select the Knit Card Operator."
-            : "Operator ID \"" . trim((string)$_POST['operator_id']) . "\" is not a registered knitting operator.";
-    }
-} elseif (!empty($_SESSION['knit_card_operator']['id'])) {
-    // Operator scanned on the Knit Card page
-    $sess_op = kc_lookup_operator($db, $_SESSION['knit_card_operator']['id']);
-    if ($sess_op) {
-        $operator_id   = $sess_op['OPERATOR_ID'];
-        $operator_name = $sess_op['OPERATOR_NAME'];
-    }
-}
-
-// Remember the knit card operator for the next cards (knit card session only)
-if ($operator_id !== '') {
-    $_SESSION['knit_card_operator'] = [
-        'id'   => $operator_id,
-        'name' => $operator_name,
-        'role' => 'production'
-    ];
+$scanned_operator_id = trim((string)($_SESSION['knit_card_operator']['id'] ?? ''));
+$scanned_operator = kc_lookup_operator($db, $scanned_operator_id);
+if ($scanned_operator) {
+    $operator_id   = $scanned_operator['OPERATOR_ID'];
+    $operator_name = $scanned_operator['OPERATOR_NAME'];
+} else {
+    $operator_error = 'The scanned Knit Card operator is unavailable. Return to Knit Card and scan again.';
 }
 
 if ($remaining_qty <= 0) {
@@ -226,7 +208,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
     }
 
     if (empty($error) && ($operator_error !== '' || $operator_id === '')) {
-        $error = $operator_error !== '' ? $operator_error : "Please scan or select the Knit Card Operator.";
+        $error = $operator_error !== '' ? $operator_error : "Please return to Knit Card and scan an operator.";
     }
 
     if (empty($error)) {
@@ -310,7 +292,6 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 $p_uid     = $operator_id;
 
                 $inserted_ids = [];
-                $current_roll = $next_roll;
                 $current_knitcard = $next_knitcard;
 
                 foreach ($rows_data as $row_item) {
@@ -355,7 +336,6 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                     }
 
                     $inserted_ids[] = $ins->insert_id;
-                    $current_roll++;
                     $current_knitcard++;
                 }
 
@@ -364,12 +344,13 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 // Commit Transaction
                 $db->commit();
 
-                $ids_param = implode(',', $inserted_ids);
                 $success_msg = count($inserted_ids) > 1 
                     ? count($inserted_ids) . " Knit Cards generated successfully!" 
                     : "Knit Card generated successfully!";
 
-                header("Location: knit_card_view.php?ids=" . urlencode($ids_param) . "&from=card&msg=" . urlencode($success_msg));
+                $_SESSION['knit_card_generation_success'] = $success_msg;
+                unset($_SESSION['knit_card_operator']);
+                header("Location: knit_card.php");
                 exit();
 
             } catch (Exception $e) {
@@ -387,7 +368,6 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Generate Knit Card #<?php echo $p_kptid; ?> | Purbani Fabrics</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
     <link rel="stylesheet" href="css/bootstrap.min.css">
     <link rel="stylesheet" href="css/mycss.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -422,11 +402,6 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
             --radius-input: 10px;
             --radius-box: 12px;
             --radius-card: 16px;
-        }
-
-        i, i.fa-solid, i.fas, i.far, i.fab, i.fa-regular {
-            border: none !important; outline: none !important; box-shadow: none !important;
-            padding: 0 !important; margin: 0 !important; display: inline-block !important; transform: none !important;
         }
 
         body {
@@ -638,23 +613,6 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
             letter-spacing: 0.3px;
         }
 
-        /* ── PROGRESS BAR ── */
-        .progress-bar-container {
-            background: #e2e8f0;
-            height: 5px;
-            border-radius: 3px;
-            overflow: hidden;
-            margin-bottom: 2px;
-            position: relative;
-        }
-        .progress-bar-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #3b82f6 0%, #06b6d4 100%);
-            width: 0%;
-            border-radius: 3px;
-            transition: width 0.3s ease;
-        }
-
         /* ── 4-6 ITEMS PER LINE RESPONSIVE SPECIFICATION BOX GRID (COMPACT) ── */
         .spec-grid-container {
             display: grid;
@@ -716,80 +674,12 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
             letter-spacing: 0.3px;
         }
 
-        .spec-box-icon {
-            font-size: 10px;
-            color: var(--color-blue);
-            width: 12px;
-            text-align: center;
-        }
-
         .spec-box-value {
             font-size: 11.5px;
             font-weight: 700;
             color: var(--text-primary);
             word-break: break-word;
             line-height: 1.25;
-        }
-
-        .value-highlight-blue {
-            color: var(--color-blue);
-        }
-        .value-muted-italic {
-            color: var(--text-muted);
-            font-style: italic;
-            font-weight: 500;
-        }
-
-        /* Badges inside Spec Boxes */
-        .badge-pill-green {
-            background: #dcfce7;
-            color: #166534;
-            border: 1px solid #bbf7d0;
-            padding: 1px 6px;
-            border-radius: 12px;
-            font-size: 10px;
-            font-weight: 700;
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-        }
-        .dot-green {
-            width: 5px;
-            height: 5px;
-            background-color: #166534;
-            border-radius: 50%;
-            display: inline-block;
-        }
-
-        .badge-pill-color {
-            background: #e2e8f0;
-            color: #1e293b;
-            border: 1px solid #cbd5e1;
-            padding: 1px 6px;
-            border-radius: 12px;
-            font-size: 10px;
-            font-weight: 700;
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-        }
-        .dot-color {
-            width: 5px;
-            height: 5px;
-            background-color: #475569;
-            border-radius: 50%;
-            display: inline-block;
-        }
-
-        .badge-pill-amber {
-            background: #fef3c7;
-            color: #92400e;
-            border: 1px solid #fde68a;
-            padding: 1px 6px;
-            border-radius: 12px;
-            font-size: 10px;
-            font-weight: 700;
-            display: inline-block;
         }
 
         /* ── FORM FIELDS & ALLOCATION CARDS (COMPACT) ── */
@@ -856,6 +746,15 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
             font-size: 11px;
             font-weight: 600;
             color: var(--color-success);
+        }
+        .allocation-validation {
+            min-height: 40px;
+            margin-top: 12px;
+            padding: 10px 12px;
+            border: 1px solid #d6e5fa;
+            border-radius: 10px;
+            background: #f3f8ff;
+            line-height: 1.4;
         }
 
         /* ── DYNAMIC ALLOCATION ROWS (COMPACT) ── */
@@ -1009,6 +908,289 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
             box-shadow: none !important;
             opacity: 0.7;
         }
+
+        body {
+            min-width: 320px;
+            padding: clamp(12px, 2.4vw, 30px);
+            background: #f3f6fb;
+            color: #172033;
+            font-family: Inter, "Segoe UI", Arial, sans-serif;
+        }
+        .main-container { width: 100%; max-width: none; }
+        .top-bar {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+            justify-content: start;
+            align-items: center;
+            gap: clamp(12px, 1.8vw, 22px);
+            padding: clamp(14px, 1.8vw, 22px);
+            margin-bottom: 16px;
+            color: #172033;
+            background: #ffffff;
+            border: 1px solid #e1e7f0;
+            border-radius: 15px;
+            box-shadow: 0 6px 18px rgba(27, 45, 78, 0.06);
+        }
+        .top-bar-title-wrap { min-width: 0; justify-self: center; text-align: center; }
+        .btn-back { justify-self: start; }
+        .top-bar-title-wrap h1 {
+            margin: 0;
+            color: #172033;
+            font-size: clamp(20px, 2.5vw, 27px);
+            font-weight: 800;
+            line-height: 1.2;
+            letter-spacing: -0.6px;
+            overflow-wrap: anywhere;
+        }
+        .top-bar-title-wrap h1 span { color: #2563eb; }
+        .top-bar-subtitle {
+            margin: 7px 0 0;
+            color: #64748b;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        .btn-back {
+            min-height: 44px;
+            padding: 0 18px;
+            border: 1px solid #000000;
+            border-radius: 10px;
+            background: #000000;
+            color: #ffffff;
+            font-size: 14px;
+            font-weight: 700;
+            white-space: nowrap;
+            transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+        }
+        .btn-back::before { content: "\2190"; margin-right: 8px; font-size: 18px; line-height: 1; }
+        .btn-back:hover {
+            background: #ffffff;
+            border-color: #000000;
+            color: #000000;
+            transform: translateY(-1px);
+        }
+        .header-operator {
+            display: flex;
+            align-items: center;
+            justify-self: end;
+            min-width: 190px;
+            padding: 10px 14px;
+            border: 1px solid #dfe7f2;
+            border-radius: 11px;
+            background: #f7f9fc;
+            text-align: left;
+        }
+        .header-operator-item { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+        .header-operator-label {
+            color: #64748b;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.4px;
+            text-transform: uppercase;
+        }
+        .header-operator-value {
+            color: #1e3a8a;
+            font-size: 13px;
+            font-weight: 750;
+            overflow-wrap: anywhere;
+        }
+        .workspace-card {
+            padding: clamp(14px, 1.6vw, 20px);
+            margin-bottom: 14px;
+            border: 1px solid #e0e7f1;
+            border-radius: 16px;
+            background: #ffffff;
+            box-shadow: 0 5px 18px rgba(27, 45, 78, 0.045);
+        }
+        .card-header-custom {
+            padding-bottom: 10px;
+            margin-bottom: 12px;
+            border-bottom: 1px solid #e9eef5;
+        }
+        .card-header-title {
+            color: #1e293b;
+            font-size: 15px;
+            font-weight: 800;
+            letter-spacing: 0;
+        }
+        .badge-pill-header {
+            padding: 5px 10px;
+            font-size: 10px;
+            letter-spacing: 0.25px;
+        }
+        .metrics-grid-container { gap: 12px; }
+        .metric-box {
+            min-width: 0;
+            min-height: 74px;
+            justify-content: center;
+            gap: 7px;
+            padding: 11px 14px;
+            border-color: #e5eaf2;
+            border-radius: 12px;
+            background: #f8faff;
+        }
+        .metric-lbl { font-size: 11px; letter-spacing: 0.45px; }
+        .metric-val-blue, .metric-val-gray, .metric-val-green { font-size: 20px; line-height: 1.1; }
+        .spec-grid-container {
+            grid-template-columns: repeat(7, minmax(0, 1fr));
+            gap: 8px;
+        }
+        .spec-item-box {
+            min-width: 0;
+            min-height: 64px;
+            justify-content: flex-start;
+            gap: 5px;
+            padding: 9px 10px;
+            border-color: #e5eaf2;
+            border-radius: 11px;
+            background: #fbfcfe;
+            box-shadow: none;
+        }
+        .spec-box-head {
+            color: #64748b;
+            font-size: 9px;
+            letter-spacing: 0.45px;
+        }
+        .spec-box-value {
+            color: #1e293b;
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1.4;
+            overflow-wrap: anywhere;
+        }
+        .form-label-custom {
+            margin-bottom: 6px;
+            color: #53647d;
+            font-size: 11px;
+            letter-spacing: 0.4px;
+        }
+        .form-select-custom, .form-input-custom {
+            min-height: 40px !important;
+            height: auto !important;
+            padding: 8px 11px !important;
+            border-radius: 9px !important;
+            font-size: 14px !important;
+        }
+        .allocation-card {
+            padding: 16px;
+            margin-bottom: 12px;
+            border-color: #e1e8f2;
+            border-radius: 12px;
+            background: #f9fbfe;
+        }
+        .allocation-header {
+            margin-bottom: 14px;
+            padding-bottom: 10px;
+        }
+        .allocation-title { color: #34445d; font-size: 13px; }
+        .allocation-grid { gap: 14px; }
+        .btn-remove-row {
+            min-height: 34px;
+            padding: 5px 11px;
+            border-radius: 8px;
+            font-size: 12px;
+            border-color: #dc2626;
+            background: #dc2626;
+            color: #ffffff;
+        }
+        .btn-remove-row:hover {
+            background: #b91c1c;
+            border-color: #b91c1c;
+            color: #ffffff;
+        }
+        .btn-add-row {
+            min-height: 44px;
+            margin-bottom: 14px;
+            border-radius: 10px;
+            font-size: 13px;
+        }
+        .allocation-summary-box {
+            gap: 10px;
+            padding: 14px 16px;
+            border-color: #d6e5fa;
+            border-radius: 12px;
+            background: #f3f8ff;
+            font-size: 13px;
+        }
+        .validation-msg {
+            padding-top: 8px;
+            border-top: 1px solid #dce8f8;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+        .bottom-actions {
+            position: sticky;
+            bottom: 12px;
+            z-index: 5;
+            justify-content: flex-end;
+            padding: 12px;
+            margin-top: 18px;
+            border: 1px solid #e0e7f1;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.96);
+            box-shadow: 0 8px 24px rgba(27, 45, 78, 0.1);
+            backdrop-filter: blur(8px);
+        }
+        .btn-cancel, .btn-submit {
+            min-height: 46px;
+            padding: 0 20px !important;
+            border-radius: 10px !important;
+            font-size: 14px !important;
+        }
+        .btn-submit { min-width: 220px; }
+        .alert { border-radius: 12px !important; }
+        @media (max-width: 1100px) {
+            .spec-grid-container { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+        }
+        @media (max-width: 800px) {
+            .top-bar { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+            .top-bar-title-wrap { grid-column: 1 / -1; grid-row: 2; }
+            .btn-back { grid-column: 1; grid-row: 1; }
+            .header-operator {
+                grid-column: 2;
+                grid-row: 1;
+                justify-content: flex-start;
+            }
+            .spec-grid-container { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+        }
+        @media (max-width: 600px) {
+            body { padding: 12px; }
+            .top-bar {
+                grid-template-columns: 1fr;
+                justify-items: start;
+                gap: 11px;
+                padding: 14px;
+                border-radius: 14px;
+            }
+            .top-bar-title-wrap { grid-column: auto; grid-row: auto; justify-self: center; width: 100%; }
+            .btn-back { grid-column: auto; grid-row: auto; }
+            .top-bar-title-wrap h1 { font-size: 21px; }
+            .header-operator {
+                grid-column: auto;
+                grid-row: auto;
+                width: 100%;
+                justify-content: flex-start;
+                justify-self: stretch;
+            }
+            .metrics-grid-container { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+            .metric-box { min-height: 68px; padding: 9px 10px; }
+            .metric-lbl { font-size: 9px; }
+            .metric-val-blue, .metric-val-gray, .metric-val-green { font-size: 18px; }
+            .spec-grid-container { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+            .spec-item-box { min-height: 58px; padding: 8px; }
+            .workspace-card { padding: 12px; border-radius: 13px; }
+            .card-header-custom { align-items: flex-start; }
+            .allocation-grid { grid-template-columns: 1fr; gap: 12px; }
+            .allocation-summary-box { padding: 12px; }
+            .bottom-actions { bottom: 8px; gap: 8px; padding: 9px; }
+            .btn-cancel { flex: 0 0 auto; }
+            .btn-submit { min-width: 0; flex: 1 1 auto; }
+        }
+        @media (max-width: 380px) {
+            .metrics-grid-container, .spec-grid-container { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .spec-box-value { font-size: 11px; }
+            .bottom-actions { position: static; flex-direction: column-reverse; }
+            .btn-cancel, .btn-submit { width: 100%; }
+        }
     </style>
 </head>
 
@@ -1018,45 +1200,35 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
 
         <!-- ═══ PAGE HEADER (TOP BAR) ═══ -->
         <div class="top-bar">
-            <div class="top-bar-left">
-                <div class="top-bar-icon">🧶</div>
-                <div class="top-bar-title-wrap">
-                    <h1>Generate Knit Card</h1>
-                    <p class="top-bar-subtitle">Create production card for knitting operations</p>
-                </div>
+            <a href="knit_card.php" class="btn-back">Back</a>
+            <div class="top-bar-title-wrap">
+                <h1>Generate Knit Card <span>(<?php echo htmlspecialchars(!empty($prog['PROGRAM_NO']) ? $prog['PROGRAM_NO'] : $p_kptid); ?>)</span></h1>
             </div>
-            <div class="top-bar-right">
-                <span class="pill-badge">Knitting Program: <?php echo htmlspecialchars(!empty($prog['PROGRAM_NO']) ? $prog['PROGRAM_NO'] : ($p_sub_tid ?: $p_kptid)); ?></span>
-                <a href="knit_card.php" class="btn-back">
-                    <i class="fa-solid fa-arrow-left"></i> Back to Knit Card
-                </a>
+            <div class="header-operator">
+                <div class="header-operator-item">
+                    <span class="header-operator-label">Operator</span>
+                    <span class="header-operator-value"><?php echo htmlspecialchars(($operator_name ?: 'Unavailable') . ($operator_id !== '' ? ' (' . $operator_id . ')' : '')); ?></span>
+                </div>
             </div>
         </div>
 
         <!-- ═══ ERROR DISPLAY ═══ -->
-        <?php if (!empty($error)): ?>
+        <?php if (!empty($error) || !empty($operator_error)): ?>
             <div class="alert alert-danger alert-dismissible fade show rounded-3 mb-4 p-3 border-0 shadow-sm" style="background:#fef2f2; color:#991b1b;">
                 <div class="d-flex align-items-center gap-2">
-                    <i class="fa-solid fa-triangle-exclamation fs-5"></i>
-                    <strong>Error:</strong> <?php echo htmlspecialchars($error); ?>
+                    <strong>Error:</strong> <?php echo htmlspecialchars($error ?: $operator_error); ?>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         <?php endif; ?>
 
         <!-- ═══ FORM & WORKSPACE LAYOUT ═══ -->
-        <form method="POST" action="knit_card_generate.php?program_id=<?php echo $p_kptid; ?>">
+        <form method="POST" action="knit_card.php?generate_program_id=<?php echo $p_kptid; ?>">
             <input type="hidden" name="save_knit_card" value="1">
             <input type="hidden" name="program_id" value="<?php echo $p_kptid; ?>">
 
             <!-- 1. TARGET PRODUCTION SETTINGS (SUMMARY METRICS) -->
             <div class="workspace-card">
-                <div class="card-header-custom">
-                    <h4 class="card-header-title">
-                        <span>⚙️</span> Target Production Settings
-                    </h4>
-                    <span class="badge-pill-header badge-status-blue">Summary Metrics</span>
-                </div>
 
                 <!-- 4 Boxed Metrics Row -->
                 <div class="metrics-grid-container">
@@ -1073,17 +1245,8 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                         <span class="metric-val-green" id="metricRemainingQty"><?php echo number_format($remaining_qty, 2); ?></span>
                     </div>
                     <div class="metric-box">
-                        <?php
-                            $completion_pct = ($program_qty > 0) ? ($already_carded / $program_qty) * 100 : 0;
-                            $completion_pct = min(100, max(0, $completion_pct));
-                        ?>
-                        <div class="d-flex justify-content-between align-items-center">
-                            <span class="metric-lbl">Completion</span>
-                            <span class="metric-lbl" style="font-weight: 800; color: var(--color-blue);" id="progressPercentText"><?php echo number_format($completion_pct, 0); ?>%</span>
-                        </div>
-                        <div class="progress-bar-container mt-1">
-                            <div id="progressBarFill" class="progress-bar-fill"></div>
-                        </div>
+                        <span class="metric-lbl">Rolls Complete</span>
+                        <span class="metric-val-blue" id="rollsComplete"><?php echo number_format($rolls_complete); ?></span>
                     </div>
                 </div>
             </div>
@@ -1092,269 +1255,110 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
             <div class="workspace-card">
                 <div class="card-header-custom">
                     <h4 class="card-header-title">
-                        <span>📋</span> Program Details & Specifications
+                        Program Details & Specifications
                     </h4>
                     <span class="badge-pill-header badge-status-purple">Auto-Populated</span>
                 </div>
 
-                <!-- 18 Spec Boxes in Responsive 4-6 Item Per Line Grid -->
+                <!-- Program details are ordered for quick production-floor review. -->
                 <div class="spec-grid-container">
-                    
-                    <!-- Box 1: Buyer -->
                     <div class="spec-item-box">
-                        <div class="spec-box-head">
-                            <i class="fa-solid fa-user-tie spec-box-icon"></i>
-                            <span>Buyer Name</span>
-                        </div>
-                        <div class="spec-box-value <?php echo !empty($p_buyer) ? 'value-highlight-blue' : ''; ?>">
-                            <?php echo htmlspecialchars($p_buyer ?: 'N/A'); ?>
-                        </div>
-                    </div>
-
-                    <!-- Box 2: Customer -->
-                    <div class="spec-item-box">
-                        <div class="spec-box-head">
-                            <i class="fa-solid fa-briefcase spec-box-icon"></i>
-                            <span>Customer</span>
-                        </div>
+                        <div class="spec-box-head">PO Number</div>
                         <div class="spec-box-value">
-                            <?php echo htmlspecialchars($p_customer ?: 'N/A'); ?>
-                        </div>
-                    </div>
-
-                    <!-- Box 3: PO Number -->
-                    <div class="spec-item-box">
-                        <div class="spec-box-head">
-                            <i class="fa-solid fa-file-contract spec-box-icon"></i>
-                            <span>PO / Booking</span>
-                        </div>
-                        <div class="spec-box-value <?php echo empty($p_booking) ? 'value-muted-italic' : ''; ?>">
                             <?php echo htmlspecialchars($p_booking ?: 'N/A'); ?>
                         </div>
                     </div>
-
-                    <!-- Box 4: Sales Order -->
                     <div class="spec-item-box">
-                        <div class="spec-box-head">
-                            <i class="fa-solid fa-hashtag spec-box-icon"></i>
-                            <span>Sales Order (SONO)</span>
+                        <div class="spec-box-head">Color</div>
+                        <div class="spec-box-value">
+                            <?php echo htmlspecialchars($p_color ?: 'N/A'); ?>
                         </div>
+                    </div>
+                    <div class="spec-item-box">
+                        <div class="spec-box-head">QTY (KG)</div>
+                        <div class="spec-box-value">
+                            <?php echo number_format($program_qty, 2); ?>
+                        </div>
+                    </div>
+                    <div class="spec-item-box">
+                        <div class="spec-box-head">SONO</div>
                         <div class="spec-box-value">
                             <?php echo htmlspecialchars($p_sono ?: 'N/A'); ?>
                         </div>
                     </div>
-
-                    <!-- Box 5: Style No -->
                     <div class="spec-item-box">
-                        <div class="spec-box-head">
-                            <i class="fa-solid fa-shirt spec-box-icon"></i>
-                            <span>Style No</span>
+                        <div class="spec-box-head">Buyer</div>
+                        <div class="spec-box-value">
+                            <?php echo htmlspecialchars($p_buyer ?: 'N/A'); ?>
                         </div>
-                        <div class="spec-box-value <?php echo !empty($p_style) ? 'value-highlight-blue' : ''; ?>">
+                    </div>
+                    <div class="spec-item-box">
+                        <div class="spec-box-head">Style</div>
+                        <div class="spec-box-value">
                             <?php echo htmlspecialchars($p_style ?: 'N/A'); ?>
                         </div>
                     </div>
-
-                    <!-- Box 6: Fabric Type -->
                     <div class="spec-item-box">
-                        <div class="spec-box-head">
-                            <i class="fa-solid fa-layer-group spec-box-icon"></i>
-                            <span>Fabric Type</span>
+                        <div class="spec-box-head">MC Dia</div>
+                        <div class="spec-box-value">
+                            <?php echo htmlspecialchars($p_mcdia ?: 'N/A'); ?>
                         </div>
+                    </div>
+                    <div class="spec-item-box">
+                        <div class="spec-box-head">Customer</div>
+                        <div class="spec-box-value">
+                            <?php echo htmlspecialchars($p_customer ?: 'N/A'); ?>
+                        </div>
+                    </div>
+                    <div class="spec-item-box">
+                        <div class="spec-box-head">O / T</div>
+                        <div class="spec-box-value">
+                            <?php echo ($p_open_tube === 'T') ? 'Tube (T)' : 'Open (O)'; ?>
+                        </div>
+                    </div>
+                    <div class="spec-item-box">
+                        <div class="spec-box-head">SL / VQ</div>
+                        <div class="spec-box-value">
+                            <?php echo htmlspecialchars($p_sl_vdq !== '' ? $p_sl_vdq : 'N/A'); ?>
+                        </div>
+                    </div>
+                    <div class="spec-item-box">
+                        <div class="spec-box-head">Fabrics Type</div>
                         <div class="spec-box-value">
                             <?php echo htmlspecialchars($p_fabrics ?: 'N/A'); ?>
                         </div>
                     </div>
-
-                    <!-- Box 7: Finish Dia -->
                     <div class="spec-item-box">
-                        <div class="spec-box-head">
-                            <i class="fa-solid fa-circle-dot spec-box-icon"></i>
-                            <span>Finish Dia</span>
-                        </div>
-                        <div class="spec-box-value">
-                            <?php echo htmlspecialchars($p_finish_dia ?: 'N/A'); ?>
-                        </div>
-                    </div>
-
-                    <!-- Box 8: Finish GSM -->
-                    <div class="spec-item-box">
-                        <div class="spec-box-head">
-                            <i class="fa-solid fa-weight-hanging spec-box-icon"></i>
-                            <span>Finish GSM</span>
-                        </div>
+                        <div class="spec-box-head">Finish GSM</div>
                         <div class="spec-box-value">
                             <?php echo htmlspecialchars($p_finish_gsm ?: 'N/A'); ?>
                         </div>
                     </div>
-
-                    <!-- Box 9: Open / Tube -->
                     <div class="spec-item-box">
-                        <div class="spec-box-head">
-                            <i class="fa-solid fa-arrows-left-right spec-box-icon"></i>
-                            <span>Open / Tube</span>
-                        </div>
+                        <div class="spec-box-head">Finish Dia</div>
                         <div class="spec-box-value">
-                            <span class="badge-pill-green">
-                                <span class="dot-green"></span>
-                                <?php echo ($p_open_tube === 'T') ? 'Tube (T)' : 'Open (O)'; ?>
-                            </span>
+                            <?php echo htmlspecialchars($p_finish_dia ?: 'N/A'); ?>
                         </div>
                     </div>
-
-                    <!-- Box 10: Color -->
                     <div class="spec-item-box">
-                        <div class="spec-box-head">
-                            <i class="fa-solid fa-palette spec-box-icon"></i>
-                            <span>Color</span>
-                        </div>
+                        <div class="spec-box-head">Yarn Type</div>
                         <div class="spec-box-value">
-                            <span class="badge-pill-color">
-                                <span class="dot-color"></span>
-                                <?php echo htmlspecialchars($p_color ?: 'N/A'); ?>
-                            </span>
+                            <?php echo htmlspecialchars($p_yarn_type ?: 'N/A'); ?>
                         </div>
                     </div>
-
-                    <!-- Box 11: Finish -->
-                    <?php
-                        $finish_name = 'N/A';
-                        if (!empty($p_knit_m_desc)) {
-                            $parts = explode('|', $p_knit_m_desc);
-                            if (isset($parts[4]) && trim($parts[4]) !== '') {
-                                $finish_name = str_replace('+', ' + ', trim($parts[4]));
-                            }
-                        }
-                    ?>
                     <div class="spec-item-box">
-                        <div class="spec-box-head">
-                            <i class="fa-solid fa-wand-magic-sparkles spec-box-icon"></i>
-                            <span>Finish</span>
-                        </div>
+                        <div class="spec-box-head">Yarn Count</div>
                         <div class="spec-box-value">
-                            <span class="badge-pill-amber"><?php echo htmlspecialchars($finish_name); ?></span>
+                            <?php echo htmlspecialchars($p_yarn_count ?: 'N/A'); ?>
                         </div>
                     </div>
-
-                    <!-- Box 12: Yarn Type & Count -->
                     <div class="spec-item-box">
-                        <div class="spec-box-head">
-                            <i class="fa-solid fa-scroll spec-box-icon"></i>
-                            <span>Yarn Type & Count</span>
-                        </div>
-                        <div class="spec-box-value" style="font-size:12px;">
-                            <?php echo htmlspecialchars($p_yarn_type ?: 'N/A'); ?> (<?php echo htmlspecialchars($p_yarn_count ?: 'N/A'); ?>)
-                        </div>
-                    </div>
-
-                    <!-- Box 13: Yarn Brand -->
-                    <div class="spec-item-box">
-                        <div class="spec-box-head">
-                            <i class="fa-solid fa-copyright spec-box-icon"></i>
-                            <span>Yarn Brand</span>
-                        </div>
+                        <div class="spec-box-head">Yarn Brand</div>
                         <div class="spec-box-value">
                             <?php echo htmlspecialchars($p_yarn_brand ?: 'N/A'); ?>
                         </div>
                     </div>
 
-                    <!-- Box 14: Lot No -->
-                    <div class="spec-item-box">
-                        <div class="spec-box-head">
-                            <i class="fa-solid fa-boxes-stacked spec-box-icon"></i>
-                            <span>Lot No</span>
-                        </div>
-                        <div class="spec-box-value">
-                            <?php echo htmlspecialchars($p_lot_no ?: 'N/A'); ?>
-                        </div>
-                    </div>
-
-                    <!-- Box 15: Machine Dia -->
-                    <div class="spec-item-box">
-                        <div class="spec-box-head">
-                            <i class="fa-solid fa-gear spec-box-icon"></i>
-                            <span>M/C Dia</span>
-                        </div>
-                        <div class="spec-box-value">
-                            <?php echo htmlspecialchars($p_mcdia ?: 'N/A'); ?>
-                        </div>
-                    </div>
-
-                    <!-- Box 16: Stitch Length (SL) -->
-                    <div class="spec-item-box">
-                        <div class="spec-box-head">
-                            <i class="fa-solid fa-ruler-combined spec-box-icon"></i>
-                            <span>SL / VDQ</span>
-                        </div>
-                        <div class="spec-box-value">
-                            <?php echo htmlspecialchars($p_sl_vdq !== '' ? $p_sl_vdq : 'N/A'); ?>
-                        </div>
-                    </div>
-
-                    <!-- Box 17: Category -->
-                    <div class="spec-item-box">
-                        <div class="spec-box-head">
-                            <i class="fa-solid fa-tag spec-box-icon"></i>
-                            <span>Category</span>
-                        </div>
-                        <div class="spec-box-value">
-                            <?php echo htmlspecialchars($p_category ?: 'N/A'); ?>
-                        </div>
-                    </div>
-
-                    <!-- Box 18: Generation Date -->
-                    <?php
-                        $gen_date = !empty($prog['CREATED_DATE']) ? date('Y-m-d', strtotime($prog['CREATED_DATE'])) : date('Y-m-d');
-                    ?>
-                    <div class="spec-item-box">
-                        <div class="spec-box-head">
-                            <i class="fa-solid fa-calendar-days spec-box-icon"></i>
-                            <span>Gen Date</span>
-                        </div>
-                        <div class="spec-box-value">
-                            <?php echo htmlspecialchars($gen_date); ?>
-                        </div>
-                    </div>
-
-                </div>
-            </div>
-
-            <!-- 2.5 OPERATOR ASSIGNMENT -->
-            <div class="workspace-card mb-3">
-                <div class="card-header-custom">
-                    <h4 class="card-header-title">
-                        <span><i class="fa-solid fa-user-gear text-primary"></i></span> Operator Assignment
-                    </h4>
-                    <span class="badge-pill-header badge-status-blue">Knit Card Production</span>
-                </div>
-                <div style="padding: 18px 24px;">
-                    <div class="row g-3 align-items-center">
-                        <div class="col-md-6">
-                            <label class="form-label-custom required-label">Assigned Operator (from `knitting_operator` table)</label>
-                            <select name="operator_id" id="operatorSelect" class="form-select-custom" required>
-                                <option value="">-- Select Operator --</option>
-                                <?php foreach ($operators as $op): ?>
-                                    <option value="<?php echo htmlspecialchars($op['OPERATOR_ID']); ?>" <?php echo ($operator_id === $op['OPERATOR_ID']) ? 'selected' : ''; ?>>
-                                        <?php echo htmlspecialchars($op['OPERATOR_NAME'] . ' (' . $op['OPERATOR_ID'] . ')'); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label-custom">Scan / Quick Enter Operator ID</label>
-                            <div class="input-group">
-                                <span class="input-group-text bg-light text-muted border-end-0" style="border-radius:10px 0 0 10px; font-size:14px;"><i class="fa-solid fa-barcode"></i></span>
-                                <input type="text" id="quickOperatorScan" class="form-input-custom" style="border-radius:0 10px 10px 0;" placeholder="Scan QR or type Operator ID (e.g. OP01)" value="<?php echo htmlspecialchars($operator_id); ?>">
-                            </div>
-                        </div>
-                    </div>
-                    <div id="operatorFeedback" class="mt-2 text-muted small">
-                        <?php if (!empty($operator_id)): ?>
-                            <span class="text-success fw-bold"><i class="fa-solid fa-circle-check"></i> Assigned Operator: <?php echo htmlspecialchars($operator_name ?: $operator_id); ?> (<?php echo htmlspecialchars($operator_id); ?>)</span>
-                        <?php else: ?>
-                            <span><i class="fa-solid fa-circle-info"></i> Please select or scan an operator ID.</span>
-                        <?php endif; ?>
-                    </div>
                 </div>
             </div>
 
@@ -1362,7 +1366,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
             <div class="workspace-card mb-3">
                 <div class="card-header-custom">
                     <h4 class="card-header-title">
-                        <span>🏷️</span> Sub-TID Allocations & Machine Assignments
+                        Sub-TID Allocations & Machine Assignments
                     </h4>
                     <span class="badge-pill-header badge-status-blue">Editable</span>
                 </div>
@@ -1373,10 +1377,10 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                     <div class="allocation-card" data-row-idx="1">
                         <div class="allocation-header">
                             <span class="allocation-title">
-                                <i class="fa-solid fa-tag text-primary"></i> <span class="row-title-text">Sub-TID #1</span>
+                                <span class="row-title-text">Sub-TID #1</span>
                             </span>
                             <button type="button" class="btn-remove-row" style="display: none;" title="Remove this row">
-                                <i class="fa-solid fa-trash-can"></i> Remove
+                                Remove
                             </button>
                         </div>
                         <div class="allocation-grid">
@@ -1402,7 +1406,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                             <div>
                                 <label class="form-label-custom required-label">Card Quantity (KG)</label>
                                 <div class="quantity-input-wrapper">
-                                    <input type="number" step="0.01" min="0.01" max="<?php echo htmlspecialchars($remaining_qty); ?>" name="required_qty[]" class="form-input-custom row-qty" value="" required placeholder="Enter card quantity (e.g. 100)">
+                                    <input type="number" step="0.01" min="0.01" max="<?php echo htmlspecialchars($remaining_qty); ?>" name="required_qty[]" class="form-input-custom row-qty" value="" required placeholder="Enter QTY">
                                     <span class="input-group-addon-custom">KG</span>
                                 </div>
                             </div>
@@ -1412,32 +1416,19 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
 
                 <!-- Add Row Button -->
                 <button type="button" id="btnAddRow" class="btn-add-row">
-                    <i class="fa-solid fa-plus"></i> Add Another Sub-TID Row
+                    Add Another Sub-TID Row
                 </button>
-
-                <!-- Real-time Summary Box -->
-                <div class="allocation-summary-box">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <span style="color: var(--text-secondary); font-weight:600;">Card Qty to Generate:</span>
-                        <span class="fw-bold" id="liveTotalAllocated" style="font-size: 13px; color: var(--color-blue);">0.00 KG</span>
-                    </div>
-                    <div class="d-flex justify-content-between align-items-center">
-                        <span style="color: var(--text-secondary); font-weight:600;">Net Remaining in Program:</span>
-                        <span class="fw-bold" id="liveNetRemaining" style="font-size: 13px; color: var(--color-success);"><?php echo number_format($remaining_qty, 2); ?> KG</span>
-                    </div>
-                    <div id="liveValidationMessage" class="validation-msg mt-1 d-flex align-items-center gap-1">
-                        <i class="fa-solid fa-circle-info"></i> Enter the quantity you want to generate for this card (Max: <?php echo number_format($remaining_qty, 2); ?> KG)
-                    </div>
+                <div id="liveValidationMessage" class="validation-msg allocation-validation">
                 </div>
             </div>
 
             <!-- Bottom Action Bar -->
             <div class="bottom-actions">
                 <a href="knit_card.php" class="btn btn-cancel">
-                    <i class="fa-solid fa-xmark"></i> Cancel
+                    Cancel
                 </a>
-                <button type="submit" class="btn btn-submit" <?php echo ($remaining_qty <= 0) ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''; ?>>
-                    <i class="fa-solid fa-floppy-disk"></i> Save & Generate Knit Card
+                <button type="submit" class="btn btn-submit" disabled>
+                    Save & Generate Knit Card
                 </button>
             </div>
         </form>
@@ -1446,51 +1437,14 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
     <!-- ═══ METRICS & DYNAMIC MULTI-ROW SCRIPT ═══ -->
     <script>
         document.addEventListener("DOMContentLoaded", function() {
-            const programQty       = <?php echo floatval($program_qty); ?>;
-            const alreadyCarded    = <?php echo floatval($already_carded); ?>;
             const initialRemaining = <?php echo floatval($remaining_qty); ?>;
             const defaultShift     = "<?php echo htmlspecialchars($shift); ?>";
+            const operatorAvailable = <?php echo $operator_id !== '' ? 'true' : 'false'; ?>;
 
             const container             = document.getElementById("allocationRowsContainer");
             const btnAddRow             = document.getElementById("btnAddRow");
-            const liveTotalAllocated    = document.getElementById("liveTotalAllocated");
-            const liveNetRemaining      = document.getElementById("liveNetRemaining");
             const liveValidationMessage = document.getElementById("liveValidationMessage");
-            const progressBarFill       = document.getElementById("progressBarFill");
-            const progressPercentText   = document.getElementById("progressPercentText");
             const submitBtn             = document.querySelector(".btn-submit");
-
-            // Operator quick scan / select synchronization
-            const opSelect   = document.getElementById("operatorSelect");
-            const quickScan  = document.getElementById("quickOperatorScan");
-            const opFeedback = document.getElementById("operatorFeedback");
-
-            if (quickScan && opSelect) {
-                quickScan.addEventListener("input", function() {
-                    const val = this.value.trim().toLowerCase();
-                    let matched = false;
-                    for (let i = 0; i < opSelect.options.length; i++) {
-                        const opt = opSelect.options[i];
-                        if (opt.value && (opt.value.toLowerCase() === val || opt.text.toLowerCase().includes(val))) {
-                            opSelect.selectedIndex = i;
-                            matched = true;
-                            break;
-                        }
-                    }
-                    if (matched) {
-                        opFeedback.innerHTML = '<span class="text-success fw-bold"><i class="fa-solid fa-circle-check"></i> Operator Matched: ' + opSelect.options[opSelect.selectedIndex].text + '</span>';
-                    } else if (val.length > 0) {
-                        opFeedback.innerHTML = '<span class="text-warning fw-semibold"><i class="fa-solid fa-triangle-exclamation"></i> Searching operator: "' + this.value + '"...</span>';
-                    }
-                });
-
-                opSelect.addEventListener("change", function() {
-                    if (this.value) {
-                        quickScan.value = this.value;
-                        opFeedback.innerHTML = '<span class="text-success fw-bold"><i class="fa-solid fa-circle-check"></i> Assigned Operator: ' + this.options[this.selectedIndex].text + '</span>';
-                    }
-                });
-            }
 
             // Pre-built machine options HTML for newly added rows
             const mcOptionsHtml = `
@@ -1503,10 +1457,16 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
             function updateCalculations() {
                 const rows = container.querySelectorAll(".allocation-card");
                 let totalAllocated = 0;
+                let hasIncompleteRows = rows.length === 0;
 
                 rows.forEach(row => {
                     const qtyInput = row.querySelector(".row-qty");
-                    const val = parseFloat(qtyInput.value) || 0;
+                    const machineSelect = row.querySelector(".row-mcno");
+                    const parsedQty = parseFloat(qtyInput.value);
+                    const val = Number.isFinite(parsedQty) ? parsedQty : 0;
+                    if (!machineSelect.value || !qtyInput.value || !Number.isFinite(val) || val <= 0 || !qtyInput.checkValidity()) {
+                        hasIncompleteRows = true;
+                    }
                     totalAllocated += val;
                 });
 
@@ -1514,49 +1474,29 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 const isExceeded    = totalAllocated > (initialRemaining + 0.0001);
                 const isEmptyOrZero = totalAllocated <= 0;
 
-                // Update text summary
-                if (liveTotalAllocated) {
-                    liveTotalAllocated.textContent = totalAllocated.toFixed(2) + " KG";
-                }
-                if (liveNetRemaining) {
-                    liveNetRemaining.textContent = netRemaining.toFixed(2) + " KG";
-                    liveNetRemaining.style.color = isExceeded ? "#ef4444" : "#16a34a";
-                }
-
-                // Progress Bar calculation
-                const totalProgressQty = alreadyCarded + totalAllocated;
-                let progressPct = programQty > 0 ? (totalProgressQty / programQty) * 100 : 0;
-                progressPct = Math.min(100, Math.max(0, progressPct));
-
-                if (progressBarFill) {
-                    progressBarFill.style.width = progressPct.toFixed(2) + "%";
-                    if (isExceeded) {
-                        progressBarFill.style.background = "linear-gradient(90deg, #ef4444 0%, #dc2626 100%)";
-                    } else {
-                        progressBarFill.style.background = "linear-gradient(90deg, #3b82f6 0%, #06b6d4 100%)";
-                    }
-                }
-                if (progressPercentText) {
-                    progressPercentText.textContent = Math.round(progressPct) + "%";
-                }
-
                 // Validation messaging & Submit button enabling
-                if (initialRemaining <= 0) {
-                    liveValidationMessage.className = "validation-msg mt-1 d-flex align-items-center gap-1 text-danger";
-                    liveValidationMessage.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> Program quantity is already 100% carded.';
+                if (!operatorAvailable) {
+                    liveValidationMessage.className = "validation-msg allocation-validation text-danger";
+                    liveValidationMessage.textContent = "Return to Knit Card and scan a valid operator before generating a card.";
+                    if (submitBtn) submitBtn.disabled = true;
+                } else if (initialRemaining <= 0) {
+                    liveValidationMessage.className = "validation-msg allocation-validation text-danger";
+                    liveValidationMessage.textContent = "Program quantity is already 100% carded.";
                     if (submitBtn) submitBtn.disabled = true;
                 } else if (isExceeded) {
                     const exceedDiff = (totalAllocated - initialRemaining).toFixed(2);
-                    liveValidationMessage.className = "validation-msg mt-1 d-flex align-items-center gap-1 text-danger";
-                    liveValidationMessage.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> Exceeds available program capacity by ' + exceedDiff + ' KG';
+                    liveValidationMessage.className = "validation-msg allocation-validation text-danger";
+                    liveValidationMessage.textContent = "Exceeds available program capacity by " + exceedDiff + " KG";
+                    if (submitBtn) submitBtn.disabled = true;
+                } else if (hasIncompleteRows) {
+                    liveValidationMessage.className = "validation-msg allocation-validation text-primary";
                     if (submitBtn) submitBtn.disabled = true;
                 } else if (isEmptyOrZero) {
-                    liveValidationMessage.className = "validation-msg mt-1 d-flex align-items-center gap-1 text-primary";
-                    liveValidationMessage.innerHTML = '<i class="fa-solid fa-circle-info"></i> Enter any amount up to ' + initialRemaining.toFixed(2) + ' KG to generate this card.';
+                    liveValidationMessage.className = "validation-msg allocation-validation text-primary";
+                    liveValidationMessage.textContent = "Enter any amount up to " + initialRemaining.toFixed(2) + " KG to generate this card.";
                     if (submitBtn) submitBtn.disabled = true;
                 } else {
-                    liveValidationMessage.className = "validation-msg mt-1 d-flex align-items-center gap-1 text-success";
-                    liveValidationMessage.innerHTML = '<i class="fa-solid fa-circle-check"></i> ' + totalAllocated.toFixed(2) + ' KG will be generated in this card (' + netRemaining.toFixed(2) + ' KG will remain in program)';
+                    liveValidationMessage.className = "validation-msg allocation-validation text-success";
                     if (submitBtn) submitBtn.disabled = false;
                 }
 
@@ -1584,24 +1524,15 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
             // Add Row Click Event
             if (btnAddRow) {
                 btnAddRow.addEventListener("click", function() {
-                    const rows = container.querySelectorAll(".allocation-card");
-                    let currentTotal = 0;
-                    rows.forEach(r => {
-                        const q = parseFloat(r.querySelector(".row-qty").value) || 0;
-                        currentTotal += q;
-                    });
-                    const unallocated = Math.max(0, initialRemaining - currentTotal);
-                    const defaultNewQty = unallocated > 0 ? unallocated.toFixed(2) : "";
-
                     const newCard = document.createElement("div");
                     newCard.className = "allocation-card";
                     newCard.innerHTML = `
                         <div class="allocation-header">
                             <span class="allocation-title">
-                                <i class="fa-solid fa-tag text-primary"></i> <span class="row-title-text">Sub-TID</span>
+                                <span class="row-title-text">Sub-TID</span>
                             </span>
                             <button type="button" class="btn-remove-row" title="Remove this row">
-                                <i class="fa-solid fa-trash-can"></i> Remove
+                                Remove
                             </button>
                         </div>
                         <div class="allocation-grid">
@@ -1622,7 +1553,7 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                             <div>
                                 <label class="form-label-custom required-label">Card Quantity (KG)</label>
                                 <div class="quantity-input-wrapper">
-                                    <input type="number" step="0.01" min="0.01" max="${initialRemaining}" name="required_qty[]" class="form-input-custom row-qty" value="${defaultNewQty}" required placeholder="Enter quantity">
+                                    <input type="number" step="0.01" min="0.01" max="${initialRemaining}" name="required_qty[]" class="form-input-custom row-qty" value="" required placeholder="Enter quantity">
                                     <span class="input-group-addon-custom">KG</span>
                                 </div>
                             </div>
@@ -1652,11 +1583,8 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
             });
 
             // Input change delegation
-            container.addEventListener("input", function(e) {
-                if (e.target.classList.contains("row-qty")) {
-                    updateCalculations();
-                }
-            });
+            container.addEventListener("input", updateCalculations);
+            container.addEventListener("change", updateCalculations);
 
             // Initial calculation run
             setTimeout(function() {

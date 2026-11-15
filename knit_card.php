@@ -7,6 +7,9 @@ if (!isset($_SESSION['username'])) {
     exit();
 }
 
+$knit_card_generation_success = $_SESSION['knit_card_generation_success'] ?? '';
+unset($_SESSION['knit_card_generation_success']);
+
 // ── AJAX: VERIFY KNITTING PRODUCTION OPERATOR (QR / ID) ──
 if (isset($_GET['action']) && $_GET['action'] === 'verify_operator') {
     header('Content-Type: application/json');
@@ -124,9 +127,13 @@ if (empty($knit_card_operator) || empty($knit_card_operator['id'])) {
                              color: #ffffff; font-weight: 700; font-size: 13px; cursor: pointer; white-space: nowrap; }
             .manual button:active { transform: scale(0.98); }
             .gate-actions { display: flex; justify-content: center; gap: 8px; margin-top: 8px; }
-            .gate-actions button { background: #eef2f7; border: 1px solid #cbd5e1; color: #334155; border-radius: 20px;
-                                 padding: 5px 14px; font-size: 12px; font-weight: 600; cursor: pointer; }
-            .gate-actions button:hover { background: #e2e8f0; border-color: #2563eb; color: #1e3a8a; }
+            .gate-actions button { border-radius: 20px; padding: 5px 14px; font-size: 12px; font-weight: 600; cursor: pointer;
+                                   transition: background 0.2s ease, transform 0.1s ease; }
+            #camSwitchBtn { background: #2563eb; border: 1px solid #1d4ed8; color: #ffffff; }
+            #camSwitchBtn:hover { background: #1d4ed8; }
+            #pageRefreshBtn { background: #0f766e; border: 1px solid #115e59; color: #ffffff; }
+            #pageRefreshBtn:hover { background: #115e59; }
+            .gate-actions button:active { transform: scale(0.97); }
             #opStatusMsg { margin-top: 12px; font-size: 12.5px; text-align: center; }
             .gate-back {
                 display: inline-flex;
@@ -317,12 +324,41 @@ if (empty($knit_card_operator) || empty($knit_card_operator['id'])) {
             });
             window.addEventListener('pagehide', function () { if (html5QrCode) { try { html5QrCode.stop(); } catch (e) {} } });
 
-            startScanner();
+            var generationSuccessMessage = <?php echo json_encode($knit_card_generation_success, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT); ?>;
+            if (generationSuccessMessage) {
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Success',
+                        text: generationSuccessMessage,
+                        timer: 3000,
+                        timerProgressBar: true,
+                        showConfirmButton: false
+                    }).then(function () {
+                        window.location.replace('knit_card.php');
+                    });
+                } else {
+                    setMsg(generationSuccessMessage, true);
+                    setTimeout(function () {
+                        window.location.replace('knit_card.php');
+                    }, 3000);
+                }
+            } else {
+                startScanner();
+            }
         })();
         </script>
     </body>
     </html>
     <?php
+    exit();
+}
+
+if (isset($_GET['generate_program_id']) || isset($_POST['generate_program_id'])) {
+    $generate_program_id = intval($_GET['generate_program_id'] ?? $_POST['generate_program_id']);
+    $_GET['program_id'] = $generate_program_id;
+    $is_embedded_knit_card_generation = true;
+    include __DIR__ . '/knit_card_generate.php';
     exit();
 }
 
@@ -742,7 +778,7 @@ $rows_array = $all_rows;
                     <i class="fa-solid fa-arrow-left"></i> Back
                 </a>
                 <h1 style="font-weight: bold">Knitting Knit Card</h1>
-                <button type="button" class="btn header-action btn-back" onclick="window.location.reload()">
+                <button type="button" class="btn header-action btn-back" id="dashboardRefreshBtn">
                     <i class="fa-solid fa-rotate-right"></i> Refresh
                 </button>
             </div>
@@ -858,7 +894,7 @@ $rows_array = $all_rows;
                                     <td class="text-center text-nowrap">
                                         <div class="row-actions">
                                             <?php if ($prog_rem > 0.001): ?>
-                                                <a href="knit_card_generate.php?program_id=<?php echo $p_id; ?>"
+                                                <a href="knit_card.php?generate_program_id=<?php echo $p_id; ?>"
                                                    class="btn btn-sm btn-teal"
                                                    style="border-radius:10px; font-size:12.5px;"
                                                    title="Generate Knit Card (Remaining: <?php echo number_format($prog_rem, 2); ?> KG)">
@@ -934,6 +970,25 @@ $rows_array = $all_rows;
 
     <script src="jquery.min.js"></script>
     <script src="js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.getElementById('dashboardRefreshBtn').addEventListener('click', function () {
+            var button = this;
+            button.disabled = true;
+            fetch('knit_card.php?action=logout_operator', { credentials: 'same-origin' })
+                .then(function (response) {
+                    if (!response.ok) throw new Error('Unable to return to operator scan.');
+                    return response.json();
+                })
+                .then(function (result) {
+                    if (!result.success) throw new Error('Unable to return to operator scan.');
+                    window.location.href = 'knit_card.php';
+                })
+                .catch(function (error) {
+                    button.disabled = false;
+                    window.alert(error.message);
+                });
+        });
+    </script>
 </body>
 
 </html>
