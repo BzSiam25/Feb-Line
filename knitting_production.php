@@ -42,7 +42,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_roll') {
 
     echo json_encode(['success' => true, 'data' => $data]);
   } else {
-    echo json_encode(['success' => false, 'error' => 'No data found for KNITCARD: ' . $KNITCARD]);
+    echo json_encode(['success' => false, 'error' => 'Not Found Knit Card']);
   }
   exit();
 }
@@ -66,7 +66,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
   if ($res && mysqli_num_rows($res) > 0) {
     echo json_encode(['success' => true, 'data' => mysqli_fetch_assoc($res)]);
   } else {
-    echo json_encode(['success' => false, 'error' => 'Invalid Operator ID: ' . $op]);
+    echo json_encode(['success' => false, 'error' => 'Not Found Operator']);
   }
   exit();
 }
@@ -249,29 +249,37 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
       font-size: 0.9rem;
     }
 
-    .btn-icon {
-      background: #eef2f7;
-      border: 1px solid #cbd5e1;
-      color: #334155;
-      width: 44px;
-      height: 44px;
-      border-radius: 40px;
-      font-size: 1.2rem;
-      cursor: pointer;
-      transition: 0.2s;
-      display: flex;
+    .camera-action-btn {
+      display: inline-flex;
       align-items: center;
       justify-content: center;
+      gap: 6px;
+      background: #0f7a6f;
+      color: #ffffff;
+      border: 1px solid #0b5c53;
+      border-radius: 8px;
+      padding: 7px 12px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s ease, transform 0.1s ease;
+      white-space: nowrap;
     }
 
-    .btn-icon:hover {
-      background: #e2e8f0;
-      border-color: #2563eb;
-      color: #1e3a8a;
+    .camera-action-btn:hover {
+      background: #0b5c53;
     }
 
-    .btn-icon:active {
-      transform: scale(0.92);
+    .camera-action-btn:active {
+      transform: scale(0.97);
+    }
+
+    .camera-control-buttons {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      flex-wrap: wrap;
     }
 
     .result-panel {
@@ -849,6 +857,17 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
       font-weight: 600;
       letter-spacing: 0.3px;
     }
+
+    @media (max-width: 480px) {
+      .production-header {
+        flex-wrap: wrap;
+      }
+
+      .production-header .badge-production {
+        margin-left: auto;
+      }
+
+    }
   </style>
 </head>
 
@@ -857,6 +876,9 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
     <div class="production-header">
       <h2><i class="fa-solid fa-industry"></i>Knitting Production</h2>
       <span class="badge-production">PRODUCTION</span>
+      <button type="button" class="camera-action-btn" id="cameraRefreshBtn" title="Reload the full page">
+        <i class="fa-solid fa-rotate-right"></i> Refresh
+      </button>
     </div>
 
     <div class="scanner-container" id="scannerContainer">
@@ -869,9 +891,11 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
         <i class="fas fa-video"></i>
         <span id="camera-status">Ready</span>
       </div>
-      <button class="btn-icon" id="toggle-camera-btn" title="Restart / switch camera">
-        <i class="fas fa-sync-alt"></i>
-      </button>
+      <div class="camera-control-buttons">
+        <button type="button" class="camera-action-btn" id="toggle-camera-btn" title="Switch Front/Back camera">
+          <i class="fas fa-sync-alt"></i> Switch Camera
+        </button>
+      </div>
     </div>
 
     <div class="result-panel">
@@ -1061,6 +1085,11 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
       let verifying = false;
       let processingRoll = false;
       let operatorInfo = null;
+      let currentFacingMode = 'environment';
+      let errorAlertOpen = false;
+      let lastRejectedOperatorId = '';
+      let lastRejectedRollCode = '';
+      let rejectedScanResetTimer = null;
 
       const DEFAULT_DATA = [{
         label: 'Step 1',
@@ -1107,6 +1136,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
         }
         const statusEl = document.getElementById('operatorInputStatus');
         if (statusEl) statusEl.innerHTML = '';
+        lastRejectedOperatorId = '';
         verifying = true;
         verifyOperatorScan(val);
       }
@@ -1420,30 +1450,29 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
             if (res && res.success && res.data) {
               operatorScanned = true;
               operatorInfo = res.data;
+              lastRejectedOperatorId = '';
               renderOperatorVerified();
-            } else {
-              const errMsg = 'Not Found — ' + ((res && res.error) || ('Invalid Operator ID: ' + val));
               if (typeof Swal !== 'undefined') {
                 Swal.fire({
-                  icon: 'error',
-                  title: errMsg,
-                  confirmButtonText: 'OK',
-                  timer: 3000,
+                  toast: true,
+                  position: 'top-end',
+                  icon: 'success',
+                  title: 'Operator Added',
+                  showConfirmButton: false,
+                  timer: 2000,
                   timerProgressBar: true
-                }).then(() => {
-                  const input = document.getElementById('manualOperatorInput');
-                  if (input) input.focus();
                 });
-              } else {
-                alert(errMsg);
-                const input = document.getElementById('manualOperatorInput');
-                if (input) input.focus();
               }
+            } else {
+              lastRejectedOperatorId = val;
+              showProductionError((res && res.error) || 'Not Found Operator', 'manualOperatorInput');
             }
           })
           .catch(err => {
             verifying = false;
-            alert('Operator verification failed: ' + (err && err.message ? err.message : err));
+            lastRejectedOperatorId = val;
+            console.error('Operator verification failed:', err);
+            showProductionError('Operator Verification Failed', 'manualOperatorInput');
           });
       }
 
@@ -1498,8 +1527,9 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
         if (statusDiv) {
           statusDiv.innerHTML = '<div style="color:#2563eb; font-weight:700; font-size:0.85rem; margin-top:8px;"><i class="fas fa-spinner fa-spin"></i> Loading Knit Card data...</div>';
         }
+        lastRejectedRollCode = '';
         processingRoll = true;
-        stopCameraAndProcess(val);
+        processScannedKnitCard(val);
       }
 
       function notFoundNoticeHtml(msg) {
@@ -1567,52 +1597,77 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
         fetch('knitting_production.php?action=get_roll&knitcard=' + encodeURIComponent(text))
           .then(r => r.json())
           .then(res => {
-            processingRoll = false;
             if (res && res.success && res.data) {
-              renderRollData(res.data, text);
+              hideScannerForRollDetails().then(() => {
+                processingRoll = false;
+                renderRollData(res.data, text);
+              });
               return;
             }
 
-            // Keep support for older pipe-delimited Knit Card QR payloads.
-            if (text.includes('|')) {
-              scannedInfo = parseQrText(text);
-              if (scannedInfo && scannedInfo.parsed) {
-                renderScannedDataFromParsedQr(text);
-                return;
-              }
-            }
-
-            const errMsg = 'Not Found — ' + ((res && res.error) || ('No Knit Card for: ' + text));
+            processingRoll = false;
+            const errMsg = (res && res.error) || 'Not Found Knit Card';
+            lastRejectedRollCode = text;
             showKnitCardError(errMsg);
-            restartScanner();
           })
           .catch(err => {
             processingRoll = false;
+            lastRejectedRollCode = text;
             console.error('Knit Card lookup failed:', err);
-            showKnitCardError('Not Found — Failed to fetch Knit Card data: ' + err.message);
-            restartScanner();
+            showKnitCardError('Unable to Load Knit Card');
           });
         return;
       }
 
+      function hideScannerForRollDetails() {
+        const hideScanner = function() {
+          isScanning = false;
+          scannerContainer.style.display = 'none';
+          cameraControls.style.display = 'none';
+        };
+
+        if (!html5QrCode || !isScanning) {
+          hideScanner();
+          return Promise.resolve();
+        }
+
+        return html5QrCode.stop().then(hideScanner).catch(err => {
+          console.warn('Failed to stop scanner after Knit Card match:', err);
+          hideScanner();
+        });
+      }
+
       function showKnitCardError(message) {
+        showProductionError(message, 'manualRollInput');
+      }
+
+      function showProductionError(message, focusTargetId) {
+        if (errorAlertOpen) return Promise.resolve();
+        errorAlertOpen = true;
+
+        const focusInput = function() {
+          const input = document.getElementById(focusTargetId);
+          if (input) input.focus();
+        };
+
+        const closeAlert = function() {
+          errorAlertOpen = false;
+          focusInput();
+        };
+
         if (typeof Swal !== 'undefined') {
-          Swal.fire({
+          return Swal.fire({
             icon: 'error',
             title: message,
-            confirmButtonText: 'OK',
+            showConfirmButton: false,
             timer: 3000,
             timerProgressBar: true
-          }).then(() => {
-            const input = document.getElementById('manualRollInput');
-            if (input) input.focus();
-          });
-          return;
+          }).then(closeAlert);
         }
 
         alert(message);
-        const input = document.getElementById('manualRollInput');
-        if (input) input.focus();
+        closeAlert();
+        return Promise.resolve();
       }
 
       function renderScannedDataFromParsedQr(qrText) {
@@ -1624,8 +1679,8 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
         hideActionContent();
 
         if (!scannedInfo.parsed) {
-          showKnitCardError('Not Found — Invalid Knit Card data: ' + text);
-          restartScanner();
+          lastRejectedRollCode = text;
+          showKnitCardError('Not Found Knit Card');
           return;
         }
 
@@ -2065,7 +2120,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
         };
 
         const cameraConstraints = {
-          facingMode: "environment"
+          facingMode: currentFacingMode
         };
 
         html5QrCode.start(
@@ -2075,7 +2130,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
           onScanError
         ).then(() => {
           isScanning = true;
-          cameraStatus.innerText = 'Scanning';
+          cameraStatus.innerText = 'Scanning (' + (currentFacingMode === 'environment' ? 'Rear' : 'Front') + ')';
           cameraStatus.style.color = '#8bcbff';
           scannerContainer.style.display = 'block';
           cameraControls.style.display = 'flex';
@@ -2101,41 +2156,27 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
                (val.startsWith('{') && val.endsWith('}'));
       }
 
-      function stopCameraAndProcess(text) {
-        const proceed = () => {
-          if (scannerContainer) scannerContainer.style.display = 'none';
-          if (cameraControls) cameraControls.style.display = 'none';
-          renderScannedData(text);
-        };
-
-
-        if (html5QrCode && isScanning) {
-          try {
-            html5QrCode.stop().then(() => {
-              isScanning = false;
-              if (cameraStatus) {
-                cameraStatus.innerText = 'Scan complete';
-                cameraStatus.style.color = '#7dd3fc';
-              }
-              proceed();
-            }).catch(err => {
-              console.warn('Failed to stop scanner:', err);
-              isScanning = false;
-              proceed();
-            });
-          } catch (e) {
-            console.warn('Sync exception stopping scanner:', e);
-            isScanning = false;
-            proceed();
-          }
-        } else {
-          proceed();
-        }
+      function processScannedKnitCard(text) {
+        renderScannedData(text);
       }
 
       function onScanSuccess(decodedText, decodedResult) {
         const val = String(decodedText).trim();
-        if (!val || verifying || processingRoll) return;
+        if (!val || verifying || processingRoll || errorAlertOpen) return;
+
+        if (val === lastRejectedOperatorId || val === lastRejectedRollCode) {
+          scheduleRejectedScanReset(true);
+          return;
+        }
+
+        if (lastRejectedOperatorId || lastRejectedRollCode) {
+          lastRejectedOperatorId = '';
+          lastRejectedRollCode = '';
+          if (rejectedScanResetTimer !== null) {
+            clearTimeout(rejectedScanResetTimer);
+            rejectedScanResetTimer = null;
+          }
+        }
 
         console.log('QR Scanned:', val);
         scanCount++;
@@ -2147,7 +2188,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
             return;
           }
           processingRoll = true;
-          stopCameraAndProcess(val);
+          processScannedKnitCard(val);
           return;
         }
 
@@ -2156,7 +2197,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
             return;
           }
           processingRoll = true;
-          stopCameraAndProcess(val);
+          processScannedKnitCard(val);
           return;
         }
 
@@ -2164,7 +2205,23 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
         verifyOperatorScan(val);
       }
 
+      function scheduleRejectedScanReset(resetTimer) {
+        if (errorAlertOpen || (!lastRejectedOperatorId && !lastRejectedRollCode)) return;
+
+        if (rejectedScanResetTimer !== null) {
+          if (!resetTimer) return;
+          clearTimeout(rejectedScanResetTimer);
+        }
+        rejectedScanResetTimer = setTimeout(function() {
+          lastRejectedOperatorId = '';
+          lastRejectedRollCode = '';
+          rejectedScanResetTimer = null;
+        }, 1000);
+      }
+
       function onScanError(err) {
+        scheduleRejectedScanReset(false);
+
         // ignore noisy scan failures - only log if not empty
         if (err && err.length > 0 && !err.includes('NotFound')) {
           // console.debug('Scan error:', err);
@@ -2188,8 +2245,16 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
         }, 500);
       });
 
+      const cameraRefreshBtn = document.getElementById('cameraRefreshBtn');
+      if (cameraRefreshBtn) {
+        cameraRefreshBtn.addEventListener('click', function() {
+          window.location.reload();
+        });
+      }
+
       document.getElementById('toggle-camera-btn').addEventListener('click', function(e) {
         e.preventDefault();
+        currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
         restartScanner();
       });
 
