@@ -718,7 +718,6 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
     .card {
       max-width: 520px;
       width: 100%;
-      min-height: 90vh;
       background: #ffffff;
       border-radius: 18px;
       padding: 14px 16px 18px;
