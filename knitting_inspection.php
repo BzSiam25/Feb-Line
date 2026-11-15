@@ -115,7 +115,7 @@ if (isset($_GET['action']) && ($_GET['action'] === 'verify_operator' || $_GET['a
             $op_stmt->close();
             echo json_encode([
                 'success' => false,
-                'error'   => 'Access Denied: "' . htmlspecialchars($op_row['OPERATOR_NAME']) . ' (' . htmlspecialchars($op_row['OPERATOR_ID']) . ')" is a Knitting Operator, not a QC Operator. Only authorized QC Operators from "Knitting All QC" can perform fabric inspections.'
+                'error'   => 'Not Found QC Operator'
             ]);
             exit();
         }
@@ -125,7 +125,7 @@ if (isset($_GET['action']) && ($_GET['action'] === 'verify_operator' || $_GET['a
     // ── 3) Neither QC nor Operator: Invalid ID ──
     echo json_encode([
         'success' => false,
-        'error'   => 'Invalid QC Operator ID: "' . htmlspecialchars($qc_input) . '". Only valid QC Operators from Knitting All QC are authorized.'
+        'error'   => 'Not Found QC Operator'
     ]);
     exit();
 }
@@ -192,7 +192,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'search_card') {
             if ($dup_res && $dup_row = $dup_res->fetch_assoc()) {
                 echo json_encode([
                     'success' => false,
-                    'error'   => 'Roll "' . htmlspecialchars($roll_val) . '" is already inspected' . (trim($dup_row['ROLL']) !== $roll_val ? ' (as ' . htmlspecialchars($dup_row['ROLL']) . ')' : '') . '! One roll cannot be inspected twice. (Inspected on: ' . htmlspecialchars($dup_row['BUDAT']) . ' by ' . htmlspecialchars($dup_row['UNAME']) . ')',
+                    'error'   => 'This Roll Already Inspected',
                     'duplicate' => true
                 ]);
                 $dup_stmt->close();
@@ -233,7 +233,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'search_card') {
             ]
         ]);
     } else {
-        echo json_encode(['success' => false, 'error' => 'No production data found for Roll "' . htmlspecialchars($query) . '"']);
+        echo json_encode(['success' => false, 'error' => 'Not Found This Roll']);
     }
     $stmt->close();
     exit();
@@ -346,8 +346,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && isset($_POST['save_inspe
                 $dup2_stmt->execute();
                 $dup2_res = $dup2_stmt->get_result();
                 if ($dup2_res && $dup2_res->num_rows > 0) {
-                    $dup_rec = $dup2_res->fetch_assoc();
-                    $error = "Roll #$roll_no is already inspected" . (trim($dup_rec['ROLL']) !== $roll_no ? " (as " . $dup_rec['ROLL'] . ")" : "") . "! One roll cannot be inspected twice.";
+                    $error = 'This Roll Already Inspected';
                 }
                 $dup2_stmt->close();
             }
@@ -610,7 +609,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && isset($_POST['save_inspe
                 }
             } catch (Exception $e) {
                 if (strpos($e->getMessage(), 'Duplicate entry') !== false || strpos($e->getMessage(), 'uniq_roll') !== false) {
-                    $error = "Roll #$roll_no is already inspected! One roll cannot be inspected twice.";
+                    $error = 'This Roll Already Inspected';
                 } else {
                     $error = "Database Error: " . $e->getMessage();
                 }
@@ -2047,16 +2046,50 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
               };
               updateOperatorHeaderUI();
               renderStep2RollScan();
+              if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                  toast: true,
+                  position: 'top-end',
+                  icon: 'success',
+                  title: 'QC Operator Added',
+                  showConfirmButton: false,
+                  timer: 2000,
+                  timerProgressBar: true
+                });
+              }
             } else {
               verifying = false;
-              if (msgDiv) msgDiv.innerHTML = `<div style="color:#ef4444; font-weight:700; font-size:0.85rem;"><i class="fas fa-times-circle"></i> ${res.error || 'Invalid QC Operator ID'}</div>`;
+              if (msgDiv) msgDiv.innerHTML = '';
+              showInspectionError(res.error || 'Not Found QC Operator', 'opInput');
             }
           })
           .catch(err => {
             verifying = false;
-            if (msgDiv) msgDiv.innerHTML = `<div style="color:#ef4444; font-weight:700; font-size:0.85rem;"><i class="fas fa-exclamation-triangle"></i> Verification Error: ${err.message}</div>`;
+            if (msgDiv) msgDiv.innerHTML = '';
+            showInspectionError('Verification Error: ' + err.message, 'opInput');
             console.error('QC Operator verification failed:', err);
           });
+      }
+
+      function showInspectionError(message, focusTargetId) {
+        const focusInput = function() {
+          const input = document.getElementById(focusTargetId);
+          if (input) input.focus();
+        };
+
+        if (typeof Swal !== 'undefined') {
+          Swal.fire({
+            icon: 'error',
+            title: message,
+            confirmButtonText: 'OK',
+            timer: 3000,
+            timerProgressBar: true
+          }).then(focusInput);
+          return;
+        }
+
+        alert(message);
+        focusInput();
       }
 
       // STEP 2: ROLL SCAN & INSPECTION FORM
@@ -2102,12 +2135,15 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
               rollData = res.data;
               renderInspectionForm(res.data);
             } else {
-              if (msgDiv) msgDiv.innerHTML = `<div style="color:#ef4444; font-weight:700; font-size:0.85rem;"><i class="fas fa-times-circle"></i> ${res.error || 'Roll not found'}</div>`;
+              if (msgDiv) msgDiv.innerHTML = '';
+              showInspectionError(res.error || (res.duplicate ? 'This Roll Already Inspected' : 'Not Found This Roll'), 'rollInput');
             }
           })
           .catch(err => {
             fetchingRoll = false;
-            if (msgDiv) msgDiv.innerHTML = `<div style="color:#ef4444; font-weight:700; font-size:0.85rem;"><i class="fas fa-exclamation-triangle"></i> Network error loading roll</div>`;
+            if (msgDiv) msgDiv.innerHTML = '';
+            showInspectionError('Network error loading roll: ' + err.message, 'rollInput');
+            console.error('Roll lookup failed:', err);
           });
       }
 
@@ -2213,29 +2249,6 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
                 value="${parseFloat(d.suggested_weight).toFixed(2)}"
                 readonly tabindex="-1"
                 style="font-weight:800; font-size:0.95rem; text-align:center; background:#f0fdf4; border-color:#86efac; color:#166534; cursor:not-allowed;">
-            </div>
-          </div>
-
-          <!-- SPLIT ROLL OPTION (Visible when rejection quantity > 0) -->
-          <div id="splitOptionContainer" style="display:none; margin-top:12px; background:#fff7ed; border:1.5px solid #fb923c; border-radius:10px; padding:12px; box-shadow:0 2px 6px rgba(249,115,22,0.08);">
-            <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
-              <div style="display:flex; align-items:center; gap:10px;">
-                <div style="width:36px; height:36px; border-radius:8px; background:#ea580c; color:#fff; display:flex; align-items:center; justify-content:center; font-size:1.1rem; flex-shrink:0;">
-                  <i class="fa-solid fa-scissors"></i>
-                </div>
-                <div>
-                  <div style="font-weight:800; font-size:0.92rem; color:#9a3412;">
-                    Split Roll Option (Pass &amp; Reject)
-                  </div>
-                  <div style="font-size:0.78rem; color:#c2410c; margin-top:2px;">
-                    Split into: <b id="splitPassRollLabel" style="color:#166534; font-weight:800;">${d.suggested_roll}-P</b> (<span id="splitPassQtyLabel" style="font-weight:800;">0.00</span> KG) &amp; <b id="splitRejRollLabel" style="color:#b91c1c; font-weight:800;">${d.suggested_roll}-R</b> (<span id="splitRejQtyLabel" style="font-weight:800;">0.00</span> KG)
-                  </div>
-                </div>
-              </div>
-              <label style="display:inline-flex; align-items:center; cursor:pointer; gap:8px; user-select:none; font-weight:800; font-size:0.88rem; color:#9a3412; background:#ffedd5; padding:6px 14px; border-radius:20px; border:1.5px solid #fdba74;">
-                <input type="checkbox" id="splitRollCheckbox" style="width:18px; height:18px; cursor:pointer; accent-color:#ea580c;" onchange="window.onSplitToggleChange()">
-                <span>Split this Roll</span>
-              </label>
             </div>
           </div>
 
@@ -2351,42 +2364,24 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
       window.updateActionButtons = function() {
         const rejInput  = document.getElementById('rejectQtyInput');
         const updateEl  = document.getElementById('updateQtyInput');
-        const splitChk  = document.getElementById('splitRollCheckbox');
 
         const rejectQty = parseFloat(rejInput?.value) || 0;
         const updateQty = parseFloat(updateEl?.value) || 0;
-        const isSplitChecked = !!(splitChk && splitChk.checked);
 
         if (rejectQty > 0 && updateQty > 0) {
-          if (isSplitChecked) {
-            actionContainer.innerHTML = `
-              <div class="action-card">
-                <button class="btn-action" style="background:linear-gradient(135deg, #ea580c, #c2410c); color:#ffffff; font-weight:800;" onclick="window.saveInspectionRecord(true)">
-                  <i class="fa-solid fa-scissors me-1"></i> Split Roll (-P / -R)
-                </button>
-                <button class="btn-action production" onclick="window.saveInspectionRecord(false)">
-                  <i class="fa-solid fa-floppy-disk me-1"></i> Save (Single Roll)
-                </button>
-                <button class="btn-action cancel" onclick="window.location.reload()">
-                  <i class="fa-solid fa-rotate-left me-1"></i> Reset
-                </button>
-              </div>
-            `;
-          } else {
-            actionContainer.innerHTML = `
-              <div class="action-card">
-                <button class="btn-action production" id="saveBtn" onclick="window.saveInspectionRecord(false)">
-                  <i class="fa-solid fa-floppy-disk me-1"></i> Save (Single Roll)
-                </button>
-                <button class="btn-action" style="background:linear-gradient(135deg, #ea580c, #c2410c); color:#ffffff; font-weight:800;" onclick="window.saveInspectionRecord(true)">
-                  <i class="fa-solid fa-scissors me-1"></i> Split Roll (-P / -R)
-                </button>
-                <button class="btn-action cancel" onclick="window.location.reload()">
-                  <i class="fa-solid fa-rotate-left me-1"></i> Reset
-                </button>
-              </div>
-            `;
-          }
+          actionContainer.innerHTML = `
+            <div class="action-card">
+              <button class="btn-action production" id="saveBtn" onclick="window.saveInspectionRecord(false)">
+                <i class="fa-solid fa-floppy-disk me-1"></i> Save (Single Roll)
+              </button>
+              <button class="btn-action" style="background:linear-gradient(135deg, #ea580c, #c2410c); color:#ffffff; font-weight:800;" onclick="window.saveInspectionRecord(true)">
+                <i class="fa-solid fa-scissors me-1"></i> Split Roll (-P / -R)
+              </button>
+              <button class="btn-action cancel" onclick="window.location.reload()">
+                <i class="fa-solid fa-rotate-left me-1"></i> Reset
+              </button>
+            </div>
+          `;
         } else {
           actionContainer.innerHTML = `
             <div class="action-card">
@@ -2399,10 +2394,6 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
             </div>
           `;
         }
-      };
-
-      window.onSplitToggleChange = function() {
-        window.updateActionButtons();
       };
 
       // ── Real-time UPDATE QTY calculator ──
@@ -2422,26 +2413,6 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
         const updateQty = Math.max(0, mainQty - rejectQty);
         if (updateEl) updateEl.value = updateQty.toFixed(2);
 
-        // Update split preview container
-        const splitBox = document.getElementById('splitOptionContainer');
-        const passLbl  = document.getElementById('splitPassRollLabel');
-        const passQtyL = document.getElementById('splitPassQtyLabel');
-        const rejLbl   = document.getElementById('splitRejRollLabel');
-        const rejQtyL  = document.getElementById('splitRejQtyLabel');
-        const splitChk = document.getElementById('splitRollCheckbox');
-
-        if (rollData && rejectQty > 0 && updateQty > 0) {
-          const cleanBase = String(rollData.suggested_roll || '').replace(/-(R|P)$/i, '');
-          if (splitBox) splitBox.style.display = 'block';
-          if (passLbl)  passLbl.textContent  = cleanBase + '-P';
-          if (passQtyL) passQtyL.textContent = updateQty.toFixed(2);
-          if (rejLbl)   rejLbl.textContent   = cleanBase + '-R';
-          if (rejQtyL)  rejQtyL.textContent  = rejectQty.toFixed(2);
-        } else {
-          if (splitBox) splitBox.style.display = 'none';
-          if (splitChk) splitChk.checked = false;
-        }
-
         window.updateActionButtons();
       };
 
@@ -2450,7 +2421,6 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
         const mainQty   = parseFloat(document.getElementById('mainQtyInput')?.value)   || 0;
         const rejectQty = parseFloat(document.getElementById('rejectQtyInput')?.value) || 0;
         const updateQty = Math.max(0, mainQty - rejectQty);
-        const splitChk  = document.getElementById('splitRollCheckbox');
 
         if (mainQty <= 0) {
           alert('Please enter a valid Main Quantity (must be > 0).');
@@ -2466,8 +2436,6 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
         let shouldSplit = false;
         if (typeof doSplit === 'boolean') {
           shouldSplit = doSplit;
-        } else if (splitChk && splitChk.checked) {
-          shouldSplit = true;
         }
 
         if (shouldSplit) {
