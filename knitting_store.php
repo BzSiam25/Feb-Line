@@ -18,47 +18,42 @@
     body {
       font-family: 'Segoe UI', Roboto, system-ui, -apple-system, sans-serif;
       background: linear-gradient(135deg, #b9efe6, #a4d9f6, #c9f2dd);
-      height: 100vh;
+      min-height: 100vh;
       display: flex;
       justify-content: center;
       align-items: flex-start;
       padding: 16px;
-      overflow: hidden;
     }
 
     .data-row.default-row.status-row {
-    display: flex !important;
-    justify-content: space-between;
-    align-items: center;
-    grid-template-columns: none !important;
-    gap: 10px;
-}
+      display: flex !important;
+      justify-content: space-between;
+      align-items: center;
+      grid-template-columns: none !important;
+      gap: 10px;
+    }
 
-.data-row.default-row.status-row .label {
-    min-width: auto;
-    white-space: nowrap;
-}
+    .data-row.default-row.status-row .label {
+      min-width: auto;
+      white-space: nowrap;
+    }
 
-.data-row.default-row.status-row .value {
-    flex: 1;
-    text-align: right;
-    margin-left: 10px;
-}
+    .data-row.default-row.status-row .value {
+      flex: 1;
+      text-align: right;
+      margin-left: 10px;
+    }
+
     .card {
-      max-width: 1100px;
+      max-width: 1200px;
       width: 100%;
-      height: calc(100vh - 32px);
-      min-height: 0;
       margin: 0 auto;
       background: #eef5f3;
       border-radius: 40px;
-      padding: 24px 20px 30px;
+      padding: 24px 24px 30px;
       box-shadow: 0 20px 45px rgba(10, 60, 55, 0.3);
       border: 1px solid #b5d8d2;
       transition: 0.2s;
-      display: flex;
-      flex-direction: column;
-      overflow-y: auto;
     }
 
     .back-btn {
@@ -115,10 +110,39 @@
       letter-spacing: 0.3px;
     }
 
+    .page-refresh-btn,
+    .camera-action-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      background: #0f7a6f;
+      color: #ffffff;
+      border: 1px solid #0b5c53;
+      border-radius: 8px;
+      padding: 7px 12px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s ease, transform 0.1s ease;
+      white-space: nowrap;
+    }
+
+    .page-refresh-btn:hover,
+    .camera-action-btn:hover {
+      background: #0b5c53;
+    }
+
+    .page-refresh-btn:active,
+    .camera-action-btn:active {
+      transform: scale(0.97);
+    }
+
     .scanner-container {
       position: relative;
       width: 100%;
-      max-width: 520px;
+      max-width: min(100%, 54vh, 560px);
+      max-height: 54vh;
       aspect-ratio: 1 / 1;
       margin-left: auto;
       margin-right: auto;
@@ -126,8 +150,14 @@
       border-radius: 28px;
       overflow: hidden;
       box-shadow: inset 0 0 0 1px #b5d8d2, 0 8px 20px rgba(10, 60, 55, 0.18);
-      margin-bottom: 12px;
-      flex: 0 0 auto;
+      margin-bottom: 24px;
+    }
+
+    @supports (height: 100dvh) {
+      .scanner-container {
+        max-width: min(100%, 54dvh, 560px);
+        max-height: 54dvh;
+      }
     }
 
     #qr-reader {
@@ -138,10 +168,15 @@
       overflow: hidden;
     }
 
+    #qr-reader > div {
+      width: 100% !important;
+      height: 100% !important;
+    }
+
     #qr-reader video {
       border-radius: 28px;
-      width: 100%;
-      height: 100%;
+      width: 100% !important;
+      height: 100% !important;
       object-fit: cover;
       display: block;
     }
@@ -162,8 +197,8 @@
       position: absolute;
       top: 50%;
       left: 50%;
-      width: 76%;
-      height: 76%;
+      width: 70%;
+      height: 70%;
       transform: translate(-50%, -50%);
       border: 2px solid rgba(0, 255, 200, 0.5);
       border-radius: 20px;
@@ -196,6 +231,14 @@
       padding: 0 6px;
     }
 
+    .camera-control-buttons {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
     .status-badge {
       background: #dcebe8;
       padding: 8px 18px;
@@ -214,31 +257,6 @@
       font-size: 0.9rem;
     }
 
-    .btn-icon {
-      background: #dcebe8;
-      border: 1px solid #9fc8c1;
-      color: #083a36;
-      width: 44px;
-      height: 44px;
-      border-radius: 40px;
-      font-size: 1.2rem;
-      cursor: pointer;
-      transition: 0.2s;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .btn-icon:hover {
-      background: #c3dcd7;
-      border-color: #0f7a6f;
-      color: #042f2c;
-    }
-
-    .btn-icon:active {
-      transform: scale(0.92);
-    }
-
     .result-panel {
       background: #e2efec;
       border-radius: 28px;
@@ -246,7 +264,6 @@
       margin-top: 20px;
       border: 1px solid #a9cdc6;
       box-shadow: inset 0 2px 6px rgba(10, 60, 55, 0.1);
-      flex: 1 0 auto;
     }
 
     .result-panel::-webkit-scrollbar {
@@ -696,7 +713,6 @@
 
       .card {
         max-width: 100%;
-        height: calc(100vh - 20px);
         border-radius: 24px;
         padding: 18px 14px 20px;
       }
@@ -722,10 +738,6 @@
       .rack-group .btn,
       .rack-number-input {
         padding: 11px 12px;
-      }
-
-      .footer-note {
-        margin-top: auto;
       }
 
       .rack-actions {
@@ -783,7 +795,6 @@
       }
 
       .card {
-        height: calc(100vh - 12px);
         padding: 14px 10px 16px;
         border-radius: 18px;
       }
@@ -792,8 +803,15 @@
         font-size: 1.15rem;
       }
 
+      .store-header {
+        flex-wrap: wrap;
+      }
+
+      .store-header .badge-store {
+        margin-left: auto;
+      }
+
       .scanner-container {
-        max-width: min(100%, 420px);
         border-radius: 20px;
       }
 
@@ -859,6 +877,9 @@
     <div class="store-header">
       <h2><i class="fa-solid fa-warehouse"></i>Knitting Store</h2>
       <span class="badge-store">STORE</span>
+      <button type="button" class="page-refresh-btn" id="pageRefreshBtn" title="Reload the full page">
+        <i class="fa-solid fa-rotate-right"></i> Refresh
+      </button>
     </div>
 
     <div class="scanner-container" id="scannerContainer">
@@ -871,9 +892,11 @@
         <i class="fas fa-video"></i>
         <span id="camera-status">Ready</span>
       </div>
-      <button class="btn-icon" id="toggle-camera-btn" title="Restart / switch camera">
-        <i class="fas fa-sync-alt"></i>
-      </button>
+      <div class="camera-control-buttons">
+        <button type="button" class="camera-action-btn" id="toggle-camera-btn" title="Switch Front/Back camera">
+          <i class="fas fa-sync-alt"></i> Switch Camera
+        </button>
+      </div>
     </div>
 
     <div class="result-panel">
@@ -957,6 +980,10 @@
       const subRackOptionsGroup = document.getElementById('subRackOptionsGroup');
       const resetRackBtn = document.getElementById('resetRackBtn');
       const saveRackBtn = document.getElementById('saveRackBtn');
+      let currentFacingMode = 'environment';
+      let rejectedQrText = null;
+      let rejectedQrRearmTimer = null;
+      let qrErrorOpen = false;
 
       const FIELD_LABELS = {
         BUDAT: 'DATE',
@@ -1028,17 +1055,42 @@
       }
 
       function showQrError(message) {
+        qrErrorOpen = true;
+        restartScanner();
         if (typeof Swal !== 'undefined') {
-          Swal.fire({
+          return Swal.fire({
             icon: 'error',
             title: message,
-            confirmButtonText: 'OK',
             timer: 3000,
-            timerProgressBar: true
+            timerProgressBar: true,
+            showConfirmButton: false
+          }).then(function() {
+            qrErrorOpen = false;
           });
-          return;
         }
-        alert(message);
+        showMessage(message, 'error');
+        setTimeout(function() {
+          clearMessage();
+          qrErrorOpen = false;
+        }, 3000);
+      }
+
+      function showRejectedQrError(message, qrText) {
+        clearMessage();
+        rejectedQrText = String(qrText || '');
+        if (rejectedQrRearmTimer) {
+          clearTimeout(rejectedQrRearmTimer);
+          rejectedQrRearmTimer = null;
+        }
+        showQrError(message);
+      }
+
+      function clearRejectedQrLatch() {
+        rejectedQrText = null;
+        if (rejectedQrRearmTimer) {
+          clearTimeout(rejectedQrRearmTimer);
+          rejectedQrRearmTimer = null;
+        }
       }
 
       function extractRollFromQR(qrText) {
@@ -1046,16 +1098,27 @@
         if (!text) return null;
 
         if (text.indexOf('|') !== -1) {
-          const first = text.split('|')[0].trim();
-          if (first.length > 0) return first;
+          return normalizeProductionRoll(text.split('|')[0]);
         }
 
-        let m = text.match(/ROLL:\s*([^\n\r]+)/i);
-        if (m && m[1]) return m[1].trim();
+        let m = text.match(/^ROLL:\s*(.+)$/i);
+        if (m && m[1]) return normalizeProductionRoll(m[1]);
 
-        if (/^[a-zA-Z0-9\-_]+$/.test(text) && text.length >= 2) return text;
+        if (text.charAt(0) === '{' && text.charAt(text.length - 1) === '}') {
+          try {
+            const payload = JSON.parse(text);
+            return normalizeProductionRoll(payload.ROLL || payload.roll || '');
+          } catch (err) {
+            return null;
+          }
+        }
 
-        return null;
+        return normalizeProductionRoll(text);
+      }
+
+      function normalizeProductionRoll(value) {
+        const roll = String(value || '').trim();
+        return /^\d+(?:-[RP])?$/i.test(roll) ? roll : null;
       }
 
       function buildFieldRow(fields) {
@@ -1424,9 +1487,8 @@
           .catch(function(err) {
             cameraStatus.innerText = 'Not found';
             cameraStatus.style.color = '#f7a1a1';
-            renderBareData(roll, 'Wrong QR Code! Please scan a valid knitting production QR.');
-            showQrError('Wrong QR Code! Please scan a valid knitting production QR.');
-            restartScanner();
+            renderBareData(roll);
+            showRejectedQrError('Wrong QR Code! Please scan a valid knitting production QR.', roll);
           });
       }
 
@@ -1434,9 +1496,8 @@
         const roll = extractRollFromQR(decodedText);
 
         if (!roll) {
-          renderBareData(decodedText, 'Wrong QR Code! Please scan a valid knitting production QR.');
-          showQrError('Wrong QR Code! Please scan a valid knitting production QR.');
-          restartScanner();
+          renderBareData(decodedText);
+          showRejectedQrError('Wrong QR Code! Please scan a valid knitting production QR.', decodedText);
           return;
         }
 
@@ -1453,19 +1514,14 @@
           .catch(function(err) {
             cameraStatus.innerText = 'Not found';
             cameraStatus.style.color = '#f7a1a1';
-            renderBareData(decodedText, 'Wrong QR Code! Please scan a valid knitting production QR.');
-            showQrError('Wrong QR Code! Please scan a valid knitting production QR.');
-            restartScanner();
+            renderBareData(decodedText);
+            showRejectedQrError('Wrong QR Code! Please scan a valid knitting production QR.', decodedText);
           });
       }
 
-      function renderBareData(text, msg) {
+      function renderBareData(text) {
         hasLoadedData = false;
         resultContainer.innerHTML = `
-          <div class="data-row header-row" style="border-left-color:#f59e0b; background:#c8e2dd;">
-            <span class="label" style="color:#8a4a00; font-weight:800;"> ${msg || 'No data'}</span>
-            <span class="value"></span>
-          </div>
           <div class="data-row" style="background:#d6e9e5; border-left-color:#6b7280; flex-wrap:wrap;">
             <span class="label" style="color:#0b4f47; font-weight:700; min-width:100%;">Entered ROLL:</span>
             <span class="value" style="text-align:left; font-size:0.8rem; word-break:break-all; color:#052522; font-weight:600;">${text}</span>
@@ -1578,25 +1634,26 @@
         html5QrCode = new Html5Qrcode("qr-reader");
 
         const config = {
-          fps: 20,
+          fps: 30,
           qrbox: function(viewfinderWidth, viewfinderHeight) {
-            const size = Math.floor(Math.min(360, viewfinderWidth * 0.76, viewfinderHeight * 0.76));
+            const size = Math.min(240, Math.floor(Math.min(viewfinderWidth, viewfinderHeight) * 0.7));
             return {
               width: size,
               height: size
             };
           },
+          aspectRatio: 1.0
         };
 
         html5QrCode.start({
-            facingMode: "environment"
+            facingMode: currentFacingMode
           },
           config,
           onScanSuccess,
           function(err) {}
         ).then(function() {
           isScanning = true;
-          cameraStatus.innerText = 'Scanning';
+          cameraStatus.innerText = 'Scanning (' + (currentFacingMode === 'environment' ? 'Rear' : 'Front') + ')';
           cameraStatus.style.color = '#8bcbff';
           scannerContainer.style.display = 'block';
           cameraControls.style.display = 'flex';
@@ -1642,6 +1699,15 @@
       }
 
       function onScanSuccess(decodedText, decodedResult) {
+        if (qrErrorOpen) return;
+
+        if (rejectedQrText !== null && decodedText === rejectedQrText) {
+          if (rejectedQrRearmTimer) clearTimeout(rejectedQrRearmTimer);
+          rejectedQrRearmTimer = setTimeout(clearRejectedQrLatch, 1500);
+          return;
+        }
+        if (rejectedQrText !== null) clearRejectedQrLatch();
+
         console.log('QR Scanned:', decodedText);
         if (navigator.vibrate) navigator.vibrate(20);
 
@@ -1699,8 +1765,13 @@
         }
       }
 
+      document.getElementById('pageRefreshBtn').addEventListener('click', function() {
+        window.location.reload();
+      });
+
       document.getElementById('toggle-camera-btn').addEventListener('click', function(e) {
         e.preventDefault();
+        currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
         restartScanner();
       });
 
