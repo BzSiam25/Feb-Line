@@ -279,6 +279,22 @@ foreach ($cards_data as $fi => $fc) {
             margin: 0;
         }
 
+        body.print-only {
+            background: #ffffff;
+            padding: 0;
+        }
+        body.print-only .action-bar-top,
+        body.print-only .page-alert,
+        body.print-only .card-action-bar,
+        body.print-only .card-unit-wrapper:not(.print-target) {
+            display: none !important;
+        }
+        body.print-only .card-unit-wrapper.print-target {
+            max-width: 660px;
+            margin: 0;
+            visibility: hidden;
+        }
+
         .action-bar-top,
         .card-unit-wrapper,
         .page-alert {
@@ -518,14 +534,39 @@ foreach ($cards_data as $fi => $fc) {
             font-size: 13px;
         }
 
-        /* Printing is done through a hidden iframe with a rendered image (see printCardImages) */
+        @page {
+            size: A4 portrait;
+            margin: 0;
+        }
+
         @media print {
-            body > *:not(#print_card_iframe) { display: none !important; }
+            body:not(.print-only) > *:not(#print_card_iframe) { display: none !important; }
+            body.print-only > *:not(.print-target) { display: none !important; }
+            body.print-only .card-unit-wrapper.print-target {
+                display: block !important;
+                width: 210mm;
+                max-width: none;
+                height: 296mm;
+                margin: 0;
+                padding: 25.4mm 0 0 10mm;
+                break-after: page;
+                visibility: visible;
+            }
+            body.print-only .card-unit-wrapper.print-target .card-preview-viewport {
+                width: 190mm;
+                overflow: visible;
+            }
+            body.print-only .card-unit-wrapper.print-target .knit-tag-card {
+                width: 190mm !important;
+                min-width: 190mm !important;
+                max-width: 190mm !important;
+                margin: 0;
+            }
         }
     </style>
 </head>
 
-<body>
+<body class="<?php echo isset($_GET['print']) && $_GET['print'] === '1' ? 'print-only' : ''; ?>">
 
     <!-- TOP ACTION BAR (NO-PRINT) -->
     <div class="action-bar-top no-print d-flex justify-content-between align-items-center">
@@ -565,7 +606,7 @@ foreach ($cards_data as $fi => $fc) {
 
     <!-- ═══ RENDER ALL KNIT TAG CARDS ═══ -->
     <?php foreach ($cards_data as $idx => $c): ?>
-    <div class="card-unit-wrapper" id="card_wrapper_<?php echo $idx; ?>">
+    <div class="card-unit-wrapper<?php echo isset($_GET['print']) && $_GET['print'] === '1' && $idx === $focus_idx ? ' print-target' : ''; ?>" id="card_wrapper_<?php echo $idx; ?>">
         <div class="card-action-bar no-print d-flex justify-content-between align-items-center mb-2">
             <span class="card-bar-title">
                 <i class="fa-solid fa-tag me-1 text-primary"></i> <strong>Knit Card <?php echo htmlspecialchars($c['val_card_id']); ?></strong>
@@ -676,9 +717,10 @@ foreach ($cards_data as $fi => $fc) {
             <?php endforeach; ?>
 
             <?php if (isset($_GET['print']) && $_GET['print'] == '1'): ?>
-            // Opened from the report's Print button -> open the print dialog for this card
+            // Opened from the report's Print button -> print this card directly.
             setTimeout(function() {
-                printSingleCard('card_box_<?php echo $focus_idx; ?>', <?php echo json_encode(strval($cards_data[$focus_idx]['roll_number'])); ?>);
+                window.focus();
+                window.print();
             }, 700);
             <?php endif; ?>
 
