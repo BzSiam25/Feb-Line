@@ -796,7 +796,7 @@ if (isset($db) && $db) {
                             <th>BUDAT</th>
                             <th>ROLL</th>
                             <th>PASS / REJ</th>
-                            <th>MAIN QTY</th>
+                            <th>KNITTING QTY</th>
                             <th>REJECT QTY</th>
                             <th>UPDATE QTY</th>
                             <th>PO NO</th>
