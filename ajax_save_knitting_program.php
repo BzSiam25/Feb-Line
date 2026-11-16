@@ -208,6 +208,7 @@ foreach ($mcnoQtyData as $row) {
     $qty = isset($row['qty']) ? (float)$row['qty'] : 0;
     $rowYarnCount = isset($row['yarn_count']) ? trim($row['yarn_count']) : null;
     $rowYarnBrand = isset($row['yarn_brand']) ? trim($row['yarn_brand']) : null;
+    $rowColor = isset($row['color']) ? trim($row['color']) : $color;
     $rowLotNo = isset($row['lot_no']) ? trim($row['lot_no']) : null;
 
     if ($qty <= 0 || empty($rowYarnCount) || empty($rowYarnBrand) || empty($rowLotNo)) {
@@ -227,7 +228,7 @@ foreach ($mcnoQtyData as $row) {
         $sono,
         $style,
         $buyer,
-        $color,
+        $rowColor,
         $qty,
         $finishGsm,
         $finishDia,

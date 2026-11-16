@@ -23,7 +23,7 @@
         body {
             background: #f1f5f9;
             font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
-            padding: 1.5rem;
+            padding: clamp(0.75rem, 2vw, 1.5rem);
             min-height: 100vh;
         }
 
@@ -171,13 +171,18 @@
         /* ----- info grid: large → 6 cols, medium → 3 cols, small → 2 cols ----- */
         .info-grid-6 {
             display: grid;
-            grid-template-columns: repeat(6, 1fr);
+            grid-template-columns: repeat(6, minmax(0, 1fr));
             gap: 1.2rem 1.5rem;
         }
 
         .info-item {
+            min-width: 0;
             display: flex;
             flex-direction: column;
+        }
+
+        .remarks-item {
+            grid-column: 1 / -1;
         }
 
         .info-item label {
@@ -323,8 +328,8 @@
         }
 
         .mcno-qty-table {
-            width: 50%;
-            min-width: 420px;
+            width: 100%;
+            min-width: 840px;
             border-collapse: separate;
             border-spacing: 0;
             background: #fff;
@@ -432,9 +437,16 @@
 
         @media (max-width: 576px) {
             .mcno-qty-table {
-                width: 100%;
-                min-width: 0;
+                min-width: 760px;
             }
+        }
+
+        .mcno-table-wrap {
+            width: 100%;
+            max-width: 100%;
+            overflow-x: auto;
+            border-radius: 16px;
+            -webkit-overflow-scrolling: touch;
         }
 
         .summary-label {
@@ -604,6 +616,362 @@
             border-radius: 16px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.10);
         }
+
+        @media (max-width: 992px) {
+            .card-unified {
+                padding: 1.25rem;
+            }
+
+            .program-header h1 {
+                font-size: clamp(1.45rem, 3vw, 1.8rem);
+            }
+        }
+
+        @media (min-width: 577px) and (max-width: 768px) {
+            .mcno-table-wrap {
+                overflow: visible;
+            }
+
+            .mcno-qty-table {
+                display: block;
+                min-width: 0;
+                overflow: visible;
+                box-shadow: none;
+            }
+
+            .mcno-qty-table thead {
+                display: none;
+            }
+
+            .mcno-qty-table tbody,
+            .mcno-qty-table tfoot {
+                display: block;
+                width: 100%;
+            }
+
+            .mcno-qty-table tbody tr:not(.summary-row) {
+                display: grid;
+                grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.1fr) minmax(0, 1fr) 40px;
+                grid-template-rows: auto auto;
+                gap: 10px;
+                padding: 12px;
+                margin-bottom: 10px;
+                border: 1px solid #e2e8f0;
+                border-radius: 12px;
+                background: #ffffff;
+            }
+
+            .mcno-qty-table tbody tr:not(.summary-row) td {
+                display: flex;
+                min-width: 0;
+                flex-direction: column;
+                justify-content: flex-end;
+                gap: 5px;
+                padding: 0;
+                border: 0;
+            }
+
+            .mcno-qty-table tbody tr:not(.summary-row) td::before {
+                content: attr(data-label);
+                color: #64748b;
+                font-size: 0.68rem;
+                font-weight: 700;
+                text-transform: uppercase;
+            }
+
+            .mcno-qty-table tbody tr:not(.summary-row) td:nth-child(1) { grid-column: 1; grid-row: 1; }
+            .mcno-qty-table tbody tr:not(.summary-row) td:nth-child(2) { grid-column: 2; grid-row: 1; }
+            .mcno-qty-table tbody tr:not(.summary-row) td:nth-child(3) { grid-column: 3; grid-row: 1; }
+            .mcno-qty-table tbody tr:not(.summary-row) td:nth-child(4) { grid-column: 1; grid-row: 2; }
+            .mcno-qty-table tbody tr:not(.summary-row) td:nth-child(5) { grid-column: 2; grid-row: 2; }
+            .mcno-qty-table tbody tr:not(.summary-row) td:nth-child(6) { grid-column: 3; grid-row: 2; }
+            .mcno-qty-table tbody tr:not(.summary-row) td:nth-child(7) {
+                grid-column: 4;
+                grid-row: 2;
+                align-items: center;
+            }
+
+            .mcno-qty-table input,
+            .mcno-qty-table select {
+                min-width: 0;
+            }
+
+            .mcno-qty-table tfoot .summary-row {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 10px;
+                padding: 12px;
+            }
+
+            .mcno-qty-table tfoot .summary-row td {
+                display: block;
+                min-width: 0;
+                padding: 0;
+                border: 0;
+                text-align: left;
+            }
+
+            .mcno-qty-table tfoot .summary-row td[colspan],
+            .mcno-qty-table tfoot .summary-row td:last-child {
+                display: none;
+            }
+        }
+
+        @media (max-width: 576px) {
+            body {
+                padding: 0.75rem;
+            }
+
+            .program-header {
+                display: grid;
+                grid-template-columns: auto minmax(0, 1fr);
+                gap: 0.75rem;
+                margin-bottom: 1rem;
+            }
+
+            .program-header h1 {
+                grid-column: 1 / -1;
+                grid-row: 2;
+                justify-self: center;
+                text-align: center;
+                font-size: 1.4rem;
+                line-height: 1.25;
+            }
+
+            .program-header > div:last-child {
+                display: none;
+            }
+
+            .btn-back {
+                padding: 0.5rem 0.9rem;
+            }
+
+            .card-unified {
+                padding: 1rem;
+                margin-bottom: 1rem;
+                border-radius: 18px;
+            }
+
+            .card-unified .card-title {
+                align-items: flex-start;
+                font-size: 0.95rem;
+                margin-bottom: 0.9rem;
+            }
+
+            .search-controls {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+                gap: 0.55rem;
+            }
+
+            .search-controls input {
+                grid-column: 1 / -1;
+                width: 100%;
+                min-width: 0;
+                padding: 0.65rem 0.9rem;
+            }
+
+            .search-controls button {
+                width: 100%;
+                padding: 0.6rem 0.7rem;
+            }
+
+            .info-grid-6 {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 0.8rem;
+            }
+
+            .info-grid-6 .remarks-item {
+                grid-column: 1 / -1;
+            }
+
+            .info-item input,
+            .info-item select {
+                padding: 0.65rem 0.7rem;
+                border-radius: 12px;
+                font-size: 0.9rem;
+            }
+
+            .target-qty-box {
+                width: 100%;
+                justify-content: space-between;
+                gap: 0.5rem;
+                padding: 0.65rem 0.85rem;
+                border-radius: 16px;
+            }
+
+            .target-qty-box label {
+                font-size: 0.78rem;
+            }
+
+            .target-qty-box .qty-value {
+                font-size: 1.35rem;
+            }
+
+            .mcno-table-wrap {
+                margin: 0;
+                width: 100%;
+                overflow: visible;
+            }
+
+            .mcno-qty-table {
+                display: block;
+                min-width: 0;
+                margin-bottom: 0.5rem;
+                overflow: visible;
+                box-shadow: none;
+            }
+
+            .mcno-qty-table thead {
+                display: none;
+            }
+
+            .mcno-qty-table tbody,
+            .mcno-qty-table tfoot {
+                display: block;
+                width: 100%;
+            }
+
+            .mcno-qty-table tbody tr:not(.summary-row) {
+                display: grid;
+                grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.1fr) minmax(0, 1fr) 40px;
+                grid-template-rows: auto auto;
+                gap: 8px;
+                padding: 10px;
+                margin-bottom: 10px;
+                border: 1px solid #e2e8f0;
+                border-radius: 12px;
+                background: #ffffff;
+                box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+            }
+
+            .mcno-qty-table tbody tr:not(.summary-row) td {
+                display: flex;
+                min-width: 0;
+                flex-direction: column;
+                justify-content: flex-end;
+                gap: 4px;
+                padding: 0;
+                border: 0;
+            }
+
+            .mcno-qty-table tbody tr:not(.summary-row) td::before {
+                content: attr(data-label);
+                color: #64748b;
+                font-size: 0.62rem;
+                font-weight: 700;
+                line-height: 1.2;
+                text-transform: uppercase;
+            }
+
+            .mcno-qty-table tbody tr:not(.summary-row) td:nth-child(1) {
+                grid-column: 1;
+                grid-row: 1;
+            }
+
+            .mcno-qty-table tbody tr:not(.summary-row) td:nth-child(2) {
+                grid-column: 2;
+                grid-row: 1;
+            }
+
+            .mcno-qty-table tbody tr:not(.summary-row) td:nth-child(3) {
+                grid-column: 3;
+                grid-row: 1;
+            }
+
+            .mcno-qty-table tbody tr:not(.summary-row) td:nth-child(4) {
+                grid-column: 1;
+                grid-row: 2;
+            }
+
+            .mcno-qty-table tbody tr:not(.summary-row) td:nth-child(5) {
+                grid-column: 2;
+                grid-row: 2;
+            }
+
+            .mcno-qty-table tbody tr:not(.summary-row) td:nth-child(6) {
+                grid-column: 3;
+                grid-row: 2;
+            }
+
+            .mcno-qty-table tbody tr:not(.summary-row) td:nth-child(7) {
+                grid-column: 4;
+                grid-row: 2;
+                align-items: center;
+            }
+
+            .mcno-qty-table th {
+                padding: 0.65rem 0.6rem;
+                font-size: 0.68rem;
+            }
+
+            .mcno-qty-table input,
+            .mcno-qty-table select {
+                min-width: 0;
+                padding: 0.5rem 0.35rem;
+                border-radius: 9px;
+                font-size: 0.76rem;
+            }
+
+            .mcno-qty-table tbody tr:not(.summary-row) .btn-delete-row {
+                width: 34px;
+                height: 36px;
+            }
+
+            .mcno-qty-table tfoot .summary-row {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 8px;
+                padding: 10px;
+                border-radius: 10px;
+            }
+
+            .mcno-qty-table tfoot .summary-row td {
+                display: block;
+                min-width: 0;
+                padding: 0;
+                border: 0;
+                text-align: left;
+                font-size: 0.78rem;
+            }
+
+            .mcno-qty-table tfoot .summary-row td[colspan],
+            .mcno-qty-table tfoot .summary-row td:last-child {
+                display: none;
+            }
+
+            .summary-row td,
+            .summary-label,
+            .summary-total,
+            .summary-remaining {
+                font-size: 0.82rem;
+            }
+
+            .action-buttons {
+                margin-top: 0.75rem;
+            }
+
+            .btn-add-row,
+            .btn-submit {
+                width: 100%;
+                max-width: 320px;
+                padding: 0.7rem 1rem;
+            }
+        }
+
+        @media (max-width: 380px) {
+            .info-grid-6 {
+                grid-template-columns: minmax(0, 1fr);
+            }
+
+            .info-grid-6 .remarks-item {
+                grid-column: auto;
+            }
+
+            .program-header h1 {
+                font-size: 1.25rem;
+            }
+        }
     </style>
 </head>
 
@@ -646,7 +1014,6 @@
                         <div class="info-item"><label>STYLE</label><span id="display_style">-</span><input type="hidden" id="style"></div>
                         <div class="info-item"><label>CUSTOMER</label><span id="display_customer">-</span><input type="hidden" id="customer"></div>
                         <div class="info-item"><label>Yarn Type</label><span id="display_yarn_type">-</span><input type="hidden" id="yarn_type"></div>
-                        <div class="info-item"><label>COLOR</label><select id="color"></select></div>
                         <div class="info-item"><label>Finish GSM</label><select id="finish_gsm"></select></div>
                         <div class="info-item"><label>Finish DIA</label><input type="text" id="finish_dia" placeholder="Finish DIA"></div>
                         <div class="info-item"><label>Open / Tube</label><input type="text" id="open_tube" placeholder="Open / Tube"></div>
@@ -671,7 +1038,7 @@
                         <div class="info-item"><label>MC DIA</label><input type="text" id="mc_dia" placeholder="Enter MC DIA"></div>
                         <div class="info-item"><label>SL/VQ</label><input type="text" id="sl_vdq" placeholder="Enter SL/VQ"></div>
                         <div class="info-item"><label>Feeder Plan</label><input type="text" id="feeder_plan" placeholder="Enter Feeder Plan"></div>
-                        <div class="info-item" style="grid-column: span 6;"><label>Remarks</label><textarea id="remarks" rows="2" placeholder="Enter remarks (optional)" style="padding: 0.75rem 1rem; border: 2px solid #e2e8f0; border-radius: 16px; background: #f8fbff; width: 100%; font-weight: 500; resize: vertical;"></textarea></div>
+                        <div class="info-item remarks-item"><label>Remarks</label><textarea id="remarks" rows="2" placeholder="Enter remarks (optional)" style="padding: 0.75rem 1rem; border: 2px solid #e2e8f0; border-radius: 16px; background: #f8fbff; width: 100%; font-weight: 500; resize: vertical;"></textarea></div>
                     </div>
                 </div>
 
@@ -683,11 +1050,13 @@
                     <span class="qty-value" id="display_target_qty">0.00</span>
                 </div>
 
-                <table class="mcno-qty-table" style="width:100%; min-width:0;">
+                <div class="mcno-table-wrap">
+                <table class="mcno-qty-table">
                     <thead>
                         <tr>
                             <th>Yarn Count</th>
                             <th>Yarn Brand</th>
+                            <th>Color</th>
                             <th>Lot No</th>
                             <th>QTY</th>
                             <th>Remaining</th>
@@ -697,13 +1066,14 @@
                     <tbody id="mcnoQtyTableBody"></tbody>
                     <tfoot>
                         <tr class="summary-row">
-                            <td colspan="3"></td>
+                            <td colspan="4"></td>
                             <td class="summary-label">Total: <span class="summary-total" id="totalQtyDisplay">0.00</span></td>
                             <td class="summary-remaining">Remaining: <span id="totalRemainingDisplay">0.00</span></td>
                             <td></td>
                         </tr>
                     </tfoot>
                 </table>
+                </div>
 
                 <div class="action-buttons">
                     <button type="button" class="btn-add-row" id="addMcnoRowBtn">
@@ -735,18 +1105,44 @@
             var originalTargetQty = 0;
             var allocatedByDescription = {};
             var pendingColor = '';
+            var colorOptions = [];
             var pendingFinishGsm = '';
 
             function setAvailableColor(value) {
                 pendingColor = $.trim(value || '');
-                var colorExists = false;
-                $('#color option').each(function() {
-                    if ($(this).val() === pendingColor) {
-                        colorExists = true;
-                        return false;
-                    }
+                if (pendingColor && colorOptions.indexOf(pendingColor) === -1) {
+                    colorOptions.push(pendingColor);
+                }
+                $('#mcnoQtyTableBody .color_row').each(function() {
+                    populateColorSelect($(this), pendingColor);
                 });
-                $('#color').val(colorExists ? pendingColor : '');
+            }
+
+            function setColorOptions(values) {
+                colorOptions = (values || []).map(function(value) {
+                    return $.trim(String(value || ''));
+                }).filter(function(value, index, list) {
+                    return value !== '' && list.indexOf(value) === index;
+                });
+                if (pendingColor && colorOptions.indexOf(pendingColor) === -1) {
+                    colorOptions.push(pendingColor);
+                }
+                $('#mcnoQtyTableBody .color_row').each(function() {
+                    var select = $(this);
+                    populateColorSelect(select, select.val() || pendingColor);
+                });
+            }
+
+            function populateColorSelect(select, selectedValue) {
+                var selected = $.trim(selectedValue || '');
+                select.empty().append($('<option>', { value: '', text: 'Select Color' }));
+                colorOptions.forEach(function(value) {
+                    select.append($('<option>', { value: value, text: value }));
+                });
+                if (selected && colorOptions.indexOf(selected) === -1) {
+                    select.append($('<option>', { value: selected, text: selected }));
+                }
+                select.val(selected);
             }
 
             function setAvailableFinishGsm(value) {
@@ -797,16 +1193,10 @@
                                     if (r.COLOR) colorSet[String(r.COLOR).trim()] = true;
                                     if (r.FINISH_GSM) fgSet[String(r.FINISH_GSM).trim()] = true;
                                 }
-                                var colorSelect = $('#color');
                                 var fgSelect = $('#finish_gsm');
-                                colorSelect.empty();
                                 fgSelect.empty();
-                                Object.keys(colorSet).sort().forEach(function(v) {
-                                    colorSelect.append($('<option>', {
-                                        value: v,
-                                        text: v
-                                    }));
-                                });
+                                pendingColor = '';
+                                setColorOptions(Object.keys(colorSet).sort());
                                 Object.keys(fgSet).sort(function(a, b) {
                                     var na = parseFloat(a) || 0,
                                         nb = parseFloat(b) || 0;
@@ -854,7 +1244,6 @@
                 $('#display_buyer').text(data.BUYER || '-');
                 $('#buyer').val(data.BUYER || '');
 
-                $('#color').val('');
                 $('#finish_gsm').val('');
                 $('#finish_dia').val(data.FINISH_DIA || '');
                 $('#open_tube').val(data.OPEN_TUBE || '');
@@ -902,16 +1291,10 @@ $('#mc_dia').val('');
                         if (r.COLOR) colorSet[String(r.COLOR).trim()] = true;
                         if (r.FINISH_GSM) fgSet[String(r.FINISH_GSM).trim()] = true;
                     }
-                    var colorSelect = $('#color');
-var fgSelect = $('#finish_gsm');
-                                colorSelect.empty();
-                                fgSelect.empty();
-                                Object.keys(colorSet).sort().forEach(function(v) {
-                        colorSelect.append($('<option>', {
-                            value: v,
-                            text: v
-                        }));
-                    });
+                    var fgSelect = $('#finish_gsm');
+                    fgSelect.empty();
+                    pendingColor = '';
+                    setColorOptions(Object.keys(colorSet).sort());
                     Object.keys(fgSet).sort(function(a, b) {
                         var na = parseFloat(a) || 0,
                             nb = parseFloat(b) || 0;
@@ -965,12 +1348,15 @@ $('#mc_dia').val('');
             function addMcnoRow() {
                 var tbody = $('#mcnoQtyTableBody');
                 var row = $('<tr>');
-                row.append($('<td>').html('<input type="text" class="yarn_count_row" placeholder="Yarn Count">'));
-                row.append($('<td>').html('<input type="text" class="yarn_brand_row" placeholder="Yarn Brand">'));
-                row.append($('<td>').html('<input type="text" class="lot_no_row" placeholder="Lot No">'));
-                row.append($('<td>').html('<input type="number" class="qty-input" placeholder="QTY" step="0.01">'));
-                row.append($('<td>').html('<input type="text" class="remaining-qty" readonly placeholder="Remaining">'));
-                row.append($('<td>').append(
+                row.append($('<td>', { 'data-label': 'Yarn Count' }).html('<input type="text" class="yarn_count_row" placeholder="Yarn Count">'));
+                row.append($('<td>', { 'data-label': 'Yarn Brand' }).html('<input type="text" class="yarn_brand_row" placeholder="Yarn Brand">'));
+                var colorSelect = $('<select>', { class: 'color_row', 'aria-label': 'Color' });
+                populateColorSelect(colorSelect, pendingColor);
+                row.append($('<td>', { 'data-label': 'Color' }).append(colorSelect));
+                row.append($('<td>', { 'data-label': 'Lot No' }).html('<input type="text" class="lot_no_row" placeholder="Lot No">'));
+                row.append($('<td>', { 'data-label': 'QTY' }).html('<input type="number" class="qty-input" placeholder="QTY" step="0.01">'));
+                row.append($('<td>', { 'data-label': 'Remaining' }).html('<input type="text" class="remaining-qty" readonly placeholder="Remaining">'));
+                row.append($('<td>', { 'data-label': 'Action' }).append(
                     $('<button>', {
                         type: 'button',
                         class: 'btn-delete-row',
@@ -983,7 +1369,7 @@ $('#mc_dia').val('');
 
                 tbody.append(row);
 
-                 row.find('.qty-input, .yarn_count_row, .yarn_brand_row, .lot_no_row').on('input change', function() {
+                 row.find('.qty-input, .yarn_count_row, .yarn_brand_row, .color_row, .lot_no_row').on('input change', function() {
                      updateRemainingQty();
                      checkSubmitButton();
                      updateAddRowButton();
@@ -1069,9 +1455,10 @@ $('#mc_dia').val('');
                  rows.each(function() {
                      var yarnCount = $(this).find('.yarn_count_row').val().trim();
                      var yarnBrand = $(this).find('.yarn_brand_row').val().trim();
+                     var color = $.trim($(this).find('.color_row').val() || '');
                      var lotNoRow = $(this).find('.lot_no_row').val().trim();
                      var qty = $(this).find('.qty-input').val().trim();
-                     var isEmpty = !qty && !yarnCount && !yarnBrand && !lotNoRow;
+                     var isEmpty = !qty && !yarnCount && !yarnBrand && !color && !lotNoRow;
                      if (isEmpty) return true;
                      hasData = true;
                      if (!qty || !yarnCount || !yarnBrand || !lotNoRow) {
@@ -1108,9 +1495,10 @@ $('#mc_dia').val('');
                 rows.each(function() {
                     var yarnCount = $(this).find('.yarn_count_row').val().trim();
                     var yarnBrand = $(this).find('.yarn_brand_row').val().trim();
+                    var color = $.trim($(this).find('.color_row').val() || '');
                     var lotNoRow = $(this).find('.lot_no_row').val().trim();
                     var qty = $(this).find('.qty-input').val().trim();
-                    var isEmpty = !qty && !yarnCount && !yarnBrand && !lotNoRow;
+                    var isEmpty = !qty && !yarnCount && !yarnBrand && !color && !lotNoRow;
                     if (isEmpty) return true;
                     if (!qty || !yarnCount || !yarnBrand || !lotNoRow) {
                         isValid = false;
@@ -1125,6 +1513,7 @@ $('#mc_dia').val('');
                         qty: qtyNum,
                         yarn_count: yarnCount,
                         yarn_brand: yarnBrand,
+                        color: $.trim($(this).find('.color_row').val() || ''),
                         lot_no: lotNoRow
                     });
                 });
@@ -1187,7 +1576,7 @@ var finishGsmSelect = $('#finish_gsm');
                     }
                 });
 
-                // Load all Color options from database for dropdown
+                // Load all available colors for the per-yarn-row dropdowns.
                 $.ajax({
                     url: 'ajaxKnittingProgram.php',
                     data: {
@@ -1197,17 +1586,11 @@ var finishGsmSelect = $('#finish_gsm');
                     method: 'GET'
                 }).done(function(resp) {
                     if (resp && resp.success) {
-                        var colorSelect = $('#color');
-                        var currentValue = colorSelect.val();
-                        colorSelect.empty();
-                        resp.data.forEach(function(v) {
-                            var value = String(v);
-                            colorSelect.append($('<option>', {
-                                value: value,
-                                text: value
-                            }));
-                        });
-                        setAvailableColor(pendingColor || (bookingData && bookingData.COLOR) || currentValue);
+                        var values = (bookingData && allRowsData.length)
+                            ? allRowsData.map(function(row) { return row.COLOR; })
+                            : resp.data;
+                        setColorOptions(values);
+                        if (!pendingColor && bookingData) setAvailableColor(bookingData.COLOR);
                     }
                 });
 
@@ -1239,7 +1622,8 @@ var finishGsmSelect = $('#finish_gsm');
                     targetQty = 0;
                     pendingColor = '';
                     pendingFinishGsm = '';
-                    $('#color').val('');
+                    setColorOptions([]);
+                    pendingColor = '';
                     $('#finish_gsm').val('');
                     $('#detailsContainer').removeClass('visible');
                     $('#display_target_qty').text('0.00');
@@ -1297,7 +1681,7 @@ var finishGsmSelect = $('#finish_gsm');
                  $(manualFieldSelectors).on('input change', function() {
                      checkSubmitButton();
                  });
-                 $(document).on('input change', '.yarn_count_row, .yarn_brand_row, .lot_no_row, .qty-input', function() {
+                 $(document).on('input change', '.yarn_count_row, .yarn_brand_row, .color_row, .lot_no_row, .qty-input', function() {
                      checkSubmitButton();
                  });
                  $('#knittingForm').on('input change', function() {
@@ -1345,7 +1729,6 @@ var finishGsmSelect = $('#finish_gsm');
                         finish_gsm: $('#finish_gsm').val(),
                         feeder_plan: $('#feeder_plan').val(),
                         sl_vdq: $('#sl_vdq').val(),
-                        color: $('#color').val(),
                         mc_dia: $('#mc_dia').val(),
                         finish_dia: $('#finish_dia').val(),
                         open_tube: $('#open_tube').val(),

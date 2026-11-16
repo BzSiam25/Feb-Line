@@ -746,7 +746,7 @@
                 </div>
                 <div class="program-report-stat-card date">
                     <div class="program-report-stat-label">Report Date</div>
-                    <div class="program-report-stat-value"><?php echo date('d M Y'); ?></div>
+                    <div class="program-report-stat-value"><?php echo date('d-m-Y'); ?></div>
                 </div>
             </div>
         </div>
@@ -766,10 +766,10 @@
                             <th>Print</th>
                             <th>Date</th>
                             <th>PO No</th>
+                            <th>Program No</th>
                             <th>SONO</th>
                             <th>Buyer</th>
                             <th>Style</th>
-                            <th>Color</th>
                             <th class="text-nowrap">Category</th>
                             <th>Customer</th>
                             <th>QTY (KG)</th>
@@ -780,6 +780,7 @@
                             <th>Yarn Type</th>
                             <th>Yarn Count</th>
                             <th>Yarn Brand</th>
+                            <th>Color</th>
                             <th>SL/VDQ</th>
                             <th>M/C Dia</th>
                             
@@ -794,7 +795,7 @@
                     </thead>
                     <tbody id="tableBody">
                         <tr>
-                             <td colspan="23" class="state-cell">
+                             <td colspan="24" class="state-cell">
                                  <span class="loading-spinner"></span>
                                  <div class="state-text mt-2">Loading data...</div>
                              </td>
@@ -815,15 +816,46 @@
         function updateStats(data) {
             var rows = data || [];
             var totalQty = 0;
+            var programs = {};
             rows.forEach(function(row) {
                 totalQty += parseFloat(row.QTY) || 0;
+                var programNo = $.trim(String(row.PROGRAM_NO || ''));
+                programs[programNo ? 'program:' + programNo : 'row:' + String(row.KPTID || Object.keys(programs).length)] = true;
             });
 
-            $('#statPrograms').text(rows.length.toLocaleString());
+            $('#statPrograms').text(Object.keys(programs).length.toLocaleString());
             $('#statQty').text(totalQty.toLocaleString(undefined, {
                 maximumFractionDigits: 2
             }));
             $('#rowCount').text(rows.length.toLocaleString());
+        }
+
+        function formatProgramDate(value) {
+            var dateValue = $.trim(String(value || ''));
+            var match = dateValue.match(/^(\d{4})-(\d{2})-(\d{2})/);
+            if (match) return match[3] + '-' + match[2] + '-' + match[1];
+            var parsedDate = new Date(dateValue);
+            if (dateValue && !isNaN(parsedDate.getTime())) {
+                return String(parsedDate.getDate()).padStart(2, '0') + '-' +
+                    String(parsedDate.getMonth() + 1).padStart(2, '0') + '-' +
+                    parsedDate.getFullYear();
+            }
+            return dateValue;
+        }
+
+        function groupProgramRows(data) {
+            var groups = [];
+            var groupMap = {};
+            (data || []).forEach(function(row, index) {
+                var programNo = $.trim(String(row.PROGRAM_NO || ''));
+                var key = programNo ? 'program:' + programNo : 'row:' + String(row.KPTID || index);
+                if (!groupMap[key]) {
+                    groupMap[key] = { key: key, rows: [] };
+                    groups.push(groupMap[key]);
+                }
+                groupMap[key].rows.push(row);
+            });
+            return groups;
         }
 
         function shiftChip(val) {
@@ -840,55 +872,63 @@
             updateStats(data);
 
             if (!data || data.length === 0) {
-                tbody.append('<tr><td colspan="23" class="state-cell">' +
+                tbody.append('<tr><td colspan="24" class="state-cell">' +
                     '<i class="fa-regular fa-folder-open state-icon"></i>' +
                     '<div class="state-text">No data found</div></td></tr>');
                 return;
             }
 
-            data.forEach(function(row) {
-                var tr = $('<tr>');
-                var printBtn = $('<button>')
-                    .attr('type', 'button')
-                    .addClass('btn-print')
-                    .attr('title', 'Print')
-                    .html('<i class="fa-solid fa-print"></i> PRINT')
-                    .on('click', function() {
-                        printRow(row);
-                    });
-                tr.append($('<td class="text-center">').append(printBtn));
-                tr.append($('<td>').text(row.CREATED_DATE || ''));
-                tr.append($('<td class="fw-bold">').text(row.PO_NUMBER || row.BOOKING || ''));
-                tr.append($('<td>').text(row.SONO || ''));
-                tr.append($('<td>').text(row.BUYER || ''));
-                tr.append($('<td>').text(row.STYLE || ''));
-                tr.append($('<td>').text(row.COLOR || ''));
-                tr.append($('<td>').html('<span class="badge bg-light text-primary border" style="font-size:11.5px;padding:4px 8px;white-space:nowrap;">' + (row.CATEGORY || 'N/A') + '</span>'));
-                tr.append($('<td>').text(row.CUSTOMER || ''));
-                tr.append($('<td class="qty-cell">').text(row.QTY || ''));
-                tr.append($('<td>').text(row.O_T || ''));
-                tr.append($('<td>').text(row.FGSM || ''));
-                tr.append($('<td>').text(row.FDIA || ''));
-                tr.append($('<td>').text(row.FTYPE || ''));
-                tr.append($('<td>').text(row.YTYPE || ''));
-                tr.append($('<td>').text(row.YCOUNT || ''));
-                tr.append($('<td>').text(row.YBRAND || ''));
-                tr.append($('<td>').text(row.SL || ''));
-                tr.append($('<td>').text(row.MCDIA || ''));
-                tr.append($('<td>').text(row.FEEDER_PLAN || ''));
-                // tr.append($('<td>').html(shiftChip(row.SHIFT)));
-                tr.append($('<td>').text(row.LOT || ''));
-                tr.append($('<td>').text(row.UNAME || ''));
-                tr.append($('<td>').text(row.REMARKS || ''));
-                // tr.append($('<td>').text(row.KNIT_M_DESCRIPTION || ''));
-                // tr.append($('<td>').text(row.KNIT_MATERIAL_CODE || ''));
-                tbody.append(tr);
+            groupProgramRows(data).forEach(function(group) {
+                group.rows.forEach(function(row, rowIndex) {
+                    var tr = $('<tr>');
+                    var printBtn = $('<button>')
+                        .attr('type', 'button')
+                        .addClass('btn-print')
+                        .attr('title', 'Print')
+                        .html('<i class="fa-solid fa-print"></i> PRINT')
+                        .on('click', function() {
+                            printRow(row);
+                        });
+                    tr.append($('<td class="text-center">').append(printBtn));
+
+                    function appendGroupCell(value, className) {
+                        if (rowIndex !== 0) return;
+                        var cell = $('<td>').attr('rowspan', group.rows.length).text(value || '');
+                        if (className) cell.addClass(className);
+                        tr.append(cell);
+                    }
+
+                    appendGroupCell(formatProgramDate(row.CREATED_DATE));
+                    appendGroupCell(row.PO_NUMBER);
+                    appendGroupCell(row.PROGRAM_NO);
+                    appendGroupCell(row.SONO);
+                    appendGroupCell(row.BUYER);
+                    appendGroupCell(row.STYLE);
+                    appendGroupCell(row.CATEGORY || 'N/A');
+                    appendGroupCell(row.CUSTOMER);
+                    tr.append($('<td class="qty-cell">').text(row.QTY || ''));
+                    appendGroupCell(row.O_T);
+                    appendGroupCell(row.FGSM);
+                    appendGroupCell(row.FDIA);
+                    appendGroupCell(row.FTYPE);
+                    appendGroupCell(row.YTYPE);
+                    tr.append($('<td>').text(row.YCOUNT || ''));
+                    tr.append($('<td>').text(row.YBRAND || ''));
+                    tr.append($('<td>').text(row.COLOR || ''));
+                    appendGroupCell(row.SL);
+                    appendGroupCell(row.MCDIA);
+                    appendGroupCell(row.FEEDER_PLAN);
+                    tr.append($('<td>').text(row.LOT || ''));
+                    appendGroupCell(row.UNAME);
+                    appendGroupCell(row.REMARKS);
+                    tbody.append(tr);
+                });
             });
         }
 
         function showState(icon, text) {
             updateStats([]);
-            $('#tableBody').html('<tr><td colspan="23" class="state-cell">' +
+            $('#tableBody').html('<tr><td colspan="24" class="state-cell">' +
                 '<i class="' + icon + ' state-icon"></i>' +
                 '<div class="state-text">' + text + '</div></td></tr>');
         }
@@ -951,12 +991,11 @@
             }
 
             var fieldHTML = [
-                ['Date', row.CREATED_DATE],
-                ['PO No', row.PO_NUMBER || row.BOOKING || ''],
+                ['Date', formatProgramDate(row.CREATED_DATE)],
+                ['PO No', row.PO_NUMBER || ''],
                 ['SONO', row.SONO],
                 ['Buyer', row.BUYER],
                 ['Style', row.STYLE],
-                ['Color', row.COLOR],
                 ['Category', row.CATEGORY || 'N/A'],
                 ['Customer', row.CUSTOMER],
                 ['QTY', row.QTY],
@@ -967,6 +1006,7 @@
                 ['Yarn Type', row.YTYPE],
                 ['Yarn Count', row.YCOUNT],
                 ['Yarn Brand', row.YBRAND],
+                ['Color', row.COLOR],
                 ['SL/VDQ', row.SL],
                 ['MC Dia', row.MCDIA],
                 ['Feeder Plan', row.FEEDER_PLAN],
