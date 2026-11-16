@@ -8,7 +8,8 @@ if (!isset($_SESSION['username'])) {
 }
 
 $knit_card_generation_success = $_SESSION['knit_card_generation_success'] ?? '';
-unset($_SESSION['knit_card_generation_success']);
+$knit_card_generation_error = $_SESSION['knit_card_generation_error'] ?? '';
+unset($_SESSION['knit_card_generation_success'], $_SESSION['knit_card_generation_error']);
 
 // ── AJAX: VERIFY KNITTING PRODUCTION OPERATOR (QR / ID) ──
 if (isset($_GET['action']) && $_GET['action'] === 'verify_operator') {
@@ -91,7 +92,15 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET' && !isset($_GET['action'])) 
     }
 }
 
-$knit_card_operator = $_SESSION['knit_card_operator'] ?? null;
+$knit_card_operator_id = trim((string)($_SESSION['user_id'] ?? ''));
+if ($knit_card_operator_id === '') {
+    $knit_card_operator_id = trim((string)($_SESSION['operator_id'] ?? $_SESSION['knitting_qc_id'] ?? $_SESSION['username'] ?? ''));
+}
+$knit_card_operator_name = trim((string)($_SESSION['user_name'] ?? $_SESSION['operator_name'] ?? ''));
+if ($knit_card_operator_name === '') {
+    $knit_card_operator_name = trim((string)($_SESSION['username'] ?? $knit_card_operator_id));
+}
+$knit_card_operator = ['id' => $knit_card_operator_id, 'name' => $knit_card_operator_name];
 
 // ── ACCESS GATE: require a scanned / typed Knit Card Production Operator ID ──
 if (empty($knit_card_operator) || empty($knit_card_operator['id'])) {
@@ -376,7 +385,9 @@ $query = "SELECT kp.*,
                  MAX(kc.MCNO) AS card_mcno,
                  MAX(kc.MCDIA) AS card_mcdia
           FROM knitting_program kp
-          LEFT JOIN knit_card kc ON (kp.PROGRAM_NO = kc.{$kc_prog_col} OR kp.KPTID = kc.{$kc_prog_col})
+          LEFT JOIN knit_card kc
+            ON (kp.PROGRAM_NO = kc.{$kc_prog_col} OR kp.KPTID = kc.{$kc_prog_col})
+           AND LOWER(TRIM(COALESCE(kc.COLOR, ''))) = LOWER(TRIM(COALESCE(kp.COLOR, '')))
           WHERE 1=1";
 $params = [];
 $types  = '';
@@ -495,7 +506,7 @@ $rows_array = $all_rows;
             justify-self: start;
         }
 
-        .banner-top-row > :last-child {
+        .banner-top-row > :last-child:not(h1) {
             justify-self: end;
         }
 
@@ -510,14 +521,6 @@ $rows_array = $all_rows;
             -webkit-text-fill-color: #ffffff;
         }
 
-        .operator-row {
-            position: relative;
-            z-index: 2;
-            display: flex;
-            justify-content: flex-start;
-            margin-top: 10px;
-        }
-
         .header-action {
             border-radius: 8px;
             font-weight: 600;
@@ -527,20 +530,6 @@ $rows_array = $all_rows;
             display: inline-flex;
             align-items: center;
             gap: 6px;
-        }
-
-        .operator-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            background: rgba(16, 185, 129, 0.18);
-            border: 1px solid rgba(16, 185, 129, 0.5);
-            color: #d1fae5;
-            border-radius: 100px;
-            padding: 4px 12px;
-            font-size: 11.5px;
-            font-weight: 700;
-            white-space: nowrap;
         }
 
         .btn-back {
@@ -629,7 +618,6 @@ $rows_array = $all_rows;
             .banner-top-row { grid-template-columns: 1fr auto 1fr; gap: 6px; }
             .banner-top-row .header-action { padding: 5px 8px; font-size: 11px; }
             .top-banner h1 { font-size: 1.2rem !important; }
-            .operator-row { margin-top: 8px; }
             .search-form { gap: 5px; }
             .search-form .input-group { flex: 1 1 auto; }
             .search-actions { gap: 5px; }
@@ -778,18 +766,19 @@ $rows_array = $all_rows;
                     <i class="fa-solid fa-arrow-left"></i> Back
                 </a>
                 <h1 style="font-weight: bold">Knitting Knit Card</h1>
-                <button type="button" class="btn header-action btn-back" id="dashboardRefreshBtn">
-                    <i class="fa-solid fa-rotate-right"></i> Refresh
-                </button>
-            </div>
-            <div class="operator-row">
-                <span class="operator-badge">
-                    <i class="fa-solid fa-user-gear"></i> <?php echo htmlspecialchars($knit_card_operator['name']); ?> (<?php echo htmlspecialchars($knit_card_operator['id']); ?>)
-                </span>
             </div>
         </div>
 
         <!-- Alerts -->
+        <?php if ($knit_card_generation_success !== ''): ?>
+            <div class="alert alert-success rounded-3 mb-4 p-3" id="generationSuccessFallback" style="display:none;" role="alert"></div>
+        <?php endif; ?>
+        <?php if ($knit_card_generation_error !== ''): ?>
+            <div class="alert alert-danger alert-dismissible fade show rounded-3 mb-4 p-3" id="generationResultAlert" role="alert">
+                <i class="fa-solid fa-triangle-exclamation me-2"></i> <?php echo htmlspecialchars($knit_card_generation_error); ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        <?php endif; ?>
         <?php if (isset($_GET['msg'])): ?>
             <div class="alert alert-success alert-dismissible fade show rounded-3 mb-4 p-3" role="alert">
                 <i class="fa-solid fa-circle-check me-2"></i> <?php echo htmlspecialchars($_GET['msg']); ?>
@@ -841,12 +830,12 @@ $rows_array = $all_rows;
                             <th class="text-nowrap">Date</th>
                             <th class="text-nowrap">Program No</th>
                             <th class="text-nowrap">PO NO</th>
+                            <th class="text-nowrap">Color</th>
                             <th class="text-nowrap">Qty (KG)</th>
                             <th class="text-nowrap">SONO</th>
                             <th class="text-nowrap">Buyer</th>
                             <th class="text-nowrap">Customer</th>
                             <th class="text-nowrap">Style</th>
-                            <th class="text-nowrap">Color</th>
                             <th class="text-nowrap">Fabrics Type</th>
                             <th class="text-nowrap">Yarn Type</th>
                             <th class="text-nowrap">Yarn Count</th>
@@ -926,6 +915,7 @@ $rows_array = $all_rows;
                                     </td>
                                     <td class="text-nowrap"><strong><?php echo htmlspecialchars($p_prog); ?></strong></td>
                                     <td class="text-nowrap"><strong><?php echo htmlspecialchars($p_po ?: 'N/A'); ?></strong></td>
+                                    <td class="text-nowrap"><?php echo htmlspecialchars($p_color ?: 'N/A'); ?></td>
                                     <td class="text-nowrap">
                                         <div style="line-height:1.6; font-size:12.5px;">
                                             <div><span style="color:#64748b; font-weight:600;">Req:</span> <strong><?php echo number_format($prog_total_qty, 0); ?> KG</strong></div>
@@ -937,7 +927,6 @@ $rows_array = $all_rows;
                                     <td class="text-nowrap"><strong><?php echo htmlspecialchars($p_buyer ?: 'N/A'); ?></strong></td>
                                     <td class="text-nowrap"><?php echo htmlspecialchars($p_customer ?: 'N/A'); ?></td>
                                     <td class="text-nowrap"><?php echo htmlspecialchars($p_style ?: 'N/A'); ?></td>
-                                    <td class="text-nowrap"><?php echo htmlspecialchars($p_color ?: 'N/A'); ?></td>
                                     <td class="text-nowrap"><?php echo htmlspecialchars($p_ftype ?: 'N/A'); ?></td>
                                     <td class="text-nowrap"><?php echo htmlspecialchars($p_ytype ?: 'N/A'); ?></td>
                                     <td class="text-nowrap"><?php echo htmlspecialchars($p_ycount ?: 'N/A'); ?></td>
@@ -970,24 +959,40 @@ $rows_array = $all_rows;
 
     <script src="jquery.min.js"></script>
     <script src="js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
-        document.getElementById('dashboardRefreshBtn').addEventListener('click', function () {
-            var button = this;
-            button.disabled = true;
-            fetch('knit_card.php?action=logout_operator', { credentials: 'same-origin' })
-                .then(function (response) {
-                    if (!response.ok) throw new Error('Unable to return to operator scan.');
-                    return response.json();
-                })
-                .then(function (result) {
-                    if (!result.success) throw new Error('Unable to return to operator scan.');
-                    window.location.href = 'knit_card.php';
-                })
-                .catch(function (error) {
-                    button.disabled = false;
-                    window.alert(error.message);
+        var generationSuccessMessage = <?php echo json_encode($knit_card_generation_success, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT); ?>;
+        if (generationSuccessMessage) {
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Saved Successfully',
+                    text: generationSuccessMessage,
+                    timer: 3000,
+                    timerProgressBar: true,
+                    showConfirmButton: false
+                }).then(function () {
+                    window.location.reload();
                 });
-        });
+            } else {
+                var successFallback = document.getElementById('generationSuccessFallback');
+                if (successFallback) {
+                    successFallback.textContent = generationSuccessMessage;
+                    successFallback.style.display = 'block';
+                }
+                window.setTimeout(function () {
+                    window.location.reload();
+                }, 3000);
+            }
+        }
+
+        var generationResultAlert = document.getElementById('generationResultAlert');
+        if (generationResultAlert && !generationSuccessMessage) {
+            window.setTimeout(function () {
+                bootstrap.Alert.getOrCreateInstance(generationResultAlert).close();
+                window.location.reload();
+            }, 3000);
+        }
     </script>
 </body>
 

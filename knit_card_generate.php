@@ -66,9 +66,13 @@ $rolls_complete = 0;
 $kc_prog_col = get_knit_card_program_col($db);
 $p_kptid = intval($prog['KPTID']);
 $p_prog_no = !empty($prog['PROGRAM_NO']) ? strval($prog['PROGRAM_NO']) : strval($p_kptid);
-$sum_stmt = $db->prepare("SELECT SUM(QTY) AS total_carded, COUNT(*) AS rolls_complete FROM knit_card WHERE ({$kc_prog_col} = ? OR {$kc_prog_col} = ?)");
+$sum_stmt = $db->prepare("SELECT SUM(QTY) AS total_carded, COUNT(*) AS rolls_complete
+                          FROM knit_card
+                          WHERE ({$kc_prog_col} = ? OR {$kc_prog_col} = ?)
+                            AND LOWER(TRIM(COALESCE(COLOR, ''))) = LOWER(TRIM(?))");
 if ($sum_stmt) {
-    $sum_stmt->bind_param("ss", $p_prog_no, $p_kptid);
+    $program_color = trim((string)($prog['COLOR'] ?? ''));
+    $sum_stmt->bind_param("sss", $p_prog_no, $p_kptid, $program_color);
     $sum_stmt->execute();
     $res_sum = $sum_stmt->get_result();
     if ($res_sum && $row_sum = $res_sum->fetch_assoc()) {
@@ -129,37 +133,19 @@ $default_qty        = $remaining_qty;
 $authorised_by      = '';
 $error              = '';
 
-// The scanned operator from the Knit Card page is authoritative for this card.
-$operator_id   = '';
-$operator_name = '';
+$operator_id = trim((string)($_SESSION['user_id'] ?? ''));
+if ($operator_id === '') {
+    $operator_id = trim((string)($_SESSION['operator_id'] ?? $_SESSION['knitting_qc_id'] ?? $_SESSION['username'] ?? ''));
+}
+$operator_name = trim((string)($_SESSION['user_name'] ?? $_SESSION['operator_name'] ?? ''));
+if ($operator_name === '') {
+    $operator_name = trim((string)($_SESSION['username'] ?? $operator_id));
+}
 
 // Make sure knit_card has the UID column that stores the operator ID
 $uid_col_chk = @$db->query("SHOW COLUMNS FROM knit_card LIKE 'UID'");
 if ($uid_col_chk && $uid_col_chk->num_rows === 0) {
     @$db->query("ALTER TABLE knit_card ADD COLUMN UID varchar(100) DEFAULT NULL AFTER UNAME");
-}
-
-function kc_lookup_operator($db, $value) {
-    $value = trim((string)$value);
-    if ($value === '') return null;
-    $st = $db->prepare("SELECT OPERATOR_ID, OPERATOR_NAME FROM knitting_operator WHERE LOWER(TRIM(OPERATOR_ID)) = LOWER(TRIM(?)) LIMIT 1");
-    if (!$st) return null;
-    $st->bind_param("s", $value);
-    $st->execute();
-    $res = $st->get_result();
-    $row = ($res) ? $res->fetch_assoc() : null;
-    $st->close();
-    return $row ?: null;
-}
-
-$operator_error = '';
-$scanned_operator_id = trim((string)($_SESSION['knit_card_operator']['id'] ?? ''));
-$scanned_operator = kc_lookup_operator($db, $scanned_operator_id);
-if ($scanned_operator) {
-    $operator_id   = $scanned_operator['OPERATOR_ID'];
-    $operator_name = $scanned_operator['OPERATOR_NAME'];
-} else {
-    $operator_error = 'The scanned Knit Card operator is unavailable. Return to Knit Card and scan again.';
 }
 
 if ($remaining_qty <= 0) {
@@ -207,8 +193,8 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
         $total_user_req_qty += $qty;
     }
 
-    if (empty($error) && ($operator_error !== '' || $operator_id === '')) {
-        $error = $operator_error !== '' ? $operator_error : "Please return to Knit Card and scan an operator.";
+    if (empty($error) && $operator_id === '') {
+        $error = "Unable to determine the logged-in user. Please log in again.";
     }
 
     if (empty($error)) {
@@ -217,10 +203,13 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
         } elseif ($total_user_req_qty <= 0) {
             $error = "Total required quantity must be greater than 0.";
         } else {
-            // Start Transaction
-            $db->begin_transaction();
-
+            $transaction_started = false;
             try {
+                if (!$db->begin_transaction()) {
+                    throw new Exception("Unable to start database transaction: " . $db->error);
+                }
+                $transaction_started = true;
+
                 // Lock the knitting_program row to prevent concurrent modifications on this program
                 $stmt_lock = $db->prepare("SELECT QTY FROM knitting_program WHERE KPTID = ? FOR UPDATE");
                 if (!$stmt_lock) {
@@ -239,11 +228,14 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 $program_qty_locked = floatval($lock_row['QTY'] ?? 0);
 
                 // Fetch current sum of QTY for this program from knit_card (using lock since it's in transaction)
-                $stmt_sum = $db->prepare("SELECT SUM(QTY) AS total_carded FROM knit_card WHERE ({$kc_prog_col} = ? OR {$kc_prog_col} = ?)");
+                $stmt_sum = $db->prepare("SELECT SUM(QTY) AS total_carded
+                                          FROM knit_card
+                                          WHERE ({$kc_prog_col} = ? OR {$kc_prog_col} = ?)
+                                            AND LOWER(TRIM(COALESCE(COLOR, ''))) = LOWER(TRIM(?))");
                 if (!$stmt_sum) {
                     throw new Exception("Database query error: " . $db->error);
                 }
-                $stmt_sum->bind_param("ss", $p_prog_no, $p_kptid);
+                $stmt_sum->bind_param("sss", $p_prog_no, $p_kptid, $p_color);
                 $stmt_sum->execute();
                 $res_sum = $stmt_sum->get_result();
                 $already_carded_locked = 0.00;
@@ -287,11 +279,11 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 }
 
                 $p_fplan   = !empty($prog['FEEDER_PLAN']) ? $prog['FEEDER_PLAN'] : ($input['FEEDER_PLAN'] ?? '');
-                // Knit card is stamped with the SCANNED operator (never the logged-in account)
                 $p_uname   = $operator_name !== '' ? $operator_name : $operator_id;
                 $p_uid     = $operator_id;
 
                 $inserted_ids = [];
+                $inserted_knitcard_numbers = [];
                 $current_knitcard = $next_knitcard;
 
                 foreach ($rows_data as $row_item) {
@@ -336,29 +328,39 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                     }
 
                     $inserted_ids[] = $ins->insert_id;
+                    $inserted_knitcard_numbers[] = (string)$current_knitcard;
                     $current_knitcard++;
                 }
 
                 $ins->close();
 
-                // Commit Transaction
-                $db->commit();
+                if (!$db->commit()) {
+                    throw new Exception("Unable to commit Knit Card generation: " . $db->error);
+                }
+                $transaction_started = false;
 
-                $success_msg = count($inserted_ids) > 1 
-                    ? count($inserted_ids) . " Knit Cards generated successfully!" 
-                    : "Knit Card generated successfully!";
+                $success_msg = count($inserted_knitcard_numbers) > 1
+                    ? count($inserted_knitcard_numbers) . " Knit Cards saved successfully. Knit Card Nos: " . implode(', ', $inserted_knitcard_numbers)
+                    : "Knit Card saved successfully. Knit Card No: " . $inserted_knitcard_numbers[0];
 
                 $_SESSION['knit_card_generation_success'] = $success_msg;
-                unset($_SESSION['knit_card_operator']);
-                header("Location: knit_card.php");
+                header("Location: knit_card.php", true, 303);
                 exit();
 
             } catch (Exception $e) {
-                $db->rollback();
+                if ($transaction_started) {
+                    $db->rollback();
+                }
                 $error = $e->getMessage();
             }
         }
     }
+}
+
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && isset($_POST['save_knit_card'])) {
+    $_SESSION['knit_card_generation_error'] = $error !== '' ? $error : 'Knit Card could not be generated.';
+    header("Location: knit_card.php", true, 303);
+    exit();
 }
 ?>
 <!DOCTYPE html>
@@ -1213,10 +1215,10 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
         </div>
 
         <!-- ═══ ERROR DISPLAY ═══ -->
-        <?php if (!empty($error) || !empty($operator_error)): ?>
+        <?php if (!empty($error)): ?>
             <div class="alert alert-danger alert-dismissible fade show rounded-3 mb-4 p-3 border-0 shadow-sm" style="background:#fef2f2; color:#991b1b;">
                 <div class="d-flex align-items-center gap-2">
-                    <strong>Error:</strong> <?php echo htmlspecialchars($error ?: $operator_error); ?>
+                    <strong>Error:</strong> <?php echo htmlspecialchars($error); ?>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>

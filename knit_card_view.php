@@ -9,10 +9,13 @@ if (!isset($_SESSION['username'])) {
 }
 
 $raw_ids = '';
+$has_explicit_card_ids = !empty($_GET['ids']) || !empty($_GET['id']);
 if (!empty($_GET['ids'])) {
     $raw_ids = trim($_GET['ids']);
 } elseif (!empty($_GET['id'])) {
     $raw_ids = trim((string)$_GET['id']);
+} elseif (!empty($_SESSION['knit_card_view_ids'])) {
+    $raw_ids = (string)$_SESSION['knit_card_view_ids'];
 }
 
 $msg   = isset($_GET['msg'])   ? trim($_GET['msg'])   : '';
@@ -90,6 +93,7 @@ if (empty($_GET['ids']) && count($card_ids) === 1) {
                     JOIN knit_card b
                       ON b.{$batch_col} = a.{$batch_col}
                      AND (b.UNAME <=> a.UNAME)
+                     AND LOWER(TRIM(COALESCE(b.COLOR, ''))) = LOWER(TRIM(COALESCE(a.COLOR, '')))
                      AND ABS(TIMESTAMPDIFF(SECOND, a.CREATED_DATE, b.CREATED_DATE)) <= 10
                    WHERE a.KCTID = ?
                    ORDER BY b.KCTID ASC";
@@ -108,6 +112,15 @@ if (empty($_GET['ids']) && count($card_ids) === 1) {
         }
     }
 }
+
+if (!$has_explicit_card_ids && !empty($_SESSION['knit_card_view_focus_id'])) {
+    $saved_focus_id = intval($_SESSION['knit_card_view_focus_id']);
+    if (in_array($saved_focus_id, $card_ids, true)) {
+        $focus_card_id = $saved_focus_id;
+    }
+}
+$_SESSION['knit_card_view_ids'] = implode(',', $card_ids);
+$_SESSION['knit_card_view_focus_id'] = $focus_card_id;
 
 $placeholders = implode(',', array_fill(0, count($card_ids), '?'));
 $types = str_repeat('i', count($card_ids));
@@ -171,7 +184,6 @@ foreach ($cards_list as $card) {
     $roll_number = !empty($card['KNITCARD']) ? $card['KNITCARD'] : ("KC-" . $card_id);
     $qr_payload = strval($roll_number);
 
-    $val_card_id      = "#KC-" . $card_id;
     $val_knitcard     = !empty($card['KNITCARD']) ? $card['KNITCARD'] : 'N/A';
     $prog_id_val      = !empty($card['KNITTING_PROGRAM_ID']) ? $card['KNITTING_PROGRAM_ID'] : (!empty($card['Knitting Program ID']) ? $card['Knitting Program ID'] : (!empty($card['knitting_program_id']) ? $card['knitting_program_id'] : ($card['KPTID'] ?? '')));
     $val_sub_tid      = !empty($card['prog_program_no']) ? $card['prog_program_no'] : ('KP-' . $prog_id_val);
@@ -197,9 +209,7 @@ foreach ($cards_list as $card) {
     $val_mcdia        = !empty($card['MCDIA']) ? $card['MCDIA'] : (!empty($card['prog_mcdia']) ? $card['prog_mcdia'] : 'N/A');
     $val_feeder       = !empty($card['FEEDER_PLAN']) ? $card['FEEDER_PLAN'] : ($card['prog_feeder_plan'] ?? 'N/A');
     $val_qty          = number_format(floatval($card['QTY'] ?? 0), 2) . ' KG';
-    // Operator = the operator scanned on the Knit Card page (stored in UID / UNAME).
-    // Old cards made before this have no UID; their UNAME is the logged-in account, so it is not shown as operator.
-    $val_uid          = !empty($card['UID']) ? $card['UID'] : 'N/A';
+    // Older cards without UID do not have a distinct operator name.
     $val_uname        = !empty($card['UID']) ? (!empty($card['UNAME']) ? $card['UNAME'] : $card['UID']) : 'N/A';
     $val_category     = !empty($card['CATEGORY']) ? $card['CATEGORY'] : (!empty($card['prog_category']) ? $card['prog_category'] : 'N/A');
 
@@ -207,7 +217,6 @@ foreach ($cards_list as $card) {
         'card_id'       => $card_id,
         'roll_number'   => $roll_number,
         'qr_payload'    => $qr_payload,
-        'val_card_id'   => $val_card_id,
         'val_knitcard'  => $val_knitcard,
         'val_sub_tid'   => $val_sub_tid,
         'val_date'      => $val_date,
@@ -232,7 +241,6 @@ foreach ($cards_list as $card) {
         'val_mcdia'     => $val_mcdia,
         'val_feeder'    => $val_feeder,
         'val_qty'       => $val_qty,
-        'val_uid'       => $val_uid,
         'val_uname'     => $val_uname,
         'val_category'  => $val_category,
     ];
@@ -446,12 +454,48 @@ foreach ($cards_data as $fi => $fc) {
         }
 
         .val-qty-num {
-            font-size: 24px;
-            margin-bottom: 8px;
+            font-size: 19px;
+            margin: 0;
+            white-space: nowrap;
         }
 
         .lbl-qty {
-            font-size: 15px;
+            font-size: 12px;
+            margin: 0;
+        }
+
+        .qty-line {
+            display: flex;
+            align-items: baseline;
+            justify-content: center;
+            gap: 5px;
+            margin-bottom: 4px;
+        }
+
+        .mcno-line {
+            display: flex;
+            align-items: baseline;
+            justify-content: center;
+            gap: 4px;
+            max-width: 100%;
+            margin-bottom: 6px;
+            line-height: 1.2;
+            white-space: nowrap;
+        }
+
+        .mcno-label {
+            flex: 0 0 auto;
+            font-size: 10px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .mcno-value {
+            min-width: 0;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 18px;
+            font-weight: 800;
+            white-space: nowrap;
         }
 
         .qr-frame-box {
@@ -461,6 +505,7 @@ foreach ($cards_data as $fi => $fc) {
             border-radius: 6px;
             display: inline-block;
             line-height: 0;
+            margin-top: 3px;
         }
 
         .qr-frame-box .tag-qr {
@@ -609,7 +654,7 @@ foreach ($cards_data as $fi => $fc) {
     <div class="card-unit-wrapper<?php echo isset($_GET['print']) && $_GET['print'] === '1' && $idx === $focus_idx ? ' print-target' : ''; ?>" id="card_wrapper_<?php echo $idx; ?>">
         <div class="card-action-bar no-print d-flex justify-content-between align-items-center mb-2">
             <span class="card-bar-title">
-                <i class="fa-solid fa-tag me-1 text-primary"></i> <strong>Knit Card <?php echo htmlspecialchars($c['val_card_id']); ?></strong>
+                <i class="fa-solid fa-tag me-1 text-primary"></i> <strong>Knit Card #<?php echo htmlspecialchars($c['val_knitcard']); ?></strong>
             </span>
             <div class="btn-group-tag">
                 <button type="button" onclick="downloadSingleCard('card_box_<?php echo $idx; ?>', <?php echo htmlspecialchars(json_encode(strval($c['roll_number'])), ENT_QUOTES); ?>, <?php echo htmlspecialchars(json_encode(strval($c['card_id'])), ENT_QUOTES); ?>)" class="btn btn-tag btn-primary">
@@ -631,14 +676,19 @@ foreach ($cards_data as $fi => $fc) {
 
                 <div class="card-main-row">
                     <div class="col-qr-left">
-                        <div class="lbl-roll-tag lbl-qty">QTY</div>
-                        <div class="val-roll-num val-qty-num"><?php echo htmlspecialchars($c['val_qty']); ?></div>
+                        <div class="qty-line">
+                            <span class="lbl-roll-tag lbl-qty">QTY:</span>
+                            <span class="val-roll-num val-qty-num"><?php echo htmlspecialchars($c['val_qty']); ?></span>
+                        </div>
+                        <div class="mcno-line">
+                            <span class="mcno-label">M/C NO:</span>
+                            <strong class="mcno-value"><?php echo htmlspecialchars($c['val_mcno']); ?></strong>
+                        </div>
                         <div class="qr-frame-box">
                             <div class="tag-qr" id="roll_qrcode_<?php echo $idx; ?>"></div>
                         </div>
                         <div class="qr-payload-lbl">
                             Operator: <strong><?php echo htmlspecialchars($c['val_uname']); ?></strong><br>
-                            ID: <strong><?php echo htmlspecialchars($c['val_uid']); ?></strong><br>
                             Date: <strong><?php echo htmlspecialchars($c['val_date']); ?></strong>
                         </div>
                     </div>
@@ -662,31 +712,30 @@ foreach ($cards_data as $fi => $fc) {
                             </tr>
                             <tr>
                                 <td><span class="tag-lbl">Style:</span> <span class="tag-val"><?php echo htmlspecialchars($c['val_style']); ?></span></td>
-                                <td><span class="tag-lbl">Customer:</span> <span class="tag-val"><?php echo htmlspecialchars($c['val_customer']); ?></span></td>
-                            </tr>
-                            <tr>
-                                <td><span class="tag-lbl">Color:</span> <span class="tag-val"><?php echo htmlspecialchars($c['val_color']); ?></span></td>
                                 <td><span class="tag-lbl">Yarn Type:</span> <span class="tag-val"><?php echo htmlspecialchars($c['val_ytype']); ?></span></td>
                             </tr>
                             <tr>
-                                <td><span class="tag-lbl">Shift:</span> <span class="tag-val"><?php echo htmlspecialchars($c['val_shift']); ?></span></td>
+                                <td><span class="tag-lbl">Color:</span> <span class="tag-val"><?php echo htmlspecialchars($c['val_color']); ?></span></td>
                                 <td><span class="tag-lbl">Yarn Count:</span> <span class="tag-val"><?php echo htmlspecialchars($c['val_ycount']); ?></span></td>
                             </tr>
                             <tr>
-                                <td><span class="tag-lbl">M/C No:</span> <span class="tag-val"><?php echo htmlspecialchars($c['val_mcno']); ?></span></td>
+                                <td><span class="tag-lbl">Shift:</span> <span class="tag-val"><?php echo htmlspecialchars($c['val_shift']); ?></span></td>
                                 <td><span class="tag-lbl">Yarn Brand:</span> <span class="tag-val"><?php echo htmlspecialchars($c['val_ybrand']); ?></span></td>
                             </tr>
                             <tr>
-                                <td><span class="tag-lbl">O / T:</span> <span class="tag-val"><?php echo htmlspecialchars($c['val_ot']); ?></span></td>
-                                <td><span class="tag-lbl">M/C Dia:</span> <span class="tag-val"><?php echo htmlspecialchars($c['val_mcdia']); ?></span></td>
+                                <td><span class="tag-lbl">Customer:</span> <span class="tag-val"><?php echo htmlspecialchars($c['val_customer']); ?></span></td>
+                                <td><span class="tag-lbl">MC Dia:</span> <span class="tag-val"><?php echo htmlspecialchars($c['val_mcdia']); ?></span></td>
                             </tr>
                             <tr>
-                                <td><span class="tag-lbl">Lot No:</span> <span class="tag-val"><?php echo htmlspecialchars($c['val_lot']); ?></span></td>
+                                <td><span class="tag-lbl">O / T:</span> <span class="tag-val"><?php echo htmlspecialchars($c['val_ot']); ?></span></td>
                                 <td><span class="tag-lbl">SL/VDQ:</span> <span class="tag-val"><?php echo htmlspecialchars($c['val_sl']); ?></span></td>
                             </tr>
                             <tr>
-                                <td><span class="tag-lbl">Category:</span> <span class="tag-val"><?php echo htmlspecialchars($c['val_category']); ?></span></td>
+                                <td><span class="tag-lbl">Lot No:</span> <span class="tag-val"><?php echo htmlspecialchars($c['val_lot']); ?></span></td>
                                 <td><span class="tag-lbl">Feeder:</span> <span class="tag-val"><?php echo htmlspecialchars($c['val_feeder']); ?></span></td>
+                            </tr>
+                            <tr>
+                                <td colspan="2"><span class="tag-lbl">Category:</span> <span class="tag-val"><?php echo htmlspecialchars($c['val_category']); ?></span></td>
                             </tr>
                         </table>
                     </div>
@@ -700,6 +749,20 @@ foreach ($cards_data as $fi => $fc) {
     <script src="js/bootstrap.bundle.min.js"></script>
     <script>
         document.addEventListener("DOMContentLoaded", function () {
+            document.querySelectorAll('.mcno-line').forEach(function (line) {
+                var label = line.querySelector('.mcno-label');
+                var value = line.querySelector('.mcno-value');
+                if (!label || !value) return;
+
+                var baseFontSize = 18;
+                value.style.fontSize = baseFontSize + 'px';
+                var availableWidth = line.clientWidth - label.offsetWidth - 4;
+                var textWidth = value.scrollWidth;
+                if (availableWidth > 0 && textWidth > availableWidth) {
+                    value.style.fontSize = Math.max(6, baseFontSize * availableWidth / textWidth) + 'px';
+                }
+            });
+
             <?php foreach ($cards_data as $idx => $c): ?>
             (function() {
                 var qrBox = document.getElementById("roll_qrcode_<?php echo $idx; ?>");
@@ -916,6 +979,10 @@ foreach ($cards_data as $fi => $fc) {
                 console.error('Download error:', err);
                 alert('Error generating download: ' + err.message);
             });
+        }
+
+        if (window.location.search) {
+            window.history.replaceState(null, document.title, window.location.pathname);
         }
     </script>
 </body>
