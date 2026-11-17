@@ -56,6 +56,60 @@ $timeSelectSql = $timeSelect
     ? implode(",\n            ", $timeSelect) . ",\n            "
     : '';
 
+$loadError = false;
+$challanJoinSql = '';
+$challanSelectSql = "NULL AS KNITTING_CHALLAN_ID,
+            '' AS CHALLAN_NO,
+            COALESCE(DATE_FORMAT(t.BUDAT, '%d-%m-%Y'), '') AS CHALLAN_DATE,
+            '' AS TO_NAME,
+            '' AS GATE_PASS_NO,
+            '' AS VEHICLE_NO,
+            '' AS DELIVERY_REMARKS";
+$deliverySchema = $db->query("SHOW COLUMNS FROM dyeing_batch_delivery");
+if (!$deliverySchema) {
+    error_log('Knitting Batch Delivery report schema query failed: ' . $db->error);
+    $loadError = true;
+} else {
+    $deliveryColumnNames = [];
+    while ($column = $deliverySchema->fetch_assoc()) {
+        $deliveryColumnNames[] = strtoupper($column['Field']);
+    }
+    $deliverySchema->free();
+    $challanTable = $db->query("SHOW TABLES LIKE 'knitting_delivery_challan'");
+    if (!$challanTable) {
+        error_log('Knitting delivery challan table check failed: ' . $db->error);
+        $loadError = true;
+    } elseif ($challanTable->num_rows > 0) {
+        $headerSchema = $db->query("SHOW COLUMNS FROM knitting_delivery_challan");
+        if (!$headerSchema) {
+            error_log('Knitting delivery challan header schema query failed: ' . $db->error);
+            $loadError = true;
+        } else {
+            $headerColumnNames = [];
+            while ($column = $headerSchema->fetch_assoc()) {
+                $headerColumnNames[] = strtoupper($column['Field']);
+            }
+            $headerSchema->free();
+            if (
+                in_array('KNITTING_CHALLAN_ID', $deliveryColumnNames, true) &&
+                in_array('DELIVERY_REMARKS', $deliveryColumnNames, true)
+            ) {
+                $toNameSelect = in_array('TO_NAME', $headerColumnNames, true)
+                    ? "COALESCE(kdc.TO_NAME, '')"
+                    : "''";
+                $challanSelectSql = "t.KNITTING_CHALLAN_ID,
+                    COALESCE(kdc.CHALLAN_NO, '') AS CHALLAN_NO,
+                    COALESCE(DATE_FORMAT(kdc.BUDAT, '%d-%m-%Y'), DATE_FORMAT(t.BUDAT, '%d-%m-%Y'), '') AS CHALLAN_DATE,
+                    {$toNameSelect} AS TO_NAME,
+                    COALESCE(kdc.GATE_PASS_NO, '') AS GATE_PASS_NO,
+                    COALESCE(kdc.VEHICLE_NO, '') AS VEHICLE_NO,
+                    COALESCE(t.DELIVERY_REMARKS, '') AS DELIVERY_REMARKS";
+                $challanJoinSql = ' LEFT JOIN knitting_delivery_challan kdc ON kdc.KDCID = t.KNITTING_CHALLAN_ID';
+            }
+        }
+    }
+}
+
 $sql = "SELECT
             t.BCARD,
             t.ROLL,
@@ -66,6 +120,7 @@ $sql = "SELECT
             t.SONO,
             t.BUYER,
             t.STYLE,
+            {$challanSelectSql},
             t.MCDIA,
             t.CUSTOMER,
             t.O_T,
@@ -79,17 +134,18 @@ $sql = "SELECT
             {$timeSelectSql}{$reportOperator} AS OPERATOR,
             {$reportOperatorId} AS OP_ID,
             " . implode(",\n            ", $processSelect) . "
-        FROM {$reportFrom}";
+        FROM {$reportFrom}{$challanJoinSql}";
 if ($reportWhere !== '') {
     $sql .= ' WHERE ' . $reportWhere;
 }
 $sql .= ' ORDER BY ' . $reportOrder;
 
 $rows = [];
-$loadError = false;
-$result = $db->query($sql);
+$result = $loadError ? false : $db->query($sql);
 if (!$result) {
-    error_log('Knitting Batch Delivery report query failed: ' . $db->error);
+    if (!$loadError) {
+        error_log('Knitting Batch Delivery report query failed: ' . $db->error);
+    }
     http_response_code(500);
     $loadError = true;
 } else {
@@ -151,6 +207,29 @@ function dyeingReportEscape($value)
         .process-chip { padding: 3px 7px; border: 1px solid #99d5c9; border-radius: 6px; background: #e6f8f3; color: #075e54; font-size: .78rem; font-weight: 700; }
         .empty-row td, .error-row td { padding: 28px; color: #64748b; text-align: center; font-weight: 700; }
         .error-row td { color: #b91c1c; }
+        #challanPrint { display: none; }
+        .challan-page { display: flex; flex-direction: column; width: 190mm; min-height: 270mm; margin: 0 auto; color: #111; font: 11px Arial, Helvetica, sans-serif; }
+        .challan-heading { display: grid; grid-template-columns: 1fr 3fr 1fr; align-items: center; min-height: 22mm; }
+        .challan-wordmark { color: #1e3a8a; font-size: 15px; font-style: italic; font-weight: 800; }
+        .challan-company { text-align: center; }
+        .challan-company h2 { margin: 0; font-size: 18px; letter-spacing: .3px; }
+        .challan-company p { margin: 2px 0 0; font-size: 9px; font-weight: 600; }
+        .challan-title { display: table; margin: 3px auto 8px; padding: 2px 14px; border: 1px solid #111; border-radius: 20px; font-size: 12px; font-weight: 700; }
+        .challan-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 12px; margin-bottom: 5mm; }
+        .challan-to { grid-column: 1 / -1; min-height: 9mm; }
+        .challan-meta-list { display: grid; grid-column: 1 / -1; grid-template-columns: 1fr 1fr; gap: 5px 12px; }
+        .challan-meta-list div { min-height: 17px; }
+        .challan-page table { width: 100%; min-width: 0; border-collapse: collapse; table-layout: fixed; font-size: 10px; }
+        .challan-page th, .challan-page td { padding: 5px 4px; border: 1px solid #222; color: #111; text-align: center; vertical-align: middle; }
+        .challan-page th { background: #fff; text-align: center; font-weight: 700; }
+        .challan-page tbody tr { background: #fff; }
+        .challan-page td { white-space: normal; }
+        .challan-page tbody td { height: 13mm; }
+        .challan-page tfoot th { background: #fff; }
+        .challan-quantity-lines { margin-top: 5mm; }
+        .challan-quantity-line { min-height: 20px; margin-bottom: 3px; }
+        .challan-signatures { display: flex; justify-content: space-between; gap: 8px; margin-top: auto; padding-top: 16mm; }
+        .challan-signatures span { flex: 1; padding-top: 4px; border-top: 1px solid #222; text-align: center; white-space: nowrap; }
         @media (max-width: 700px) {
             body { padding: 10px; }
             .report-header { flex-wrap: wrap; gap: 8px; }
@@ -160,16 +239,15 @@ function dyeingReportEscape($value)
             .search-row input { flex-basis: 100%; }
         }
         @media print {
-            @page { size: landscape; margin: 10mm; }
+            @page { size: A4 portrait; margin: 8mm; }
             body { padding: 0; background: #fff; }
-            .no-print { display: none !important; }
-            .table-card, .table-scroll { overflow: visible !important; max-height: none !important; }
-            table { width: 100%; min-width: 0; font-size: 8pt; }
-            thead th { position: static; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            tbody td { padding: 5px; white-space: normal; }
-            .process-list { display: flex; flex-wrap: wrap; }
-            .report-table tbody tr:not(.print-target) { display: none !important; }
-            .report-table .action-column { display: none !important; }
+            body > main { display: none !important; }
+            #challanPrint { display: block !important; }
+            .challan-page { width: 100%; min-height: 270mm; margin: 0; }
+            .challan-page table { page-break-inside: auto; }
+            .challan-page thead { display: table-header-group; }
+            .challan-page tr { page-break-inside: avoid; }
+            .challan-page tfoot { display: table-row-group; }
         }
     </style>
 </head>
@@ -200,6 +278,7 @@ function dyeingReportEscape($value)
             </div>
         </div>
     </main>
+    <section id="challanPrint" aria-hidden="true"></section>
     <script>
         var reportRows = <?php echo json_encode($rows, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_INVALID_UTF8_SUBSTITUTE); ?>;
         var reportColumns = [
@@ -258,10 +337,135 @@ function dyeingReportEscape($value)
             return list;
         }
 
-        function printBatch(batch) {
-            document.querySelectorAll('.report-table tbody tr').forEach(function(row) {
-                row.classList.toggle('print-target', row.dataset.batch === batch);
+        function escapeHtml(value) {
+            var element = document.createElement('span');
+            element.textContent = value === null || value === undefined ? '' : String(value);
+            return element.innerHTML;
+        }
+
+        function numberToWords(value) {
+            var ones = [
+                'zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine',
+                'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen',
+                'seventeen', 'eighteen', 'nineteen'
+            ];
+            var tens = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+            var number = Math.floor(Math.max(0, Number(value) || 0));
+            if (number < 20) return ones[number];
+            if (number < 100) {
+                return tens[Math.floor(number / 10)] + (number % 10 ? ' ' + ones[number % 10] : '');
+            }
+            if (number < 1000) {
+                return ones[Math.floor(number / 100)] + ' hundred' +
+                    (number % 100 ? ' ' + numberToWords(number % 100) : '');
+            }
+            var units = [
+                {value: 10000000, label: 'crore'},
+                {value: 100000, label: 'lakh'},
+                {value: 1000, label: 'thousand'}
+            ];
+            for (var index = 0; index < units.length; index++) {
+                if (number >= units[index].value) {
+                    var count = Math.floor(number / units[index].value);
+                    var remainder = number % units[index].value;
+                    return numberToWords(count) + ' ' + units[index].label +
+                        (remainder ? ' ' + numberToWords(remainder) : '');
+                }
+            }
+            return '';
+        }
+
+        function printBatch(batch, selectedChallanId) {
+            var batchRows = reportRows.filter(function(row) {
+                return String(row.BCARD || '') === String(batch);
             });
+            if (!batchRows.length) return;
+
+            if (selectedChallanId !== undefined) {
+                batchRows = batchRows.filter(function(row) {
+                    var challanId = row.KNITTING_CHALLAN_ID;
+                    var key = challanId === null || challanId === undefined || challanId === ''
+                        ? ''
+                        : String(challanId);
+                    return key === selectedChallanId;
+                });
+            }
+            if (!batchRows.length) return;
+            var challanId = batchRows[0].KNITTING_CHALLAN_ID;
+            var challanRows = challanId
+                ? reportRows.filter(function(row) {
+                    return String(row.KNITTING_CHALLAN_ID) === String(challanId);
+                })
+                : batchRows;
+            var groups = new Map();
+            challanRows.forEach(function(row) {
+                var batchNo = String(row.BCARD || '');
+                if (!groups.has(batchNo)) groups.set(batchNo, []);
+                groups.get(batchNo).push(row);
+            });
+
+            var serial = 0;
+            var totalQty = 0;
+            var tableRows = '';
+            groups.forEach(function(group, batchNo) {
+                group.forEach(function(row, index) {
+                    serial++;
+                    totalQty += Number(row.QTY) || 0;
+                    tableRows += '<tr><td>' + serial + '</td>' +
+                        (index === 0
+                            ? '<td rowspan="' + group.length + '">' + escapeHtml(batchNo) + '</td>'
+                            : '') +
+                        '<td>' + escapeHtml(row.FTYPE) + '</td>' +
+                        '<td>' + escapeHtml(row.ROLL) + '</td>' +
+                        '<td>' + escapeHtml(row.QTY) + '</td>' +
+                        (index === 0
+                            ? '<td rowspan="' + group.length + '">' +
+                                escapeHtml(group[0].DELIVERY_REMARKS) + '</td>'
+                            : '') +
+                        '</tr>';
+                });
+            });
+            for (var blankRow = serial; blankRow < 8; blankRow++) {
+                tableRows += '<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td></tr>';
+            }
+
+            var header = batchRows[0];
+            var totalMilliKg = Math.round(totalQty * 1000);
+            var wholeKg = Math.floor(totalMilliKg / 1000);
+            var grams = totalMilliKg % 1000;
+            var quantityWords = numberToWords(wholeKg) + ' kilogram' + (wholeKg === 1 ? '' : 's');
+            if (grams) quantityWords += ' and ' + numberToWords(grams) + ' grams';
+            quantityWords += ' only';
+
+            document.getElementById('challanPrint').innerHTML =
+                '<article class="challan-page">' +
+                '<header class="challan-heading">' +
+                '<div class="challan-wordmark">PURBANI</div>' +
+                '<div class="challan-company"><h2>PURBANI FABRICS LTD.</h2>' +
+                '<p>NOORBAGH, MOUCHAK, KALIAKOIR, GAZIPUR</p></div><div></div>' +
+                '</header>' +
+                '<div class="challan-title">DELIVERY CHALLAN</div>' +
+                '<div class="challan-meta">' +
+                '<div class="challan-to"><strong>To:</strong> ' + escapeHtml(header.TO_NAME || '') + '</div>' +
+                '<div class="challan-meta-list">' +
+                '<div><strong>Challan No.:</strong> ' + escapeHtml(header.CHALLAN_NO || '-') + '</div>' +
+                '<div><strong>Date:</strong> ' + escapeHtml(header.CHALLAN_DATE || '-') + '</div>' +
+                '<div><strong>Gate Pass No.:</strong> ' + escapeHtml(header.GATE_PASS_NO || '-') + '</div>' +
+                '<div><strong>Vehicle No.:</strong> ' + escapeHtml(header.VEHICLE_NO || '-') + '</div>' +
+                '</div></div>' +
+                '<table><colgroup><col style="width:8%"><col style="width:14%"><col style="width:32%">' +
+                '<col style="width:14%"><col style="width:14%"><col style="width:18%"></colgroup>' +
+                '<thead><tr><th>SL. No.</th><th>Batch No.</th><th>Description of Goods</th>' +
+                '<th>Roll/Bag</th><th>Qnty.</th><th>Remarks</th></tr></thead><tbody>' +
+                tableRows + '</tbody><tfoot><tr><th colspan="4">TOTAL</th><th>' +
+                escapeHtml(totalQty.toFixed(3)) + '</th><th></th></tr></tfoot></table>' +
+                '<div class="challan-quantity-lines">' +
+                '<div class="challan-quantity-line">Total weight: ' + escapeHtml(totalQty.toFixed(3)) + ' KG</div>' +
+                '<div class="challan-quantity-line">In words: ' + escapeHtml(quantityWords) + '</div>' +
+                '</div><div class="challan-signatures"><span>Received by</span><span>Prepared by</span>' +
+                '<span>Store Officer</span><span>Store Manager</span><span>Auth. Signature</span></div>' +
+                '</article>';
+            document.getElementById('challanPrint').setAttribute('aria-hidden', 'false');
             window.print();
         }
 
@@ -293,12 +497,24 @@ function dyeingReportEscape($value)
                         var actionCell = tr.insertCell();
                         actionCell.rowSpan = group.length;
                         actionCell.className = 'action-column';
-                        var printButton = document.createElement('button');
-                        printButton.type = 'button';
-                        printButton.className = 'btn btn-print no-print';
-                        printButton.innerHTML = '<i class="fa-solid fa-print"></i> Print';
-                        printButton.addEventListener('click', function() { printBatch(batch); });
-                        actionCell.appendChild(printButton);
+                        var challanKeys = [];
+                        group.forEach(function(groupRow) {
+                            var challanId = groupRow.KNITTING_CHALLAN_ID;
+                            var challanKey = challanId === null || challanId === undefined || challanId === ''
+                                ? ''
+                                : String(challanId);
+                            if (challanKeys.indexOf(challanKey) === -1) challanKeys.push(challanKey);
+                        });
+                        challanKeys.forEach(function(challanKey) {
+                            var printButton = document.createElement('button');
+                            printButton.type = 'button';
+                            printButton.className = 'btn btn-print no-print';
+                            printButton.innerHTML = '<i class="fa-solid fa-print"></i> Print';
+                            printButton.addEventListener('click', function() {
+                                printBatch(batch, challanKey);
+                            });
+                            actionCell.appendChild(printButton);
+                        });
 
                         var batchCell = tr.insertCell();
                         batchCell.rowSpan = group.length;
@@ -342,9 +558,9 @@ function dyeingReportEscape($value)
             if (event.key === 'Enter') applySearch();
         });
         window.addEventListener('afterprint', function() {
-            document.querySelectorAll('.print-target').forEach(function(row) {
-                row.classList.remove('print-target');
-            });
+            var printArea = document.getElementById('challanPrint');
+            printArea.innerHTML = '';
+            printArea.setAttribute('aria-hidden', 'true');
         });
 
         setHeaders();
