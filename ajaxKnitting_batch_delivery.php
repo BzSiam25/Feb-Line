@@ -369,6 +369,10 @@ try {
         if ($roll === '') {
             respond(['success' => false, 'message' => 'Scan or enter a roll number first.'], 400);
         }
+        if (isset($_GET['manual']) && $_GET['manual'] === '1' &&
+            empty($_SESSION['knitting_delivery_manual_entry_authorized'])) {
+            respond(['success' => false, 'message' => 'Unlock manual roll entry before entering a roll.'], 403);
+        }
 
         $stmt = $db->prepare(
             "SELECT BCARD

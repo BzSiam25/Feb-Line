@@ -6,6 +6,8 @@ if (!isset($_SESSION['username'])) {
     header('Location: login.php');
     exit;
 }
+
+unset($_SESSION['knitting_delivery_manual_entry_authorized']);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -110,9 +112,16 @@ if (!isset($_SESSION['username'])) {
         .camera-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; justify-items: center; }
         .scanner-stage { width: min(100%, 460px); }
         #qr-reader { width: 100%; min-height: 300px; overflow: hidden; border-radius: 12px; background: #f1f5f9; }
-        .scanner-controls { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 10px; }
-        .manual-scan { width: min(100%, 1100px); }
+        .scanner-controls { display: flex; width: 100%; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin-top: 10px; }
+        .manual-scan { width: 100%; margin-top: 12px; }
         .scan-help { margin: 0 0 12px; color: #475569; }
+        .manual-unlock, .manual-password-row { display: flex; align-items: center; gap: 6px; }
+        .manual-password-row input { width: 135px; min-width: 0; min-height: 42px; padding: 9px 10px; }
+        #unlockManualButton { flex: 0 0 auto; padding: 9px 12px; }
+        .manual-entry-locked { opacity: .7; }
+        .manual-entry-locked input, .manual-entry-locked button[type="submit"] { cursor: not-allowed; }
+        .scan-form { display: flex; width: 100%; flex-wrap: wrap; align-items: end; gap: 10px; }
+        .manual-scan .field { min-width: 0; }
         .table-wrap { width: 100%; overflow: auto; max-height: calc(100vh - 350px); }
         table { width: 100%; min-width: 1900px; border: 1px solid #64748b; border-collapse: collapse; font-size: .92rem; }
         thead th {
@@ -235,18 +244,24 @@ if (!isset($_SESSION['username'])) {
                     <div id="qr-reader"></div>
                     <div class="scanner-controls">
                         <button type="button" id="switchCameraBtn">Switch Camera</button>
-                    </div>
-                </div>
-                <div class="manual-scan">
-                    <form class="scan-form" id="rollForm">
-                        <div class="field">
-                            <label for="rollInput">Roll Number</label>
-                            <div class="roll-input-group">
-                                <input type="text" id="rollInput" autocomplete="off" placeholder="Scan or enter roll number">
-                                <button type="submit" id="addRollBtn">Add</button>
+                        <div class="manual-unlock">
+                            <div class="manual-password-row">
+                                <input type="password" id="manualPassword" autocomplete="off" placeholder="Pass For Entry" aria-label="Password for manual entry">
+                                <button type="button" id="unlockManualButton">Unlock</button>
                             </div>
                         </div>
-                    </form>
+                    </div>
+                    <div class="manual-scan manual-entry-locked">
+                        <form class="scan-form" id="rollForm">
+                            <div class="field">
+                                <label for="rollInput">Roll Number</label>
+                                <div class="roll-input-group">
+                                    <input type="text" id="rollInput" autocomplete="off" placeholder="Unlock to enter roll number manually" readonly aria-disabled="true">
+                                    <button type="submit" id="addRollBtn" disabled>Add</button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
                 </div>
             </div>
         </section>
@@ -295,6 +310,9 @@ if (!isset($_SESSION['username'])) {
             var scannedPanel = document.getElementById('scannedPanel');
             var rollForm = document.getElementById('rollForm');
             var rollInput = document.getElementById('rollInput');
+            var addRollBtn = document.getElementById('addRollBtn');
+            var manualPassword = document.getElementById('manualPassword');
+            var unlockManualButton = document.getElementById('unlockManualButton');
             var toNameInput = document.getElementById('toNameInput');
             var gatePassNoInput = document.getElementById('gatePassNoInput');
             var vehicleNoInput = document.getElementById('vehicleNoInput');
@@ -310,6 +328,7 @@ if (!isset($_SESSION['username'])) {
             var remarksByBatch = new Map();
             var processingRoll = false;
             var scanPopupActive = false;
+            var manualEntryAuthorized = false;
             var delivered = false;
             var batchAlreadyDelivered = false;
             var alreadyDeliveredMessage = '';
@@ -594,8 +613,11 @@ if (!isset($_SESSION['username'])) {
                 rollInput.focus();
             }
 
-            function loadBatchForRoll(roll) {
-                return api('load_batch_by_roll', null, {roll: roll}).then(function(response) {
+            function loadBatchForRoll(roll, isManualEntry) {
+                return api('load_batch_by_roll', null, {
+                    roll: roll,
+                    manual: isManualEntry ? '1' : '0'
+                }).then(function(response) {
                     var sameBatch = batch && String(batch.card_no) === String(response.card_no);
                     if (batch && !sameBatch) {
                         if (scannedRolls.size && !batchAlreadyDelivered) {
@@ -654,19 +676,28 @@ if (!isset($_SESSION['username'])) {
                 });
             }
 
-            function addScannedRoll(rawRoll) {
+            function addScannedRoll(rawRoll, isManualEntry) {
                 var roll = extractRollValue(rawRoll);
                 if (!roll || processingRoll || scanPopupActive) return;
+                if (isManualEntry && !manualEntryAuthorized) {
+                    showScanPopup(
+                        'Enter a valid password and select Unlock before entering a roll manually.',
+                        'Manual Entry Locked',
+                        'warning'
+                    );
+                    return;
+                }
                 if (delivered) {
                     showScanPopup(alreadyDeliveredMessage, 'Batch Already Delivered', 'error');
                     return;
                 }
                 processingRoll = true;
                 rollInput.disabled = true;
+                addRollBtn.disabled = true;
 
                 var resolveBatch = batch && expectedByRoll.has(roll)
                     ? Promise.resolve(batch)
-                    : loadBatchForRoll(roll);
+                    : loadBatchForRoll(roll, isManualEntry);
 
                 resolveBatch.then(function() {
                     if (delivered) return;
@@ -724,6 +755,7 @@ if (!isset($_SESSION['username'])) {
                 processingRoll = false;
                 rollInput.value = '';
                 rollInput.disabled = delivered || scanPopupActive;
+                addRollBtn.disabled = !manualEntryAuthorized || delivered || scanPopupActive;
                 if (!delivered && !scanPopupActive) rollInput.focus();
             }
 
@@ -746,7 +778,7 @@ if (!isset($_SESSION['username'])) {
                 qrScanner.start(
                     {facingMode: cameraFacingMode},
                     {fps: 12, qrbox: {width: 250, height: 180}},
-                    function(decodedText) { addScannedRoll(decodedText); },
+                    function(decodedText) { addScannedRoll(decodedText, false); },
                     function() {}
                 ).then(function() {
                     showMessage('Camera scanner is ready. First scan a roll to find its batch.', 'info');
@@ -925,12 +957,75 @@ if (!isset($_SESSION['username'])) {
 
             rollForm.addEventListener('submit', function(event) {
                 event.preventDefault();
-                addScannedRoll(rollInput.value);
+                addScannedRoll(rollInput.value, true);
             });
             rollInput.addEventListener('keydown', function(event) {
                 if (event.key !== 'Enter') return;
                 event.preventDefault();
-                addScannedRoll(rollInput.value);
+                addScannedRoll(rollInput.value, true);
+            });
+            rollInput.addEventListener('click', function() {
+                if (!manualEntryAuthorized) {
+                    showScanPopup(
+                        'Enter a valid password and select Unlock before entering a roll manually.',
+                        'Manual Entry Locked',
+                        'warning'
+                    );
+                }
+            });
+
+            function setManualEntryAuthorized(isAuthorized) {
+                manualEntryAuthorized = isAuthorized;
+                rollInput.readOnly = !isAuthorized;
+                rollInput.placeholder = isAuthorized
+                    ? 'Enter roll number manually'
+                    : 'Unlock to enter roll number manually';
+                rollInput.setAttribute('aria-disabled', isAuthorized ? 'false' : 'true');
+                addRollBtn.disabled = !isAuthorized || delivered || processingRoll;
+                document.querySelector('.manual-scan').classList.toggle('manual-entry-locked', !isAuthorized);
+                if (isAuthorized) rollInput.focus();
+            }
+
+            unlockManualButton.addEventListener('click', function() {
+                var password = manualPassword.value;
+                if (!password) {
+                    showScanPopup('Enter the password to unlock manual roll entry.', 'Password Required', 'warning');
+                    manualPassword.focus();
+                    return;
+                }
+
+                unlockManualButton.disabled = true;
+                fetch('ajaxDyeing_roll_verification.php', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        action: 'authorize_manual_entry',
+                        scope: 'knitting_batch_delivery',
+                        password: password
+                    })
+                }).then(function(response) {
+                    return response.json().then(function(data) {
+                        if (!response.ok || !data.success) {
+                            throw new Error(data.message || 'Could not unlock manual entry.');
+                        }
+                        return data;
+                    });
+                }).then(function() {
+                    manualPassword.value = '';
+                    setManualEntryAuthorized(true);
+                    showMessage('Manual roll entry unlocked.', 'success');
+                }).catch(function(error) {
+                    showScanPopup(error.message || 'Incorrect password.', 'Manual Entry Locked', 'error');
+                }).finally(function() {
+                    unlockManualButton.disabled = false;
+                });
+            });
+
+            manualPassword.addEventListener('keydown', function(event) {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    unlockManualButton.click();
+                }
             });
 
             document.getElementById('scannedRows').addEventListener('click', function(event) {
@@ -989,6 +1084,9 @@ if (!isset($_SESSION['username'])) {
                     delivered = true;
                     renderScannedRows();
                     rollInput.disabled = true;
+                    addRollBtn.disabled = true;
+                    unlockManualButton.disabled = true;
+                    manualPassword.disabled = true;
                     document.getElementById('toNameInput').disabled = true;
                     document.getElementById('gatePassNoInput').disabled = true;
                     document.getElementById('vehicleNoInput').disabled = true;
@@ -1003,6 +1101,7 @@ if (!isset($_SESSION['username'])) {
                 });
             });
 
+            setManualEntryAuthorized(manualEntryAuthorized);
             rollInput.focus();
             startCamera();
         })();

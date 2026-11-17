@@ -59,7 +59,11 @@ if ($action === 'authorize_manual_entry') {
     }
 
     unset($_SESSION['roll_manual_entry_attempts'], $_SESSION['roll_manual_entry_lock_until']);
-    $_SESSION['roll_manual_entry_authorized'] = true;
+    if (isset($requestData['scope']) && $requestData['scope'] === 'knitting_batch_delivery') {
+        $_SESSION['knitting_delivery_manual_entry_authorized'] = true;
+    } else {
+        $_SESSION['roll_manual_entry_authorized'] = true;
+    }
     respond(['success' => true, 'message' => 'Manual roll entry unlocked.']);
 }
 
