@@ -98,7 +98,6 @@ if (!isset($_SESSION['username'])) {
         }
         button:hover { filter: brightness(.94); }
         button:disabled { background: #94a3b8; cursor: not-allowed; }
-        .scan-button { background: #2563eb; }
         .add-roll-button { flex: 0 0 auto; }
         .confirm-button { background: #059669; }
         .message { display: none; padding: 11px 13px; margin-top: 12px; border-radius: 8px; font-weight: 700; }
@@ -115,18 +114,19 @@ if (!isset($_SESSION['username'])) {
         .manual-scan { width: min(100%, 1100px); }
         .scan-help { margin: 0 0 12px; color: #475569; }
         .table-wrap { width: 100%; overflow: auto; max-height: calc(100vh - 350px); }
-        table { width: 100%; min-width: 1900px; border-collapse: collapse; font-size: .92rem; }
+        table { width: 100%; min-width: 1900px; border: 1px solid #64748b; border-collapse: collapse; font-size: .92rem; }
         thead th {
             position: sticky;
             top: 0;
             padding: 11px 9px;
+            border: 1px solid #0f766e;
             color: #fff;
             background: #134e4a;
             text-align: left;
             white-space: nowrap;
             z-index: 1;
         }
-        tbody td { padding: 10px 9px; border-bottom: 1px solid #dbe5e4; white-space: nowrap; }
+        tbody td { padding: 10px 9px; border: 1px solid #94a3b8; white-space: nowrap; }
         tbody tr:nth-child(even) { background: #f8fafc; }
         td.batch-card-cell, td.process-cell { vertical-align: middle; text-align: center; }
         .process-badges {
@@ -146,42 +146,52 @@ if (!isset($_SESSION['username'])) {
             font-size: .78rem;
             font-weight: 750;
         }
-        tfoot th { padding: 12px 9px; background: #ecfdf5; color: #065f46; text-align: right; white-space: nowrap; }
+        tfoot th { padding: 12px 9px; border: 1px solid #94a3b8; background: #ecfdf5; color: #065f46; text-align: right; white-space: nowrap; }
         .actions { display: flex; justify-content: flex-start; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
-        .another-batch-button { background: #334155; }
         .roll-badge { display: inline-block; padding: 4px 9px; border-radius: 20px; color: #065f46; background: #ccfbf1; font-weight: 800; }
         .remove-roll-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
             min-height: 32px;
             padding: 5px 9px;
             background: #fee2e2;
             color: #b91c1c;
         }
-        .remove-batch-button { min-height: 32px; padding: 5px 9px; background: #fee2e2; color: #b91c1c; }
+        .remove-roll-button { width: 36px; }
+        .trash-icon { width: 16px; height: 16px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
         .challan-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
         .challan-fields .field { min-width: 0; }
         .challan-fields .field-to { grid-column: 1 / -1; }
-        .remark-input { min-width: 180px; min-height: 36px; padding: 6px 9px; }
+        .remark-input { width: 100%; min-width: 180px; min-height: 36px; padding: 6px 9px; }
+        .challan-fields input, .remark-input { text-transform: uppercase; }
         #scannedPanel table { min-width: 900px; }
         .print-button { background: #2563eb; }
         #challanPrint { display: none; }
-        .challan-paper { color: #111; font: 12px Arial, sans-serif; }
-        .challan-paper-header { display: grid; grid-template-columns: 1fr 3fr 1fr; align-items: start; gap: 10px; }
-        .challan-brand { font-size: 15px; font-style: italic; font-weight: 700; }
+        .challan-page { display: flex; flex-direction: column; width: 190mm; min-height: 270mm; margin: 0 auto; color: #111; font: 11px Arial, Helvetica, sans-serif; }
+        .challan-heading { display: grid; grid-template-columns: 1fr 3fr 1fr; align-items: center; min-height: 22mm; }
+        .challan-wordmark { color: #1e3a8a; font-size: 15px; font-style: italic; font-weight: 800; }
         .challan-company { text-align: center; }
-        .challan-company h1 { margin: 0; font-size: 19px; }
-        .challan-company p { margin: 3px 0; font-size: 10px; }
-        .challan-title { display: inline-block; margin: 8px 0 10px; padding: 2px 14px; border: 1px solid #111; border-radius: 20px; font-size: 14px; font-weight: 700; }
-        .challan-meta { display: grid; grid-template-columns: 1fr 1fr; column-gap: 22px; row-gap: 6px; margin: 8px 0 14px; }
-        .challan-meta div { min-height: 20px; }
-        .challan-meta .challan-to { grid-column: 1 / -1; }
-        .challan-paper table { width: 100%; min-width: 0; border-collapse: collapse; font-size: 11px; }
-        .challan-paper th, .challan-paper td { padding: 6px; border: 1px solid #222; text-align: center; vertical-align: middle; }
-        .challan-paper th { text-align: center; }
-        .challan-paper tfoot th { background: #fff; color: #111; }
-        .challan-notes { margin-top: 12px; }
-        .challan-note-line { min-height: 24px; margin-bottom: 5px; }
-        .challan-signatures { display: flex; justify-content: space-between; gap: 12px; margin-top: 48px; }
-        .challan-signatures span { min-width: 90px; padding-top: 5px; border-top: 1px solid #222; text-align: center; }
+        .challan-company h2 { margin: 0; font-size: 24px; letter-spacing: .3px; }
+        .challan-company p { margin: 2px 0 0; font-size: 12px; font-weight: 600; }
+        .challan-title { display: table; margin: 3px auto 8px; padding: 2px 14px; border: 1px solid #111; border-radius: 20px; font-size: 12px; font-weight: 700; }
+        .challan-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 12px; margin-bottom: 5mm; }
+        .challan-to { grid-column: 1 / -1; min-height: 9mm; }
+        .challan-meta-list { display: grid; grid-column: 1 / -1; grid-template-columns: 1fr 1fr; gap: 5px 12px; }
+        .challan-meta-list div { min-height: 17px; }
+        .challan-page table { width: 100%; min-width: 0; border-collapse: collapse; table-layout: fixed; font-size: 10px; }
+        .challan-page th, .challan-page td { padding: 5px 4px; border: 1px solid #222; color: #111; text-align: center; vertical-align: middle; }
+        .challan-page th { border: 2px solid #111; background: #fff; text-align: center; font-weight: 700; }
+        .challan-page tbody tr { background: #fff; }
+        .challan-page tbody tr.blank-fill td { border-top: 0; border-bottom: 0; }
+        .challan-page tbody tr.blank-fill-last td { border-bottom: 1px solid #111; }
+        .challan-page td { white-space: normal; }
+        .challan-page tbody td { height: 12mm; }
+        .challan-page tfoot th { background: #fff; }
+        .challan-quantity-lines { margin-top: 5mm; }
+        .challan-quantity-line { min-height: 20px; margin-bottom: 3px; }
+        .challan-signatures { display: flex; justify-content: space-between; gap: 8px; margin-top: auto; padding-top: 16mm; }
+        .challan-signatures span { flex: 1; padding-top: 4px; border-top: 1px solid #222; text-align: center; white-space: nowrap; }
         @media (max-width: 800px) {
             body { padding: 16px 9px 9px; }
             .header { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 8px; padding: 10px; }
@@ -192,15 +202,15 @@ if (!isset($_SESSION['username'])) {
             .challan-fields { grid-template-columns: 1fr; }
         }
         @media print {
-            @page { size: A4 portrait; margin: 10mm; }
+            @page { size: A4 portrait; margin: 8mm; }
             body { margin: 0; padding: 0; background: #fff; }
             body > * { display: none !important; }
-            #challanPrint { display: block !important; width: 100%; color: #111; background: #fff; }
-            .challan-paper { width: 100%; }
-            .challan-paper table { page-break-inside: auto; }
-            .challan-paper thead { display: table-header-group; }
-            .challan-paper tr { page-break-inside: avoid; }
-            .challan-paper tfoot { display: table-row-group; }
+            #challanPrint { display: block !important; }
+            .challan-page { width: 100%; min-height: 270mm; margin: 0; }
+            .challan-page table { page-break-inside: auto; }
+            .challan-page thead { display: table-header-group; }
+            .challan-page tr { page-break-inside: avoid; }
+            .challan-page tfoot { display: table-row-group; }
         }
     </style>
 </head>
@@ -212,7 +222,7 @@ if (!isset($_SESSION['username'])) {
         </header>
 
         <section class="panel" id="deliveryPanel">
-            <h2 class="panel-title">Scan the rolls you want to deliver; use Add Another Batch to include more batches.</h2>
+            <h2 class="panel-title">Scan the rolls you want to deliver from one or more batches.</h2>
             <div class="message" id="message" role="status" aria-live="polite"></div>
             <div class="batch-summary">
                 <div class="summary-item">Batch: <span id="summaryCardNo">-</span></div>
@@ -224,8 +234,7 @@ if (!isset($_SESSION['username'])) {
                 <div class="scanner-stage">
                     <div id="qr-reader"></div>
                     <div class="scanner-controls">
-                        <button class="scan-button" id="cameraBtn" type="button">Start Camera Scanner</button>
-                        <button type="button" id="switchCameraBtn">Switch to Front Camera</button>
+                        <button type="button" id="switchCameraBtn">Switch Camera</button>
                     </div>
                 </div>
                 <div class="manual-scan">
@@ -236,14 +245,6 @@ if (!isset($_SESSION['username'])) {
                                 <input type="text" id="rollInput" autocomplete="off" placeholder="Scan or enter roll number">
                                 <button type="submit" id="addRollBtn">Add</button>
                             </div>
-                        </div>
-                        <div class="field">
-                            <label for="remainingQtyInput">Remaining QTY (KG)</label>
-                            <input type="text" id="remainingQtyInput" value="-" readonly>
-                        </div>
-                        <div class="field">
-                            <label for="requestQtyInput">Request QTY (KG)</label>
-                            <input type="number" id="requestQtyInput" min="0" step="0.001" value="0" placeholder="Extra quantity requested">
                         </div>
                     </form>
                 </div>
@@ -270,7 +271,7 @@ if (!isset($_SESSION['username'])) {
                 <table>
                     <thead>
                         <tr>
-                            <th>Action</th><th>Batch</th><th>Roll</th><th>Fabrics Type</th><th>Qnty.</th><th>Remarks</th>
+                            <th>Action</th><th>Batch</th><th>Roll</th><th>Fabrics Type</th><th>Qnty. (kg)</th><th>Remarks</th>
                         </tr>
                     </thead>
                     <tbody id="scannedRows">
@@ -281,8 +282,6 @@ if (!isset($_SESSION['username'])) {
             </div>
             <div class="actions">
                 <button class="confirm-button" id="confirmBtn" type="button" disabled>Confirm Delivery Challan</button>
-                <button class="another-batch-button" id="anotherBatchBtn" type="button" hidden>Add Another Batch</button>
-                <button class="scan-button" id="printChallanBtn" type="button" hidden>Print Delivery Challan</button>
             </div>
         </section>
     </main>
@@ -296,11 +295,11 @@ if (!isset($_SESSION['username'])) {
             var scannedPanel = document.getElementById('scannedPanel');
             var rollForm = document.getElementById('rollForm');
             var rollInput = document.getElementById('rollInput');
-            var remainingQtyInput = document.getElementById('remainingQtyInput');
+            var toNameInput = document.getElementById('toNameInput');
+            var gatePassNoInput = document.getElementById('gatePassNoInput');
+            var vehicleNoInput = document.getElementById('vehicleNoInput');
             var confirmBtn = document.getElementById('confirmBtn');
-            var cameraBtn = document.getElementById('cameraBtn');
             var switchCameraBtn = document.getElementById('switchCameraBtn');
-            var anotherBatchBtn = document.getElementById('anotherBatchBtn');
             var message = document.getElementById('message');
             var qrScanner = null;
             var batch = null;
@@ -316,7 +315,6 @@ if (!isset($_SESSION['username'])) {
             var alreadyDeliveredMessage = '';
             var cameraFacingMode = 'environment';
             var cameraSwitching = false;
-            var resumeCameraAfterRollRemoval = false;
 
             function showMessage(text, type) {
                 message.textContent = text;
@@ -365,6 +363,21 @@ if (!isset($_SESSION['username'])) {
             function formatQty(value) {
                 var qty = Number(value);
                 return Number.isFinite(qty) ? qty.toFixed(3) : '0.000';
+            }
+
+            function uppercaseInputValue(input) {
+                var originalValue = input.value;
+                var start = input.selectionStart;
+                var end = input.selectionEnd;
+                var uppercaseValue = originalValue.toUpperCase();
+                if (originalValue === uppercaseValue) return;
+                input.value = uppercaseValue;
+                if (start !== null && end !== null) {
+                    input.setSelectionRange(
+                        originalValue.slice(0, start).toUpperCase().length,
+                        originalValue.slice(0, end).toUpperCase().length
+                    );
+                }
             }
 
             function extractRollValue(value) {
@@ -436,15 +449,6 @@ if (!isset($_SESSION['username'])) {
                 return count;
             }
 
-            function getAlreadyDeliveredQty() {
-                var total = 0;
-                alreadyDeliveredRolls.forEach(function(roll) {
-                    var row = expectedByRoll.get(String(roll));
-                    if (row) total += Number(row.QTY) || 0;
-                });
-                return total;
-            }
-
             function isCurrentBatchComplete() {
                 return batch
                     ? scannedRolls.size + getAlreadyDeliveredRollCount() === batch.rows.length
@@ -475,25 +479,32 @@ if (!isset($_SESSION['username'])) {
                 document.getElementById('expectedCount').textContent = String(expectedCount);
                 document.getElementById('scannedQty').textContent = formatQty(totalQty);
                 document.getElementById('expectedQty').textContent = formatQty(targetQty);
-                remainingQtyInput.value = batch
-                    ? formatQty(Math.max(0, Number(batch.target_qty) - getAlreadyDeliveredQty() -
-                        Array.from(scannedRolls.values()).reduce(function(total, row) {
-                            return total + (Number(row.QTY) || 0);
-                        }, 0)))
-                    : '-';
                 document.getElementById('scannedFooter').innerHTML = groups.length
                     ? '<tr><th colspan="4">Total Qnty.</th><th>' + formatQty(totalQty) + ' KG</th><th></th></tr>'
                     : '';
 
-                var batchComplete = isCurrentBatchComplete();
-                deliveryPanel.classList.toggle('is-hidden', Boolean(batch && batchComplete) || delivered);
+                deliveryPanel.classList.toggle('is-hidden', delivered);
                 scannedPanel.classList.toggle('is-hidden', groups.length === 0 && !batch);
-                confirmBtn.disabled = delivered || batchAlreadyDelivered || !groups.length || scannedCount === 0;
-                anotherBatchBtn.hidden = !batch || delivered;
-                anotherBatchBtn.textContent = batchAlreadyDelivered
-                    ? 'Skip Delivered Batch'
-                    : (scannedRolls.size ? 'Add Another Batch' : 'Discard Current Batch');
-                anotherBatchBtn.disabled = delivered;
+                var challanFieldsFilled = [
+                    toNameInput.value.trim(),
+                    gatePassNoInput.value.trim(),
+                    vehicleNoInput.value.trim()
+                ].every(function(value) {
+                    return value !== '';
+                });
+                confirmBtn.disabled = delivered || !groups.length || scannedCount === 0 || !challanFieldsFilled;
+            }
+
+            function trashIconMarkup() {
+                return '<svg class="trash-icon" viewBox="0 0 24 24" aria-hidden="true">' +
+                    '<path d="M3 6h18M8 6V4h8v2m-11 0 1 14h12l1-14M10 11v5m4-5v5"></path></svg>';
+            }
+
+            function sizeBatchRemarkInputs() {
+                document.querySelectorAll('#scannedRows .remark-input').forEach(function(input) {
+                    var cell = input.closest('td');
+                    if (cell) input.style.height = Math.max(36, cell.clientHeight - 20) + 'px';
+                });
             }
 
             function renderScannedRows() {
@@ -504,16 +515,17 @@ if (!isset($_SESSION['username'])) {
                     var groupIndex = group.completed ? completedIndex++ : -1;
                     group.rows.forEach(function(row, rowIndex) {
                         rowsHtml += '<tr>';
-                        if (group.completed && rowIndex === 0) {
-                            rowsHtml += '<td rowspan="' + group.rows.length + '">' +
-                                '<button class="remove-batch-button" type="button" data-remove-batch-index="' +
-                                groupIndex + '" aria-label="Remove batch" title="Remove this batch"' +
-                                (delivered ? ' disabled' : '') + '>Remove batch</button></td>';
+                        if (group.completed) {
+                            rowsHtml += '<td><button class="remove-roll-button" type="button" ' +
+                                'data-remove-completed-batch-index="' + groupIndex +
+                                '" data-remove-completed-row-index="' + rowIndex +
+                                '" aria-label="Remove roll" title="Remove roll"' +
+                                (delivered ? ' disabled' : '') + '>' + trashIconMarkup() + '</button></td>';
                         } else if (!group.completed) {
                             var currentIndex = Array.from(scannedRolls.keys()).indexOf(String(row.ROLL));
                             rowsHtml += '<td><button class="remove-roll-button" type="button" data-remove-roll-index="' +
                                 currentIndex + '" aria-label="Remove roll" title="Remove roll"' +
-                                (delivered ? ' disabled' : '') + '>✕</button></td>';
+                                (delivered ? ' disabled' : '') + '>' + trashIconMarkup() + '</button></td>';
                         }
                         if (rowIndex === 0) {
                             rowsHtml += '<td class="batch-card-cell" rowspan="' + group.rows.length + '">' +
@@ -534,6 +546,7 @@ if (!isset($_SESSION['username'])) {
 
                 document.getElementById('scannedRows').innerHTML = rowsHtml ||
                     '<tr><td colspan="6">Scan rolls after loading a batch card.</td></tr>';
+                sizeBatchRemarkInputs();
                 updateSummary();
             }
 
@@ -552,10 +565,6 @@ if (!isset($_SESSION['username'])) {
                 alreadyDeliveredRolls.clear();
                 batchAlreadyDelivered = false;
                 alreadyDeliveredMessage = '';
-                cameraBtn.hidden = false;
-                cameraBtn.disabled = false;
-                cameraBtn.textContent = 'Start Camera Scanner';
-                resumeCameraAfterRollRemoval = false;
                 renderScannedRows();
                 return true;
             }
@@ -567,33 +576,84 @@ if (!isset($_SESSION['username'])) {
                 scannedRolls.delete(String(row.ROLL));
                 renderScannedRows();
                 showMessage('Roll ' + row.ROLL + ' removed. You can scan or enter it again.', 'info');
-                if (!deliveryPanel.classList.contains('is-hidden')) {
-                    cameraBtn.hidden = false;
-                    cameraBtn.disabled = false;
-                    cameraBtn.textContent = 'Start Camera Scanner';
-                    rollInput.focus();
-                    if (resumeCameraAfterRollRemoval) {
-                        resumeCameraAfterRollRemoval = false;
-                        startCamera();
-                    }
-                }
+                rollInput.focus();
             }
 
-            function removeCompletedBatch(index) {
+            function removeCompletedRoll(batchIndex, rowIndex) {
                 if (delivered) return;
-                var savedBatch = completedBatches[index];
+                var savedBatch = completedBatches[batchIndex];
                 if (!savedBatch) return;
-                remarksByBatch.delete(String(savedBatch.card_no));
-                completedBatches.splice(index, 1);
+                var removedRoll = savedBatch.rows.splice(rowIndex, 1)[0];
+                if (!removedRoll) return;
+                if (!savedBatch.rows.length) {
+                    remarksByBatch.delete(String(savedBatch.card_no));
+                    completedBatches.splice(batchIndex, 1);
+                }
                 renderScannedRows();
-                showMessage('Batch ' + savedBatch.card_no + ' removed from this challan.', 'info');
+                showMessage('Roll ' + removedRoll.ROLL + ' removed. You can scan or enter it again.', 'info');
+                rollInput.focus();
+            }
+
+            function loadBatchForRoll(roll) {
+                return api('load_batch_by_roll', null, {roll: roll}).then(function(response) {
+                    if (completedBatches.some(function(savedBatch) {
+                        return String(savedBatch.card_no) === String(response.card_no);
+                    })) {
+                        throw new Error('Batch ' + response.card_no + ' is already included in this challan.');
+                    }
+
+                    var sameBatch = batch && String(batch.card_no) === String(response.card_no);
+                    if (batch && !sameBatch) {
+                        if (scannedRolls.size && !batchAlreadyDelivered) {
+                            saveCurrentBatch();
+                        } else {
+                            batch = null;
+                            scannedRolls.clear();
+                            expectedByRoll.clear();
+                            alreadyDeliveredRolls.clear();
+                            batchAlreadyDelivered = false;
+                            alreadyDeliveredMessage = '';
+                        }
+                    }
+                    if (sameBatch) return batch;
+
+                    batch = response;
+                    expectedByRoll.clear();
+                    alreadyDeliveredRolls = new Set((response.delivered_rolls || []).map(function(deliveredRoll) {
+                        return String(deliveredRoll);
+                    }));
+                    batch.rows.forEach(function(row) {
+                        expectedByRoll.set(String(row.ROLL), row);
+                    });
+                    if (alreadyDeliveredRolls.size === response.rows.length) {
+                        batchAlreadyDelivered = true;
+                        var delivery = response.delivery || {};
+                        alreadyDeliveredMessage = 'Batch Card ' + response.card_no + ' was already delivered' +
+                            (delivery.BUDAT ? ' on ' + delivery.BUDAT : '') +
+                            (delivery.DOP ? ' by ' + delivery.DOP : '') +
+                            (delivery.DID ? ' (ID: ' + delivery.DID + ')' : '') + '.';
+                    } else {
+                        batchAlreadyDelivered = false;
+                        alreadyDeliveredMessage = '';
+                        var deliveredCount = alreadyDeliveredRolls.size;
+                        showMessage(
+                            'Batch Card ' + response.card_no + ' found. ' +
+                            (deliveredCount
+                                ? deliveredCount + ' roll(s) already delivered. Scan remaining rolls.'
+                                : 'Scan its rolls.'),
+                            'info'
+                        );
+                    }
+                    scannedPanel.classList.remove('is-hidden');
+                    updateSummary();
+                    return response;
+                });
             }
 
             function addScannedRoll(rawRoll) {
                 var roll = extractRollValue(rawRoll);
                 if (!roll || processingRoll || scanPopupActive) return;
-                if (batch && scannedRolls.size >= batch.rows.length) return;
-                if (!batch && completedBatches.some(function(savedBatch) {
+                if (completedBatches.some(function(savedBatch) {
                     return savedBatch.rows.some(function(row) {
                         return String(row.ROLL).toUpperCase() === roll.toUpperCase();
                     });
@@ -605,49 +665,12 @@ if (!isset($_SESSION['username'])) {
                     showScanPopup(alreadyDeliveredMessage, 'Batch Already Delivered', 'error');
                     return;
                 }
-                if (batchAlreadyDelivered) {
-                    showScanPopup(alreadyDeliveredMessage, 'Batch Already Delivered', 'error');
-                    return;
-                }
                 processingRoll = true;
                 rollInput.disabled = true;
 
-                var resolveBatch = batch
+                var resolveBatch = batch && expectedByRoll.has(roll)
                     ? Promise.resolve(batch)
-                    : api('load_batch_by_roll', null, {roll: roll}).then(function(response) {
-                        if (completedBatches.some(function(savedBatch) {
-                            return String(savedBatch.card_no) === String(response.card_no);
-                        })) {
-                            throw new Error('Batch ' + response.card_no + ' is already included in this challan.');
-                        }
-                        batch = response;
-                        expectedByRoll.clear();
-                        alreadyDeliveredRolls = new Set((response.delivered_rolls || []).map(function(deliveredRoll) {
-                            return String(deliveredRoll);
-                        }));
-                        batch.rows.forEach(function(row) {
-                            expectedByRoll.set(String(row.ROLL), row);
-                        });
-                        document.getElementById('summaryCardNo').textContent = response.card_no;
-                        document.getElementById('expectedCount').textContent = String(response.roll_count);
-                        document.getElementById('expectedQty').textContent = formatQty(response.target_qty);
-                        if (alreadyDeliveredRolls.size === response.rows.length) {
-                            batchAlreadyDelivered = true;
-                            alreadyDeliveredMessage = 'Batch Card ' + response.card_no + ' was already delivered on ' +
-                                response.delivery.BUDAT + ' by ' + response.delivery.DOP +
-                                ' (ID: ' + response.delivery.DID + ').';
-                        } else {
-                            var deliveredCount = alreadyDeliveredRolls.size;
-                            showMessage(
-                                'Batch Card ' + response.card_no + ' found. ' +
-                                (deliveredCount ? deliveredCount + ' roll(s) already delivered. Scan remaining rolls.' : 'Scan its rolls.'),
-                                'info'
-                            );
-                        }
-                        scannedPanel.classList.remove('is-hidden');
-                        updateSummary();
-                        return response;
-                    });
+                    : loadBatchForRoll(roll);
 
                 resolveBatch.then(function() {
                     if (delivered) return;
@@ -682,18 +705,13 @@ if (!isset($_SESSION['username'])) {
                         );
                         return;
                     }
-
                     scannedRolls.set(roll, row);
                     scannedPanel.classList.remove('is-hidden');
                     renderScannedRows();
                     var batchComplete = isCurrentBatchComplete();
-                    if (batchComplete) {
-                        resumeCameraAfterRollRemoval = Boolean(qrScanner && qrScanner.isScanning);
-                        stopCamera();
-                    }
                     showScanPopup(
                         batchComplete
-                            ? 'All available rolls have been scanned successfully for Batch Card ' + batch.card_no + '.'
+                            ? 'All available rolls from Batch Card ' + batch.card_no + ' are scanned. Continue scanning another batch or confirm delivery.'
                             : 'Roll ' + roll + ' added successfully to Batch Card ' + batch.card_no + '.',
                         batchComplete ? 'Batch Scan Complete' : 'Roll Added Successfully',
                         'success',
@@ -728,8 +746,6 @@ if (!isset($_SESSION['username'])) {
                     return;
                 }
                 if (qrScanner && qrScanner.isScanning) return;
-                cameraBtn.disabled = true;
-                cameraBtn.textContent = 'Starting camera...';
                 qrScanner = qrScanner || new Html5Qrcode('qr-reader');
                 qrScanner.start(
                     {facingMode: cameraFacingMode},
@@ -737,12 +753,8 @@ if (!isset($_SESSION['username'])) {
                     function(decodedText) { addScannedRoll(decodedText); },
                     function() {}
                 ).then(function() {
-                    cameraBtn.hidden = true;
                     showMessage('Camera scanner is ready. First scan a roll to find its batch.', 'info');
                 }).catch(function(error) {
-                    cameraBtn.disabled = false;
-                    cameraBtn.hidden = false;
-                    cameraBtn.textContent = 'Start Camera Scanner';
                     showScanPopup('Camera unavailable: ' + error + '. You can enter roll numbers manually.', 'Camera Unavailable', 'error');
                 });
             }
@@ -760,12 +772,9 @@ if (!isset($_SESSION['username'])) {
                         qrScanner = null;
                     }
                     cameraFacingMode = cameraFacingMode === 'environment' ? 'user' : 'environment';
-                    switchCameraBtn.textContent = cameraFacingMode === 'environment'
-                        ? 'Switch Camera'
-                        : 'Switch Camera';
                     cameraSwitching = false;
                     switchCameraBtn.disabled = false;
-                    if (wasScanning) startCamera();
+                    startCamera();
                 }).catch(function(error) {
                     cameraSwitching = false;
                     switchCameraBtn.disabled = false;
@@ -807,28 +816,40 @@ if (!isset($_SESSION['username'])) {
 
             function renderChallan(response) {
                 var groups = getDeliveryGroups();
+                groups.sort(function(left, right) {
+                    return String(left.card_no).localeCompare(String(right.card_no));
+                });
                 var totalQty = 0;
                 var rowsHtml = '';
-                var serial = 0;
                 groups.forEach(function(group) {
                     group.rows.forEach(function(row, index) {
-                        serial++;
                         totalQty += Number(row.QTY) || 0;
-                        rowsHtml += '<tr><td>' + serial + '</td>' +
+                        rowsHtml += '<tr>' +
                             (index === 0
                                 ? '<td rowspan="' + group.rows.length + '">' + escapeHtml(group.card_no) + '</td>'
                                 : '') +
-                            '<td>' + escapeHtml(row.FTYPE) + '</td>' +
                             '<td>' + escapeHtml(row.ROLL) + '</td>' +
-                            '<td>' + escapeHtml(formatQty(row.QTY)) + '</td>' +
+                            '<td>' + escapeHtml(row.FTYPE) + '</td>' +
+                            (index === 0
+                                ? '<td rowspan="' + group.rows.length + '">' + group.rows.length + '</td>'
+                                : '') +
+                            '<td>' + escapeHtml(row.QTY) + '</td>' +
                             (index === 0
                                 ? '<td rowspan="' + group.rows.length + '">' + escapeHtml(group.remarks) + '</td>'
                                 : '') +
                             '</tr>';
                     });
                 });
+                var deliveredRollCount = groups.reduce(function(total, group) {
+                    return total + group.rows.length;
+                }, 0);
+                for (var blankRow = deliveredRollCount; blankRow < 12; blankRow++) {
+                    var blankRowClass = blankRow === 11 ? 'blank-fill blank-fill-last' : 'blank-fill';
+                    rowsHtml += '<tr class="' + blankRowClass + '">' +
+                        '<td></td><td></td><td></td><td></td><td></td><td></td></tr>';
+                }
                 var dateParts = String(response.delivery_date || '').split('-');
-                var displayDate = dateParts.length === 3 ? dateParts[2] + '/' + dateParts[1] + '/' + dateParts[0] : '';
+                var displayDate = dateParts.length === 3 ? dateParts[2] + '-' + dateParts[1] + '-' + dateParts[0] : '';
                 var totalMilliKg = Math.round(totalQty * 1000);
                 var wholeKg = Math.floor(totalMilliKg / 1000);
                 var grams = totalMilliKg % 1000;
@@ -838,27 +859,72 @@ if (!isset($_SESSION['username'])) {
                 qtyWords += ' only';
 
                 document.getElementById('challanPrint').innerHTML =
-                    '<article class="challan-paper">' +
-                    '<div class="challan-paper-header">' +
-                    '<div class="challan-brand">PURBANI</div>' +
-                    '<div class="challan-company"><h1>PURBANI FABRICS LTD.</h1>' +
-                    '<p>NOORBAGH, MOUCHAK, KALIAKOIR, GAZIPUR</p>' +
-                    '<div class="challan-title">DELIVERY CHALLAN</div></div><div></div></div>' +
+                    '<article class="challan-page">' +
+                    '<header class="challan-heading">' +
+                    '<div class="challan-wordmark">PURBANI</div>' +
+                    '<div class="challan-company"><h2>PURBANI FABRICS LTD.</h2>' +
+                    '<p>NOORBAGH, MOUCHAK, KALIAKOIR, GAZIPUR</p></div><div></div>' +
+                    '</header>' +
+                    '<div class="challan-title">DELIVERY CHALLAN</div>' +
                     '<div class="challan-meta">' +
                     '<div class="challan-to"><strong>To:</strong> ' + escapeHtml(response.to_name || '') + '</div>' +
-                    '<div><strong>Challan No.:</strong> ' + escapeHtml(response.challan_no) + '</div>' +
+                    '<div class="challan-meta-list">' +
+                    '<div><strong>Challan No.:</strong> ' + escapeHtml(response.challan_no || '-') + '</div>' +
                     '<div><strong>Date:</strong> ' + escapeHtml(displayDate) + '</div>' +
                     '<div><strong>Gate Pass No.:</strong> ' + escapeHtml(response.gate_pass_no || '-') + '</div>' +
                     '<div><strong>Vehicle No.:</strong> ' + escapeHtml(response.vehicle_no || '-') + '</div>' +
-                    '</div><table><thead><tr><th>SL. No.</th><th>Batch No.</th><th>Description of Goods</th>' +
-                    '<th>Roll/Bag</th><th>Qnty.</th><th>Remarks</th></tr></thead><tbody>' + rowsHtml +
-                    '</tbody><tfoot><tr><th colspan="4">TOTAL</th><th>' +
+                    '</div></div>' +
+                    '<table><colgroup><col style="width:18%"><col style="width:18%"><col style="width:26%">' +
+                    '<col style="width:10%"><col style="width:13%"><col style="width:15%"></colgroup>' +
+                    '<thead><tr><th>Batch No.</th><th>Roll No.</th><th>Fabrics Type</th>' +
+                    '<th>Roll</th><th>Qty</th><th>Remarks</th></tr></thead><tbody>' +
+                    rowsHtml + '</tbody><tfoot><tr><th colspan="4">TOTAL</th><th>' +
                     escapeHtml(formatQty(totalQty)) + '</th><th></th></tr></tfoot></table>' +
-                    '<div class="challan-notes"><div><strong>Total weight:</strong> ' +
-                    escapeHtml(formatQty(totalQty)) + ' KG</div><div><strong>In words:</strong> ' +
-                    escapeHtml(qtyWords) + '</div></div>' +
+                    '<div class="challan-quantity-lines">' +
+                    '<div class="challan-quantity-line">Total weight: ' +
+                    escapeHtml(formatQty(totalQty)) + ' KG</div>' +
+                    '<div class="challan-quantity-line">In words: ' + escapeHtml(qtyWords) + '</div>' +
+                    '</div>' +
                     '<div class="challan-signatures"><span>Received by</span><span>Prepared by</span>' +
                     '<span>Store Officer</span><span>Store Manager</span><span>Auth. Signature</span></div></article>';
+            }
+
+            function printChallanAndReload() {
+                window.addEventListener('afterprint', function() {
+                    window.location.reload();
+                }, {once: true});
+                window.print();
+            }
+
+            function showDeliveryCompletion(response) {
+                var confirmationMessage = response.challan_no +
+                    ' successfully confirmed. ' +
+                    response.roll_count + ' roll(s), ' + formatQty(response.total_qty) + ' KG.';
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Delivery Confirmed',
+                        text: confirmationMessage,
+                        showCancelButton: true,
+                        confirmButtonText: 'Print Challan',
+                        cancelButtonText: 'Cancel',
+                        allowOutsideClick: false,
+                        allowEscapeKey: false
+                    }).then(function(result) {
+                        if (result.isConfirmed) {
+                            printChallanAndReload();
+                        } else {
+                            window.location.reload();
+                        }
+                    });
+                    return;
+                }
+
+                if (window.confirm(confirmationMessage + '\n\nPrint challan?')) {
+                    printChallanAndReload();
+                } else {
+                    window.location.reload();
+                }
             }
 
             rollForm.addEventListener('submit', function(event) {
@@ -872,63 +938,52 @@ if (!isset($_SESSION['username'])) {
             });
 
             document.getElementById('scannedRows').addEventListener('click', function(event) {
-                var button = event.target.closest('[data-remove-roll-index], [data-remove-batch-index]');
+                var button = event.target.closest(
+                    '[data-remove-roll-index], [data-remove-completed-row-index]'
+                );
                 if (!button || !this.contains(button)) return;
                 if (button.hasAttribute('data-remove-roll-index')) {
                     removeScannedRoll(Number(button.dataset.removeRollIndex));
                 } else {
-                    removeCompletedBatch(Number(button.dataset.removeBatchIndex));
+                    removeCompletedRoll(
+                        Number(button.dataset.removeCompletedBatchIndex),
+                        Number(button.dataset.removeCompletedRowIndex)
+                    );
                 }
             });
             document.getElementById('scannedRows').addEventListener('input', function(event) {
                 var input = event.target.closest('[data-remark-batch]');
                 if (!input || !this.contains(input)) return;
+                uppercaseInputValue(input);
                 remarksByBatch.set(String(input.dataset.remarkBatch), input.value);
             });
 
-            cameraBtn.addEventListener('click', startCamera);
-            switchCameraBtn.addEventListener('click', switchCamera);
-            anotherBatchBtn.addEventListener('click', function() {
-                if (batchAlreadyDelivered || !scannedRolls.size) {
-                    if (batch) remarksByBatch.delete(String(batch.card_no));
-                    batch = null;
-                    scannedRolls.clear();
-                    expectedByRoll.clear();
-                    alreadyDeliveredRolls.clear();
-                    batchAlreadyDelivered = false;
-                    alreadyDeliveredMessage = '';
-                    cameraBtn.hidden = false;
-                    cameraBtn.disabled = false;
-                    cameraBtn.textContent = 'Start Camera Scanner';
-                    renderScannedRows();
-                    showMessage('Current batch skipped. Scan a roll from another batch.', 'info');
-                    rollInput.focus();
-                    return;
-                }
-                if (!saveCurrentBatch()) return;
-                showMessage('Batch added to this challan. Scan a roll from the next batch.', 'success');
-                rollInput.focus();
-            });
-            document.getElementById('printChallanBtn').addEventListener('click', function() {
-                if (!delivered) return;
-                window.print();
+            [toNameInput, gatePassNoInput, vehicleNoInput].forEach(function(input) {
+                input.addEventListener('input', function() {
+                    uppercaseInputValue(input);
+                    updateSummary();
+                });
             });
 
+            switchCameraBtn.addEventListener('click', switchCamera);
             confirmBtn.addEventListener('click', function() {
                 if (confirmBtn.disabled) return;
                 confirmBtn.disabled = true;
                 confirmBtn.textContent = 'Confirming...';
                 var deliveryGroups = getDeliveryGroups();
-                var toName = document.getElementById('toNameInput').value.trim();
-                var gatePassNo = document.getElementById('gatePassNoInput').value.trim();
-                var vehicleNo = document.getElementById('vehicleNoInput').value.trim();
+                var toName = toNameInput.value.trim().toUpperCase();
+                var gatePassNo = gatePassNoInput.value.trim().toUpperCase();
+                var vehicleNo = vehicleNoInput.value.trim().toUpperCase();
+                toNameInput.value = toName;
+                gatePassNoInput.value = gatePassNo;
+                vehicleNoInput.value = vehicleNo;
                 api('confirm_delivery', {
                     batches: deliveryGroups.map(function(group) {
                         return {
                             card_no: group.card_no,
                             rolls: group.rows.map(function(row) { return String(row.ROLL); }),
                             total_qty: Number(group.target_qty),
-                            remarks: group.remarks
+                            remarks: String(group.remarks || '').toUpperCase()
                         };
                     }),
                     to_name: toName,
@@ -942,17 +997,13 @@ if (!isset($_SESSION['username'])) {
                     document.getElementById('gatePassNoInput').disabled = true;
                     document.getElementById('vehicleNoInput').disabled = true;
                     confirmBtn.textContent = 'Delivery Challan Confirmed';
-                    document.getElementById('printChallanBtn').hidden = false;
                     renderChallan(response);
-                    var confirmationMessage = response.challan_no +
-                        ' successfully confirmed. ' +
-                        response.roll_count + ' roll(s), ' + formatQty(response.total_qty) + ' KG.';
-                    showScanPopup(confirmationMessage, 'Delivery Confirmed', 'success', 3000);
+                    showDeliveryCompletion(response);
                     stopCamera();
                 }).catch(function(error) {
                     showScanPopup(error.message, 'Batch Delivery Error', 'error');
-                    confirmBtn.disabled = false;
                     confirmBtn.textContent = 'Confirm Delivery Challan';
+                    updateSummary();
                 });
             });
 

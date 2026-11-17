@@ -30,7 +30,7 @@ $reportWhere = isset($reportConfig['where']) ? $reportConfig['where'] : '';
 $reportThemeStart = $reportConfig['theme_start'];
 $reportThemeEnd = $reportConfig['theme_end'];
 $reportTimeColumns = isset($reportConfig['time_columns']) ? $reportConfig['time_columns'] : [];
-$reportColumnCount = 23 + count($reportTimeColumns);
+$reportColumnCount = 26 + count($reportTimeColumns);
 $processFields = dyeingProcessFieldNames();
 
 $processSelect = [];
@@ -57,9 +57,7 @@ $timeSelectSql = $timeSelect
     : '';
 
 $loadError = false;
-$challanJoinSql = '';
-$challanSelectSql = "NULL AS KNITTING_CHALLAN_ID,
-            '' AS CHALLAN_NO,
+$challanSelectSql = "'' AS KCHALLAN,
             COALESCE(DATE_FORMAT(t.BUDAT, '%d-%m-%Y'), '') AS CHALLAN_DATE,
             '' AS TO_NAME,
             '' AS GATE_PASS_NO,
@@ -75,39 +73,20 @@ if (!$deliverySchema) {
         $deliveryColumnNames[] = strtoupper($column['Field']);
     }
     $deliverySchema->free();
-    $challanTable = $db->query("SHOW TABLES LIKE 'knitting_delivery_challan'");
-    if (!$challanTable) {
-        error_log('Knitting delivery challan table check failed: ' . $db->error);
-        $loadError = true;
-    } elseif ($challanTable->num_rows > 0) {
-        $headerSchema = $db->query("SHOW COLUMNS FROM knitting_delivery_challan");
-        if (!$headerSchema) {
-            error_log('Knitting delivery challan header schema query failed: ' . $db->error);
-            $loadError = true;
-        } else {
-            $headerColumnNames = [];
-            while ($column = $headerSchema->fetch_assoc()) {
-                $headerColumnNames[] = strtoupper($column['Field']);
-            }
-            $headerSchema->free();
-            if (
-                in_array('KNITTING_CHALLAN_ID', $deliveryColumnNames, true) &&
-                in_array('DELIVERY_REMARKS', $deliveryColumnNames, true)
-            ) {
-                $toNameSelect = in_array('TO_NAME', $headerColumnNames, true)
-                    ? "COALESCE(kdc.TO_NAME, '')"
-                    : "''";
-                $challanSelectSql = "t.KNITTING_CHALLAN_ID,
-                    COALESCE(kdc.CHALLAN_NO, '') AS CHALLAN_NO,
-                    COALESCE(DATE_FORMAT(kdc.BUDAT, '%d-%m-%Y'), DATE_FORMAT(t.BUDAT, '%d-%m-%Y'), '') AS CHALLAN_DATE,
-                    {$toNameSelect} AS TO_NAME,
-                    COALESCE(kdc.GATE_PASS_NO, '') AS GATE_PASS_NO,
-                    COALESCE(kdc.VEHICLE_NO, '') AS VEHICLE_NO,
-                    COALESCE(t.DELIVERY_REMARKS, '') AS DELIVERY_REMARKS";
-                $challanJoinSql = ' LEFT JOIN knitting_delivery_challan kdc ON kdc.KDCID = t.KNITTING_CHALLAN_ID';
-            }
-        }
-    }
+    $selectDeliveryColumn = function ($columnName) use ($deliveryColumnNames) {
+        return in_array($columnName, $deliveryColumnNames, true)
+            ? "COALESCE(t.`{$columnName}`, '')"
+            : "''";
+    };
+    $challanDateSelect = in_array('BUDAT', $deliveryColumnNames, true)
+        ? "COALESCE(DATE_FORMAT(t.BUDAT, '%d-%m-%Y'), '')"
+        : "''";
+    $challanSelectSql = $selectDeliveryColumn('KCHALLAN') . " AS KCHALLAN,
+            {$challanDateSelect} AS CHALLAN_DATE,
+            " . $selectDeliveryColumn('TO_NAME') . " AS TO_NAME,
+            " . $selectDeliveryColumn('GATE_PASS_NO') . " AS GATE_PASS_NO,
+            " . $selectDeliveryColumn('VEHICLE_NO') . " AS VEHICLE_NO,
+            " . $selectDeliveryColumn('DELIVERY_REMARKS') . " AS DELIVERY_REMARKS";
 }
 
 $sql = "SELECT
@@ -134,7 +113,7 @@ $sql = "SELECT
             {$timeSelectSql}{$reportOperator} AS OPERATOR,
             {$reportOperatorId} AS OP_ID,
             " . implode(",\n            ", $processSelect) . "
-        FROM {$reportFrom}{$challanJoinSql}";
+        FROM {$reportFrom}";
 if ($reportWhere !== '') {
     $sql .= ' WHERE ' . $reportWhere;
 }
@@ -198,9 +177,10 @@ function dyeingReportEscape($value)
         .btn-clear { background: #64748b; }
         .btn-print { padding: 6px 10px; background: #16a34a; }
         .table-scroll { overflow: auto; max-height: calc(100vh - 190px); }
-        table { width: 100%; min-width: 1850px; border-collapse: separate; border-spacing: 0; font-size: .9rem; }
-        thead th { position: sticky; top: 0; z-index: 3; padding: 11px 9px; border-bottom: 3px solid <?php echo dyeingReportEscape($reportThemeEnd); ?>; background: #334155; color: #fff; text-align: left; white-space: nowrap; }
-        tbody td { padding: 9px; border-bottom: 1px solid #e5e7eb; white-space: nowrap; vertical-align: middle; }
+        table { width: 100%; min-width: 1850px; border: 1px solid #94a3b8; border-collapse: separate; border-spacing: 0; font-size: .9rem; }
+        thead th { position: sticky; top: 0; z-index: 3; padding: 11px 9px; border-right: 1px solid rgba(255,255,255,.2); border-bottom: 3px solid <?php echo dyeingReportEscape($reportThemeEnd); ?>; background: #334155; color: #fff; text-align: left; white-space: nowrap; }
+        tbody td { padding: 9px; border-right: 1px solid #94a3b8; border-bottom: 1px solid #e5e7eb; white-space: nowrap; vertical-align: middle; }
+        tbody td.go-to-cell { width: 220px; min-width: 180px; max-width: 220px; white-space: normal; overflow-wrap: anywhere; line-height: 1.35; }
         tbody tr:nth-child(even) { background: #f8fafc; }
         tbody tr:hover { background: #eff6ff; }
         .process-list { display: grid; grid-template-columns: repeat(2, max-content); gap: 4px; }
@@ -212,8 +192,8 @@ function dyeingReportEscape($value)
         .challan-heading { display: grid; grid-template-columns: 1fr 3fr 1fr; align-items: center; min-height: 22mm; }
         .challan-wordmark { color: #1e3a8a; font-size: 15px; font-style: italic; font-weight: 800; }
         .challan-company { text-align: center; }
-        .challan-company h2 { margin: 0; font-size: 18px; letter-spacing: .3px; }
-        .challan-company p { margin: 2px 0 0; font-size: 9px; font-weight: 600; }
+        .challan-company h2 { margin: 0; font-size: 24px; letter-spacing: .3px; }
+        .challan-company p { margin: 2px 0 0; font-size: 12px; font-weight: 600; }
         .challan-title { display: table; margin: 3px auto 8px; padding: 2px 14px; border: 1px solid #111; border-radius: 20px; font-size: 12px; font-weight: 700; }
         .challan-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 12px; margin-bottom: 5mm; }
         .challan-to { grid-column: 1 / -1; min-height: 9mm; }
@@ -221,10 +201,12 @@ function dyeingReportEscape($value)
         .challan-meta-list div { min-height: 17px; }
         .challan-page table { width: 100%; min-width: 0; border-collapse: collapse; table-layout: fixed; font-size: 10px; }
         .challan-page th, .challan-page td { padding: 5px 4px; border: 1px solid #222; color: #111; text-align: center; vertical-align: middle; }
-        .challan-page th { background: #fff; text-align: center; font-weight: 700; }
+        .challan-page th { border: 2px solid #111; background: #fff; text-align: center; font-weight: 700; }
         .challan-page tbody tr { background: #fff; }
+        .challan-page tbody tr.blank-fill td { border-top: 0; border-bottom: 0; }
+        .challan-page tbody tr.blank-fill-last td { border-bottom: 1px solid #111; }
         .challan-page td { white-space: normal; }
-        .challan-page tbody td { height: 13mm; }
+        .challan-page tbody td { height: 12mm; }
         .challan-page tfoot th { background: #fff; }
         .challan-quantity-lines { margin-top: 5mm; }
         .challan-quantity-line { min-height: 20px; margin-bottom: 3px; }
@@ -283,6 +265,9 @@ function dyeingReportEscape($value)
         var reportRows = <?php echo json_encode($rows, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_INVALID_UTF8_SUBSTITUTE); ?>;
         var reportColumns = [
             ['ACTION', 'ACTION'],
+            ['KCHALLAN', 'Challan No'],
+            ['TO_NAME', 'GO TO'],
+            ['VEHICLE_NO', 'Vehicle NO'],
             ['BCARD', 'Batch'],
             ['ROLL', 'Roll'],
             ['PO_NUMBER', 'PO Number'],
@@ -375,26 +360,22 @@ function dyeingReportEscape($value)
             return '';
         }
 
-        function printBatch(batch, selectedChallanId) {
+        function printBatch(batch, selectedKChallan) {
             var batchRows = reportRows.filter(function(row) {
                 return String(row.BCARD || '') === String(batch);
             });
             if (!batchRows.length) return;
 
-            if (selectedChallanId !== undefined) {
+            if (selectedKChallan) {
                 batchRows = batchRows.filter(function(row) {
-                    var challanId = row.KNITTING_CHALLAN_ID;
-                    var key = challanId === null || challanId === undefined || challanId === ''
-                        ? ''
-                        : String(challanId);
-                    return key === selectedChallanId;
+                    return String(row.KCHALLAN || '').trim() === selectedKChallan;
                 });
             }
             if (!batchRows.length) return;
-            var challanId = batchRows[0].KNITTING_CHALLAN_ID;
-            var challanRows = challanId
+            var challanNumber = String(batchRows[0].KCHALLAN || '').trim();
+            var challanRows = challanNumber
                 ? reportRows.filter(function(row) {
-                    return String(row.KNITTING_CHALLAN_ID) === String(challanId);
+                    return String(row.KCHALLAN || '').trim() === challanNumber;
                 })
                 : batchRows;
             var groups = new Map();
@@ -411,12 +392,15 @@ function dyeingReportEscape($value)
                 group.forEach(function(row, index) {
                     serial++;
                     totalQty += Number(row.QTY) || 0;
-                    tableRows += '<tr><td>' + serial + '</td>' +
+                    tableRows += '<tr>' +
                         (index === 0
                             ? '<td rowspan="' + group.length + '">' + escapeHtml(batchNo) + '</td>'
                             : '') +
-                        '<td>' + escapeHtml(row.FTYPE) + '</td>' +
                         '<td>' + escapeHtml(row.ROLL) + '</td>' +
+                        '<td>' + escapeHtml(row.FTYPE) + '</td>' +
+                        (index === 0
+                            ? '<td rowspan="' + group.length + '">' + group.length + '</td>'
+                            : '') +
                         '<td>' + escapeHtml(row.QTY) + '</td>' +
                         (index === 0
                             ? '<td rowspan="' + group.length + '">' +
@@ -425,8 +409,10 @@ function dyeingReportEscape($value)
                         '</tr>';
                 });
             });
-            for (var blankRow = serial; blankRow < 8; blankRow++) {
-                tableRows += '<tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td></tr>';
+            for (var blankRow = serial; blankRow < 12; blankRow++) {
+                var blankRowClass = blankRow === 11 ? 'blank-fill blank-fill-last' : 'blank-fill';
+                tableRows += '<tr class="' + blankRowClass + '">' +
+                    '<td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td></tr>';
             }
 
             var header = batchRows[0];
@@ -448,15 +434,15 @@ function dyeingReportEscape($value)
                 '<div class="challan-meta">' +
                 '<div class="challan-to"><strong>To:</strong> ' + escapeHtml(header.TO_NAME || '') + '</div>' +
                 '<div class="challan-meta-list">' +
-                '<div><strong>Challan No.:</strong> ' + escapeHtml(header.CHALLAN_NO || '-') + '</div>' +
+                '<div><strong>Challan No.:</strong> ' + escapeHtml(header.KCHALLAN || '-') + '</div>' +
                 '<div><strong>Date:</strong> ' + escapeHtml(header.CHALLAN_DATE || '-') + '</div>' +
                 '<div><strong>Gate Pass No.:</strong> ' + escapeHtml(header.GATE_PASS_NO || '-') + '</div>' +
                 '<div><strong>Vehicle No.:</strong> ' + escapeHtml(header.VEHICLE_NO || '-') + '</div>' +
                 '</div></div>' +
-                '<table><colgroup><col style="width:8%"><col style="width:14%"><col style="width:32%">' +
-                '<col style="width:14%"><col style="width:14%"><col style="width:18%"></colgroup>' +
-                '<thead><tr><th>SL. No.</th><th>Batch No.</th><th>Description of Goods</th>' +
-                '<th>Roll/Bag</th><th>Qnty.</th><th>Remarks</th></tr></thead><tbody>' +
+                '<table><colgroup><col style="width:18%"><col style="width:18%"><col style="width:26%">' +
+                '<col style="width:10%"><col style="width:13%"><col style="width:15%"></colgroup>' +
+                '<thead><tr><th>Batch No.</th><th>Roll No.</th><th>Fabrics Type</th>' +
+                '<th>Roll</th><th>Qty</th><th>Remarks</th></tr></thead><tbody>' +
                 tableRows + '</tbody><tfoot><tr><th colspan="4">TOTAL</th><th>' +
                 escapeHtml(totalQty.toFixed(3)) + '</th><th></th></tr></tfoot></table>' +
                 '<div class="challan-quantity-lines">' +
@@ -484,49 +470,67 @@ function dyeingReportEscape($value)
 
             var groups = new Map();
             rows.forEach(function(row) {
-                var key = String(row.BCARD || '');
+                var challanNumber = String(row.KCHALLAN || '').trim();
+                var key = challanNumber
+                    ? 'challan:' + challanNumber
+                    : 'batch:' + String(row.BCARD || '');
                 if (!groups.has(key)) groups.set(key, []);
                 groups.get(key).push(row);
             });
 
-            groups.forEach(function(group, batch) {
+            groups.forEach(function(group) {
+                var batchCounts = new Map();
+                group.forEach(function(row) {
+                    var batchNo = String(row.BCARD || '');
+                    batchCounts.set(batchNo, (batchCounts.get(batchNo) || 0) + 1);
+                });
+                var renderedBatches = new Set();
+                var printChallanKey = String(group[0].KCHALLAN || '').trim();
+
                 group.forEach(function(row, index) {
+                    var batch = String(row.BCARD || '');
+                    var firstBatchRow = !renderedBatches.has(batch);
                     var tr = body.insertRow();
                     tr.dataset.batch = batch;
                     if (index === 0) {
                         var actionCell = tr.insertCell();
                         actionCell.rowSpan = group.length;
                         actionCell.className = 'action-column';
-                        var challanKeys = [];
-                        group.forEach(function(groupRow) {
-                            var challanId = groupRow.KNITTING_CHALLAN_ID;
-                            var challanKey = challanId === null || challanId === undefined || challanId === ''
-                                ? ''
-                                : String(challanId);
-                            if (challanKeys.indexOf(challanKey) === -1) challanKeys.push(challanKey);
+                        var printButton = document.createElement('button');
+                        printButton.type = 'button';
+                        printButton.className = 'btn btn-print no-print';
+                        printButton.innerHTML = '<i class="fa-solid fa-print"></i> Print';
+                        printButton.addEventListener('click', function() {
+                            printBatch(batch, printChallanKey);
                         });
-                        challanKeys.forEach(function(challanKey) {
-                            var printButton = document.createElement('button');
-                            printButton.type = 'button';
-                            printButton.className = 'btn btn-print no-print';
-                            printButton.innerHTML = '<i class="fa-solid fa-print"></i> Print';
-                            printButton.addEventListener('click', function() {
-                                printBatch(batch, challanKey);
-                            });
-                            actionCell.appendChild(printButton);
-                        });
+                        actionCell.appendChild(printButton);
 
+                        var challanCell = tr.insertCell();
+                        challanCell.rowSpan = group.length;
+                        challanCell.textContent = group[0].KCHALLAN || '';
+
+                        var goToCell = tr.insertCell();
+                        goToCell.rowSpan = group.length;
+                        goToCell.className = 'go-to-cell';
+                        goToCell.textContent = group[0].TO_NAME || '';
+
+                        var vehicleCell = tr.insertCell();
+                        vehicleCell.rowSpan = group.length;
+                        vehicleCell.textContent = group[0].VEHICLE_NO || '';
+                    }
+                    if (firstBatchRow) {
+                        renderedBatches.add(batch);
                         var batchCell = tr.insertCell();
-                        batchCell.rowSpan = group.length;
+                        batchCell.rowSpan = batchCounts.get(batch);
                         batchCell.textContent = batch;
                     }
 
-                    reportColumns.slice(2).forEach(function(column) {
+                    reportColumns.slice(5).forEach(function(column) {
                         var cell = tr.insertCell();
                         if (column[0] === 'PROCESS') {
-                            if (index === 0) {
-                                cell.rowSpan = group.length;
-                                cell.appendChild(processChips(group[0]));
+                            if (firstBatchRow) {
+                                cell.rowSpan = batchCounts.get(batch);
+                                cell.appendChild(processChips(row));
                             } else {
                                 tr.deleteCell(tr.cells.length - 1);
                             }
