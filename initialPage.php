@@ -26,7 +26,6 @@ if ($isFinishingUser) {
 if ($isKnittingUser) {
     $restrictedActions = array(
         'dyeing_batch_card',
-        'dyeing_batch_delivery',
         'dyeing_batch_split',
         'dyeing_batch_transfer',
         'batch_verification',
@@ -58,6 +57,7 @@ if ($isDyeingUser) {
         'knitting_store',
         'knitting_rack_transfer',
         'knitting_roll_split',
+        'dyeing_batch_delivery',
         'user_management',
         'users',
         'users_update'
@@ -133,9 +133,9 @@ if (isset($_POST['dyeing_batch_card'])) {
     header('location:dyeing_batch_card.php');
     exit();
 }
-if (isset($_POST['dyeing_batch_delivery'])) {
+if (isset($_POST['knitting_batch_delivery'])) {
     $_SESSION['lineNo'] = $_POST['option'];
-    header('location:dyeing_batch_delivery.php');
+    header('location:knitting_batch_delivery.php');
     exit();
 }
 if (isset($_POST['dyeing_batch_split'])) {
@@ -757,6 +757,9 @@ mysqli_close($db);
                             <button class="w3-button w3-teal" name="knitting_roll_split" id="knitting_roll_split">
                                 <i class="fas fa-warehouse"></i> Knitting Roll Split
                             </button>
+                            <button class="w3-button w3-teal" name="knitting_batch_delivery" id="knitting_batch_delivery">
+                                <i class="fas fa-truck"></i> Batch Delivery
+                            </button>
                         <?php endif; ?>
                     <?php endif; ?>
 
@@ -764,10 +767,6 @@ mysqli_close($db);
                     <?php if (!$isKnittingUser): ?>
                         <button class="w3-button w3-teal" name="dyeing_batch_card" id="dyeing_batch_card">
                             <i class="fas fa-id-card"></i> Batch Card
-                        </button>
-
-                        <button class="w3-button w3-teal" name="dyeing_batch_delivery" id="dyeing_batch_delivery">
-                            <i class="fas fa-truck"></i> Batch Delivery
                         </button>
 
                         <button class="w3-button w3-teal" name="dyeing_batch_split" id="dyeing_batch_split">

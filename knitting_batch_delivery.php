@@ -155,7 +155,7 @@ if (!isset($_SESSION['username'])) {
     <main class="page">
         <header class="header">
             <a class="back" href="initialPage.php">← Back</a>
-            <h1>Dyeing Batch Delivery</h1>
+            <h1>Knitting Batch Delivery</h1>
         </header>
 
         <section class="panel" id="deliveryPanel">
@@ -319,7 +319,7 @@ if (!isset($_SESSION['username'])) {
                     : {method: 'GET'};
                 var query = new URLSearchParams(queryParams || {});
                 query.set('action', action);
-                return fetch('ajaxDyeing_batch_delivery.php?' + query.toString(), options)
+                return fetch('ajaxKnitting_batch_delivery.php?' + query.toString(), options)
                     .then(function(response) {
                         return response.json().then(function(data) {
                             if (!response.ok || !data.success) {

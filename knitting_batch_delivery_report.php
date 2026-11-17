@@ -1,14 +1,14 @@
 <?php
 $reportConfig = [
-    'title' => 'Dyeing Batch Delivery Report',
+    'title' => 'Knitting Batch Delivery Report',
     'from' => 'dyeing_batch_delivery t',
     'machine' => "COALESCE(t.DYMCNO, '')",
     'operator' => "COALESCE(t.DOP, '')",
     'operator_id' => "COALESCE(t.DID, '')",
     'process_alias' => 't',
     'order' => 't.BCARD, t.DBDTID',
-    'theme_start' => '#065f46',
-    'theme_end' => '#10b981'
+    'theme_start' => '#1e3a8a',
+    'theme_end' => '#4f46e5'
 ];
 session_start();
 require_once 'config.php';
@@ -49,7 +49,7 @@ foreach ($reportTimeColumns as $timeColumn) {
     } elseif ($timeColumn === 'END_TIME') {
         $timeSelect[] = 't.DYEND AS END_TIME';
     } else {
-        throw new InvalidArgumentException('Unsupported dyeing report time column.');
+        throw new InvalidArgumentException('Unsupported Knitting Batch Delivery report time column.');
     }
 }
 $timeSelectSql = $timeSelect
@@ -89,7 +89,7 @@ $rows = [];
 $loadError = false;
 $result = $db->query($sql);
 if (!$result) {
-    error_log('Dyeing report query failed: ' . $db->error);
+    error_log('Knitting Batch Delivery report query failed: ' . $db->error);
     http_response_code(500);
     $loadError = true;
 } else {
@@ -104,7 +104,7 @@ if (!$result) {
                 $row[$timeColumn] = (new DateTimeImmutable($value, new DateTimeZone('Asia/Dhaka')))
                     ->format('d-m-Y H:i:s');
             } catch (Throwable $error) {
-                error_log('Invalid ' . $timeColumn . ' value in dyeing report: ' . $value);
+                error_log('Invalid ' . $timeColumn . ' value in Knitting Batch Delivery report: ' . $value);
                 $row[$timeColumn] = $value;
             }
         }

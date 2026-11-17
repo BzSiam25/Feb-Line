@@ -206,11 +206,9 @@ $isFinishingUser = $user === 'f01' || $userType === 'finishing_operator';
 
     .dyeing-report-card {
       background: linear-gradient(135deg, var(--report-bg-start), var(--report-bg-end));
-      background: linear-gradient(
-        135deg,
-        color-mix(in srgb, var(--report-bg-start) 90%, transparent),
-        color-mix(in srgb, var(--report-bg-end) 84%, transparent)
-      );
+      background: linear-gradient(135deg,
+          color-mix(in srgb, var(--report-bg-start) 90%, transparent),
+          color-mix(in srgb, var(--report-bg-end) 84%, transparent));
       border: 1px solid color-mix(in srgb, var(--report-border) 82%, white);
       backdrop-filter: blur(14px) saturate(145%);
       -webkit-backdrop-filter: blur(14px) saturate(145%);
@@ -342,6 +340,12 @@ $isFinishingUser = $user === 'f01' || $userType === 'finishing_operator';
       --knit-card-end: #65a30d;
       --knit-card-border: #bef264;
     }
+
+    .knitting-report-card--delivery {
+      --knit-card-start: #1e3a8a;
+      --knit-card-end: #4f46e5;
+      --knit-card-border: #a5b4fc;
+    }
   </style>
 </head>
 
@@ -350,184 +354,185 @@ $isFinishingUser = $user === 'f01' || $userType === 'finishing_operator';
     <div class="card">
       <h2 class="card-title text-center" style="color: #6d28d9;">
         <?php
-          if ($isFinishingUser) {
-            echo 'Finished Production Report';
-          } else {
-            echo $isDyeingUser ? 'Dyeing Report Section' : 'Knitting Report Section';
-          }
+        if ($isFinishingUser) {
+          echo 'Finished Production Report';
+        } else {
+          echo $isDyeingUser ? 'Dyeing Report Section' : 'Knitting Report Section';
+        }
         ?>
       </h2>
       <div class="row d-flex align-items-stretch">
 
         <?php if ($isFinishingUser): ?>
-        <div class="col-6 col-md-4 mb-3 d-flex">
-          <div class="report-card w-100 dyeing-report-card dyeing-report-card--unload">
-            <form method="GET" action="dyeing_finished_production_report.php" class="h-100 w-100">
-              <button type="submit" class="btn btn-report">
-                <i class="fa-solid fa-circle-check card-btn"></i>
-                <span class="floor-text">
-                  <span>Finished Production Report</span>
-                </span>
-              </button>
-            </form>
+          <div class="col-6 col-md-4 mb-3 d-flex">
+            <div class="report-card w-100 dyeing-report-card dyeing-report-card--unload">
+              <form method="GET" action="dyeing_finished_production_report.php" class="h-100 w-100">
+                <button type="submit" class="btn btn-report">
+                  <i class="fa-solid fa-circle-check card-btn"></i>
+                  <span class="floor-text">
+                    <span>Finished Production Report</span>
+                  </span>
+                </button>
+              </form>
+            </div>
           </div>
-        </div>
         <?php endif; ?>
 
         <?php if (!$isDyeingUser && !$isFinishingUser): ?>
-        <!-- 1. Knitting Input Details Report -->
-        <div class="col-6 col-md-4 mb-3 d-flex">
-          <div class="report-card w-100 knitting-report-card knitting-report-card--input">
-            <form method="POST" action="knitting_input.php" class="h-100 w-100">
-              <button type="submit" class="btn btn-report">
-                <i class="fa-solid fa-file-import card-btn"></i>
-                <span class="floor-text">
-                  <span>Input Details Report</span>
-                </span>
-              </button>
-            </form>
+          <!-- 1. Knitting Input Details Report -->
+          <div class="col-6 col-md-4 mb-3 d-flex">
+            <div class="report-card w-100 knitting-report-card knitting-report-card--input">
+              <form method="POST" action="knitting_input.php" class="h-100 w-100">
+                <button type="submit" class="btn btn-report">
+                  <i class="fa-solid fa-file-import card-btn"></i>
+                  <span class="floor-text">
+                    <span>Input Details Report</span>
+                  </span>
+                </button>
+              </form>
+            </div>
           </div>
-        </div>
 
-        <!-- 2. Knitting Program Report -->
-        <div class="col-6 col-md-4 mb-3 d-flex">
-          <div class="report-card w-100 knitting-report-card knitting-report-card--program">
-            <form method="POST" action="knitting_program_report.php" class="h-100 w-100">
-              <button type="submit" class="btn btn-report">
-                <i class="fa-solid fa-clipboard-list card-btn"></i>
-                <span class="floor-text">
-                  <span>Program Report</span>
-                </span>
-              </button>
-            </form>
+          <!-- 2. Knitting Program Report -->
+          <div class="col-6 col-md-4 mb-3 d-flex">
+            <div class="report-card w-100 knitting-report-card knitting-report-card--program">
+              <form method="POST" action="knitting_program_report.php" class="h-100 w-100">
+                <button type="submit" class="btn btn-report">
+                  <i class="fa-solid fa-clipboard-list card-btn"></i>
+                  <span class="floor-text">
+                    <span>Program Report</span>
+                  </span>
+                </button>
+              </form>
+            </div>
           </div>
-        </div>
 
-        <!-- 3. Knitting Program Status -->
-        <div class="col-6 col-md-4 mb-3 d-flex">
-          <div class="report-card w-100 knitting-report-card knitting-report-card--status">
-            <form method="POST" action="knitting_program_status.php" class="h-100 w-100">
-              <button type="submit" class="btn btn-report">
-                <i class="fa-solid fa-clipboard-list card-btn"></i>
-                <span class="floor-text">
-                  <span>Program Status</span>
-                </span>
-              </button>
-            </form>
+          <!-- 3. Knitting Program Status -->
+          <div class="col-6 col-md-4 mb-3 d-flex">
+            <div class="report-card w-100 knitting-report-card knitting-report-card--status">
+              <form method="POST" action="knitting_program_status.php" class="h-100 w-100">
+                <button type="submit" class="btn btn-report">
+                  <i class="fa-solid fa-clipboard-list card-btn"></i>
+                  <span class="floor-text">
+                    <span>Program Status</span>
+                  </span>
+                </button>
+              </form>
+            </div>
           </div>
-        </div>
 
-        <!-- 4. Knit Card Report -->
-        <div class="col-6 col-md-4 mb-3 d-flex">
-          <div class="report-card w-100 knitting-report-card knitting-report-card--card">
-            <form method="POST" action="knit_card_report.php" class="h-100 w-100">
-              <button type="submit" class="btn btn-report">
-                <i class="fa-solid fa-id-card-clip card-btn"></i>
-                <span class="floor-text">
-                  <span>Knit Card Report</span>
-                </span>
-              </button>
-            </form>
+          <!-- 4. Knit Card Report -->
+          <div class="col-6 col-md-4 mb-3 d-flex">
+            <div class="report-card w-100 knitting-report-card knitting-report-card--card">
+              <form method="POST" action="knit_card_report.php" class="h-100 w-100">
+                <button type="submit" class="btn btn-report">
+                  <i class="fa-solid fa-id-card-clip card-btn"></i>
+                  <span class="floor-text">
+                    <span>Knit Card Report</span>
+                  </span>
+                </button>
+              </form>
+            </div>
           </div>
-        </div>
 
-        <!-- 5. Knitting production Report -->
-        <div class="col-6 col-md-4 mb-3 d-flex">
-          <div class="report-card w-100 knitting-report-card knitting-report-card--production">
-            <form method="POST" action="knitting_production_report.php" class="h-100 w-100">
-              <button type="submit" class="btn btn-report">
-                <i class="fa-solid fa-chart-line card-btn"></i>
-                <span class="floor-text">
-                  <span>Production Report</span>
-                </span>
-              </button>
-            </form>
+          <!-- 5. Knitting production Report -->
+          <div class="col-6 col-md-4 mb-3 d-flex">
+            <div class="report-card w-100 knitting-report-card knitting-report-card--production">
+              <form method="POST" action="knitting_production_report.php" class="h-100 w-100">
+                <button type="submit" class="btn btn-report">
+                  <i class="fa-solid fa-chart-line card-btn"></i>
+                  <span class="floor-text">
+                    <span>Production Report</span>
+                  </span>
+                </button>
+              </form>
+            </div>
           </div>
-        </div>
 
-        <!-- 6. Knitting Inspection Report -->
-        <div class="col-6 col-md-4 mb-3 d-flex">
-          <div class="report-card w-100 knitting-report-card knitting-report-card--inspection">
-            <form method="POST" action="knitting_inspection_report.php" class="h-100 w-100">
-              <button type="submit" class="btn btn-report">
-                <i class="fa-solid fa-clipboard-check card-btn"></i>
-                <span class="floor-text">
-                  <span>Inspection Report</span>
-                </span>
-              </button>
-            </form>
+          <!-- 6. Knitting Inspection Report -->
+          <div class="col-6 col-md-4 mb-3 d-flex">
+            <div class="report-card w-100 knitting-report-card knitting-report-card--inspection">
+              <form method="POST" action="knitting_inspection_report.php" class="h-100 w-100">
+                <button type="submit" class="btn btn-report">
+                  <i class="fa-solid fa-clipboard-check card-btn"></i>
+                  <span class="floor-text">
+                    <span>Inspection Report</span>
+                  </span>
+                </button>
+              </form>
+            </div>
           </div>
-        </div>
 
-        <!-- 7. Knitting Store Report -->
-        <div class="col-6 col-md-4 mb-3 d-flex">
-          <div class="report-card w-100 knitting-report-card knitting-report-card--store">
-            <form method="POST" action="knitting_store_report.php" class="h-100 w-100">
-              <button type="submit" class="btn btn-report">
-                <i class="fa-solid fa-warehouse  card-btn"></i>
-                <span class="floor-text">
-                  <span>Store Report</span>
-                </span>
-              </button>
-            </form>
+          <!-- 7. Knitting Store Report -->
+          <div class="col-6 col-md-4 mb-3 d-flex">
+            <div class="report-card w-100 knitting-report-card knitting-report-card--store">
+              <form method="POST" action="knitting_store_report.php" class="h-100 w-100">
+                <button type="submit" class="btn btn-report">
+                  <i class="fa-solid fa-warehouse  card-btn"></i>
+                  <span class="floor-text">
+                    <span>Store Report</span>
+                  </span>
+                </button>
+              </form>
+            </div>
           </div>
-        </div>
+
+
+          <div class="col-6 col-md-4 mb-3 d-flex">
+            <div class="report-card w-100 knitting-report-card knitting-report-card--delivery">
+              <form method="POST" action="knitting_batch_delivery_report.php" class="h-100 w-100">
+                <button type="submit" class="btn btn-report">
+                  <i class="fa-solid fa-truck card-btn"></i>
+                  <span class="floor-text">
+                    <span>Batch Delivery Report</span>
+                  </span>
+                </button>
+              </form>
+            </div>
+          </div>
         <?php endif; ?>
 
         <!-- Dyeing Part Start -->
         <?php if (!$isKnittingUser && !$isFinishingUser): ?>
-        <!-- Dyeing workflow reports -->
-        <div class="col-6 col-md-4 mb-3 d-flex">
-          <div class="report-card w-100 dyeing-report-card dyeing-report-card--card">
-            <form method="POST" action="dyeing_batch_card_report.php" class="h-100 w-100">
-              <button type="submit" class="btn btn-report">
-                <i class="fa-solid fa-id-card card-btn"></i>
-                <span class="floor-text">
-                  <span>Batch Card Report</span>
-                </span>
-              </button>
-            </form>
+          <!-- Dyeing workflow reports -->
+          <div class="col-6 col-md-4 mb-3 d-flex">
+            <div class="report-card w-100 dyeing-report-card dyeing-report-card--card">
+              <form method="POST" action="dyeing_batch_card_report.php" class="h-100 w-100">
+                <button type="submit" class="btn btn-report">
+                  <i class="fa-solid fa-id-card card-btn"></i>
+                  <span class="floor-text">
+                    <span>Batch Card Report</span>
+                  </span>
+                </button>
+              </form>
+            </div>
           </div>
-        </div>
 
-        <div class="col-6 col-md-4 mb-3 d-flex">
-          <div class="report-card w-100 dyeing-report-card dyeing-report-card--delivery">
-            <form method="POST" action="dyeing_batch_delivery_report.php" class="h-100 w-100">
-              <button type="submit" class="btn btn-report">
-                <i class="fa-solid fa-truck card-btn"></i>
-                <span class="floor-text">
-                  <span>Batch Delivery Report</span>
-                </span>
-              </button>
-            </form>
-          </div>
-        </div>
-
-        <?php
-        $dyeingReports = [
-          ['dyeing_batch_split_report.php', 'Batch Split Report', 'fa-scissors', 'split'],
-          ['dyeing_batch_verification_report.php', 'Batch Verification Report', 'fa-clipboard-check', 'verification'],
-          ['dyeing_roll_verification_report.php', 'Roll Verification Report', 'fa-qrcode', 'roll-verification'],
-          ['dyeing_load_report.php', 'Dyeing Load Report', 'fa-dolly', 'load'],
-          ['dyeing_batch_transfer_report.php', 'Batch Transfer Report', 'fa-right-left', 'transfer'],
-          ['dyeing_unload_report.php', 'Dyeing Unload Report', 'fa-box-open', 'unload'],
-          ['dyeing_redye.php', 'Re Dyeing Report', 'fa-rotate', 'unload']
-        ];
-        foreach ($dyeingReports as $dyeingReport):
-        ?>
-        <div class="col-6 col-md-4 mb-3 d-flex">
-          <div class="report-card w-100 dyeing-report-card dyeing-report-card--<?php echo htmlspecialchars($dyeingReport[3], ENT_QUOTES, 'UTF-8'); ?>">
-            <form method="POST" action="<?php echo htmlspecialchars($dyeingReport[0], ENT_QUOTES, 'UTF-8'); ?>" class="h-100 w-100">
-              <button type="submit" class="btn btn-report">
-                <i class="fa-solid <?php echo htmlspecialchars($dyeingReport[2], ENT_QUOTES, 'UTF-8'); ?> card-btn"></i>
-                <span class="floor-text">
-                  <span><?php echo htmlspecialchars($dyeingReport[1], ENT_QUOTES, 'UTF-8'); ?></span>
-                </span>
-              </button>
-            </form>
-          </div>
-        </div>
-        <?php endforeach; ?>
+          <?php
+          $dyeingReports = [
+            ['dyeing_batch_split_report.php', 'Batch Split Report', 'fa-scissors', 'split'],
+            ['dyeing_batch_verification_report.php', 'Batch Verification Report', 'fa-clipboard-check', 'verification'],
+            ['dyeing_roll_verification_report.php', 'Roll Verification Report', 'fa-qrcode', 'roll-verification'],
+            ['dyeing_load_report.php', 'Dyeing Load Report', 'fa-dolly', 'load'],
+            ['dyeing_batch_transfer_report.php', 'Batch Transfer Report', 'fa-right-left', 'transfer'],
+            ['dyeing_unload_report.php', 'Dyeing Unload Report', 'fa-box-open', 'unload'],
+            ['dyeing_redye.php', 'Re Dyeing Report', 'fa-rotate', 'unload']
+          ];
+          foreach ($dyeingReports as $dyeingReport):
+          ?>
+            <div class="col-6 col-md-4 mb-3 d-flex">
+              <div class="report-card w-100 dyeing-report-card dyeing-report-card--<?php echo htmlspecialchars($dyeingReport[3], ENT_QUOTES, 'UTF-8'); ?>">
+                <form method="POST" action="<?php echo htmlspecialchars($dyeingReport[0], ENT_QUOTES, 'UTF-8'); ?>" class="h-100 w-100">
+                  <button type="submit" class="btn btn-report">
+                    <i class="fa-solid <?php echo htmlspecialchars($dyeingReport[2], ENT_QUOTES, 'UTF-8'); ?> card-btn"></i>
+                    <span class="floor-text">
+                      <span><?php echo htmlspecialchars($dyeingReport[1], ENT_QUOTES, 'UTF-8'); ?></span>
+                    </span>
+                  </button>
+                </form>
+              </div>
+            </div>
+          <?php endforeach; ?>
         <?php endif; ?>
 
 
