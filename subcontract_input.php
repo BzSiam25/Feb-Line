@@ -156,19 +156,42 @@ $v = function ($val) use ($keepForm) {
         }
 
         .program-header {
-            display: flex;
-            justify-content: space-between;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
             align-items: center;
-            flex-wrap: wrap;
-            gap: 1rem;
-            margin-bottom: 1.8rem;
+            gap: 12px;
+            margin-bottom: 14px;
+            padding: 12px 18px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            background: linear-gradient(135deg, #0f766e 0%, #0d8a80 50%, #0f9b8e 100%);
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1);
         }
 
         .program-header h1 {
+            grid-column: 2;
+            grid-row: 1;
             font-weight: 700;
-            font-size: 2rem;
-            color: #0b2a4a;
+            font-size: clamp(1.25rem, 3vw, 2rem);
+            color: #fff;
             margin: 0;
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        .program-header h1 i {
+            color: #fff !important;
+        }
+
+        .program-header .btn-back {
+            grid-column: 1;
+            grid-row: 1;
+            justify-self: start;
+        }
+
+        .program-header > div:last-child {
+            grid-column: 3;
+            grid-row: 1;
         }
 
         .btn-back {
@@ -266,7 +289,8 @@ $v = function ($val) use ($keepForm) {
             }
 
             .program-header h1 {
-                font-size: 1.5rem;
+                font-size: 1.1rem;
+                white-space: normal;
             }
 
             .card-unified {

@@ -238,7 +238,8 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
 
     <style>
         body {
-            padding: 18px;
+            margin: 0;
+            padding: 6px 18px 18px;
             background: #f5f7fa;
         }
 
@@ -263,7 +264,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
             align-items: center;
             gap: 12px;
             width: 100%;
-            margin-bottom: 20px;
+            margin-bottom: 14px;
             padding: 14px 18px;
             border: 1px solid #0f766e;
             border-radius: 14px;
@@ -640,7 +641,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
 
         @media (min-width: 576px) and (max-width: 991.98px) {
             body {
-                padding: 14px;
+                padding: 0 14px 14px;
             }
 
             .lookup-panel {
@@ -655,6 +656,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
 
         @media (max-width: 575.98px) {
             body {
+                margin: 0;
                 padding: 10px;
             }
 

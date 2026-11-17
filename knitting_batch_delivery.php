@@ -32,15 +32,28 @@ if (!isset($_SESSION['username'])) {
             box-shadow: 0 10px 24px rgba(15, 70, 65, .1);
         }
         .header {
-            display: flex;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
             align-items: center;
-            gap: 14px;
-            padding: 16px 20px;
+            gap: 12px;
+            padding: 12px 18px;
             margin-bottom: 14px;
+            background: linear-gradient(135deg, #0f766e 0%, #0d8a80 50%, #0f9b8e 100%);
+            border: 1px solid rgba(255, 255, 255, .08);
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(15, 23, 42, .1);
+            color: #fff;
+        }
+        .header h1 {
+            grid-column: 2;
+            grid-row: 1;
+            text-align: center;
+            font-size: clamp(1.2rem, 3vw, 1.5rem);
         }
         h1 { margin: 0; font-size: 1.5rem; }
         .back {
             display: inline-block;
+            justify-self: start;
             padding: 9px 14px;
             color: #fff;
             background: #000;
@@ -144,8 +157,10 @@ if (!isset($_SESSION['username'])) {
             color: #b91c1c;
         }
         @media (max-width: 800px) {
-            body { padding: 9px; }
-            .header { flex-wrap: wrap; }
+            body { padding: 16px 9px 9px; }
+            .header { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 8px; padding: 10px; }
+            .header h1 { font-size: 1.1rem; }
+            .back { padding: 8px 10px; }
             #qr-reader { min-height: 260px; }
             .table-wrap { max-height: 55vh; }
         }
