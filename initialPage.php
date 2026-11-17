@@ -124,10 +124,6 @@ if (isset($_POST['knitting_rack_transfer'])) {
     exit();
 }
 if (isset($_POST['knitting_roll_split'])) {
-    if (empty($_SESSION['knitting_roll_split_authorized'])) {
-        header('Location: initialPage.php?require_knitting_roll_split_password=1');
-        exit();
-    }
     $_SESSION['lineNo'] = $_POST['option'];
     header('location:knitting_roll_split.php');
     exit();
@@ -757,9 +753,11 @@ mysqli_close($db);
                             <i class="fas fa-warehouse"></i> Knitting Rack Transfer
                         </button>
 
-                        <button class="w3-button w3-teal" name="knitting_roll_split" id="knitting_roll_split">
-                            <i class="fas fa-warehouse"></i> Knitting Roll Split
-                        </button>
+                        <?php if (!$isFinishingUser): ?>
+                            <button class="w3-button w3-teal" name="knitting_roll_split" id="knitting_roll_split">
+                                <i class="fas fa-warehouse"></i> Knitting Roll Split
+                            </button>
+                        <?php endif; ?>
                     <?php endif; ?>
 
                     <!-- Dyeing Buttons -->
@@ -938,7 +936,6 @@ mysqli_close($db);
             var authPassword = document.getElementById('batchSplitPassword');
             var authError = document.getElementById('batchSplitAuthError');
             var batchSplitAuthorized = <?php echo !empty($_SESSION['batch_split_authorized']) ? 'true' : 'false'; ?>;
-            var knittingRollSplitAuthorized = <?php echo !empty($_SESSION['knitting_roll_split_authorized']) ? 'true' : 'false'; ?>;
             var authErrorTimer = null;
             var authSubmitting = false;
             var authConfig = null;
@@ -1038,18 +1035,6 @@ mysqli_close($db);
                     });
                 });
             }
-            var knittingRollSplitButton = document.getElementById('knitting_roll_split');
-            if (knittingRollSplitButton) {
-                knittingRollSplitButton.addEventListener('click', function(event) {
-                    event.preventDefault();
-                    openBatchSplitAuth({
-                        label: 'Knitting Roll Split',
-                        verificationUrl: 'knitting_roll_split.php',
-                        verifyAction: 'verify_knitting_roll_split_password',
-                        formAction: 'knitting_roll_split'
-                    });
-                });
-            }
             document.getElementById('verifyBatchSplitAuth').addEventListener('click', verifyBatchSplitPassword);
             document.getElementById('cancelBatchSplitAuth').addEventListener('click', closeBatchSplitAuth);
             document.getElementById('closeBatchSplitAuth').addEventListener('click', closeBatchSplitAuth);
@@ -1060,7 +1045,6 @@ mysqli_close($db);
 
             var currentUrl = new URL(window.location.href);
             var requiresBatchSplitPassword = currentUrl.searchParams.get('require_batch_split_password') === '1';
-            var requiresKnittingRollSplitPassword = currentUrl.searchParams.get('require_knitting_roll_split_password') === '1';
 
             if (requiresBatchSplitPassword && batchSplitAuthorized) {
                 currentUrl.searchParams.delete('require_batch_split_password');
@@ -1071,18 +1055,6 @@ mysqli_close($db);
                     verificationUrl: 'dyeing_batch_split.php',
                     verifyAction: 'verify_batch_split_password',
                     formAction: 'dyeing_batch_split'
-                });
-            }
-
-            if (requiresKnittingRollSplitPassword && knittingRollSplitAuthorized) {
-                currentUrl.searchParams.delete('require_knitting_roll_split_password');
-                window.history.replaceState(null, '', currentUrl.pathname + currentUrl.search + currentUrl.hash);
-            } else if (requiresKnittingRollSplitPassword) {
-                openBatchSplitAuth({
-                    label: 'Knitting Roll Split',
-                    verificationUrl: 'knitting_roll_split.php',
-                    verifyAction: 'verify_knitting_roll_split_password',
-                    formAction: 'knitting_roll_split'
                 });
             }
 

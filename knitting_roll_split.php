@@ -1,37 +1,39 @@
 <?php
 include 'config.php';
 
-if (
-    $_SERVER['REQUEST_METHOD'] === 'POST'
-    && isset($_POST['action'])
-    && $_POST['action'] === 'verify_knitting_roll_split_password'
-) {
-    header('Content-Type: application/json');
-    $password = isset($_POST['password']) ? (string) $_POST['password'] : '';
+// Match the dashboard's role restrictions while keeping direct requests protected.
+$isAjaxAction = (
+    (isset($_GET['action']) && $_GET['action'] === 'get_roll')
+    || (isset($_POST['action']) && $_POST['action'] === 'split')
+);
 
-    if (hash_equals('2211', $password)) {
-        $_SESSION['knitting_roll_split_authorized'] = true;
-        echo json_encode(['success' => true]);
-    } else {
-        http_response_code(401);
-        echo json_encode(['success' => false, 'message' => 'Wrong password. Please enter a valid password.']);
-    }
-    exit();
-}
-
-if (empty($_SESSION['knitting_roll_split_authorized'])) {
-    if (
-        (isset($_GET['action']) && $_GET['action'] === 'get_roll')
-        || (isset($_POST['action']) && $_POST['action'] === 'split')
-    ) {
+if (empty($_SESSION['username'])) {
+    if ($isAjaxAction) {
         header('Content-Type: application/json');
-        http_response_code(403);
-        echo json_encode(['success' => false, 'error' => 'Knitting Roll Split password verification is required.']);
+        http_response_code(401);
+        echo json_encode(['success' => false, 'error' => 'Please log in to access Knitting Roll Split.']);
         exit();
     }
 
-    header('Location: initialPage.php?require_knitting_roll_split_password=1');
+    header('Location: login.php');
     exit();
+}
+
+$userId = strtolower(trim((string) $_SESSION['username']));
+$userType = isset($_SESSION['user_type']) ? strtolower(trim((string) $_SESSION['user_type'])) : '';
+$isDyeingUser = $userId === 'd01' || $userType === 'dyeing_operator';
+$isFinishingUser = $userId === 'f01' || $userType === 'finishing_operator';
+
+if ($isDyeingUser || $isFinishingUser) {
+    if ($isAjaxAction) {
+        header('Content-Type: application/json');
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'You are not authorized to access Knitting Roll Split.']);
+        exit();
+    }
+
+    http_response_code(403);
+    exit('You are not authorized to access Knitting Roll Split.');
 }
 
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
