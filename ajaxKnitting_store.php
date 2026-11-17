@@ -55,6 +55,10 @@ if ($action === 'search') {
 
     // If the roll is already stored in knitting_store, do NOT show data again
     $storeRes = mysqli_query($db, "SELECT ROLL FROM knitting_store WHERE TRIM(ROLL) = '$rollEsc' LIMIT 1");
+    if (!$storeRes) {
+        echo json_encode(['success' => false, 'error' => 'Unable to check whether this roll is already stored.']);
+        exit;
+    }
     if ($storeRes && mysqli_num_rows($storeRes) > 0) {
         echo json_encode(['success' => false, 'error' => "Data already stored in Knitting Store for Roll: $roll"]);
         exit;
@@ -71,6 +75,19 @@ if ($action === 'search') {
     if ($result && mysqli_num_rows($result) > 0) {
         $data = mysqli_fetch_assoc($result);
         if ($data) {
+            $qcStatus = strtolower(trim((string) (isset($data['QC_STATUS']) ? $data['QC_STATUS'] : '')));
+            if ($qcStatus !== 'passed') {
+                $qcGrade = strtolower(trim((string) (isset($data['QC_GRADE']) ? $data['QC_GRADE'] : '')));
+                $qcResult = (strpos($qcStatus, 'reject') !== false || strpos($qcGrade, 'reject') !== false)
+                    ? 'Rejected'
+                    : 'Failed';
+                echo json_encode([
+                    'success' => false,
+                    'error' => "Roll $roll is QC $qcResult and cannot be scanned into Knitting Store."
+                ]);
+                exit;
+            }
+
             unset($data['QC_PASSES']);
 
             // If scanned roll has -R suffix, adapt roll and weight to Rejection

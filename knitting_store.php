@@ -45,7 +45,7 @@
     }
 
     .card {
-      max-width: 1200px;
+      max-width: none;
       width: 100%;
       margin: 0 auto;
       background: #eef5f3;
@@ -303,6 +303,74 @@
       flex-direction: column;
       gap: 4px;
       word-break: break-word;
+    }
+
+    .scan-preview-summary {
+      margin: 14px 0 8px;
+      color: #083a36;
+      font-weight: 700;
+    }
+
+    .scan-preview-wrap {
+      width: 100%;
+      overflow: auto;
+      border: 1px solid #cbd5e1;
+      border-radius: 12px;
+      background: #ffffff;
+    }
+
+    .scan-preview-table {
+      width: max-content;
+      min-width: 100%;
+      border-collapse: collapse;
+      color: #1e293b;
+      font-size: 0.78rem;
+    }
+
+    .scan-preview-table th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      padding: 10px 12px;
+      background: #1e293b;
+      color: #ffffff;
+      text-align: left;
+      white-space: nowrap;
+      border-right: 1px solid #475569;
+    }
+
+    .scan-preview-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #e2e8f0;
+      white-space: nowrap;
+      border-right: 1px solid #cbd5e1;
+    }
+
+    .scan-preview-table th:last-child,
+    .scan-preview-table td:last-child {
+      border-right: 0;
+    }
+
+    .scan-preview-table tbody tr:nth-child(even) {
+      background: #f1f5f9;
+    }
+
+    .scan-preview-table tbody tr:hover {
+      background: #e0f2fe;
+    }
+
+    .scan-preview-table .remove-roll-btn {
+      margin: 0;
+      padding: 6px 10px;
+      color: #ffffff;
+      background: #dc2626;
+      border: 1px solid #b91c1c;
+    }
+
+    .scan-preview-table .remove-roll-btn:hover {
+      color: #ffffff;
+      background: #b91c1c;
+      border-color: #991b1b;
     }
 
     .data-row {
@@ -902,8 +970,12 @@
     <div class="result-panel">
       <div class="result-header">
         <i class="fas fa-qrcode"></i>
-        <span>Roll Data</span>
+        <span>Scanned Roll Data</span>
         <span style="margin-left: auto; font-size: 0.7rem; background: #14b8a6; padding: 2px 12px; border-radius: 40px; color: #ffffff;">Ready</span>
+      </div>
+      <div class="manual-entry">
+        <input type="text" id="manualRollInput" placeholder="ROLL number (e.g. 3000000001)" autocomplete="off">
+        <button type="button" id="manualRollBtn">Add Roll</button>
       </div>
       <div id="result-content">
         <!-- Default content will be injected by JS -->
@@ -981,116 +1053,117 @@
       const resetRackBtn = document.getElementById('resetRackBtn');
       const saveRackBtn = document.getElementById('saveRackBtn');
       let currentFacingMode = 'environment';
-      let rejectedQrText = null;
-      let rejectedQrRearmTimer = null;
-      let qrErrorOpen = false;
 
-      const FIELD_LABELS = {
-        BUDAT: 'DATE',
-        ROLL: 'ROLL',
-        PO_NUMBER: 'PO NUMBER',
-        UQTY: 'QTY',
-        SONO: 'SONO',
-        BUYER: 'BUYER',
-        STYLE: 'STYLE',
-        COLOR: 'COLOR',
-        MCNO: 'MACHINE NO',
-        MC_DIA: 'MC DIA',
-        CUSTOMER: 'CUSTOMER',
-        YTYPE: 'YARN TYPE',
-        YCOUNT: 'YARN COUNT',
-        YBRAND: 'YARN BRAND',
-        QC_STATUS: 'QC_STATUS',
-        CATEGORY: 'CATEGORY',
-        FTYPE: 'FABRICS TYPE',
-        FGSM: 'FINISH GSM',
-        FDIA: 'FINISH DIA',
-        O_T: 'OPEN/TUBE',
-        SL: 'SL/VDQ',
-        FPLAN: 'FEEDER PLAN',
-        TPOINT: 'T.POINT',
-        LOTNO: 'LOT NO',
-        UNAME: 'OP NAME',
-        RACK: 'RACK',
-        RACKNO: 'RACK NO',
-        RACKLOCATION: 'RACK LOCATION'
-      };
+      const PREVIEW_COLUMNS = [
+        { key: 'BUDAT', label: 'Date' },
+        { key: 'ROLL', label: 'Roll No' },
+        { key: 'PO_NUMBER', label: 'PO NO' },
+        { key: 'QTY', label: 'QTY' },
+        { key: 'COLOR', label: 'Color' },
+        { key: 'SONO', label: 'SONO' },
+        { key: 'BUYER', label: 'Buyer' },
+        { key: 'STYLE', label: 'Style' },
+        { key: 'MCNO', label: 'Machine No' },
+        { key: 'MCDIA', label: 'MC Dia' },
+        { key: 'CUSTOMER', label: 'Customer' },
+        { key: 'YTYPE', label: 'Yarn Type' },
+        { key: 'YCOUNT', label: 'Yarn Count' },
+        { key: 'YBRAND', label: 'Yarn Brand' },
+        { key: 'O_T', label: 'Open / Tube' },
+        { key: 'SL', label: 'SL/VQ' },
+        { key: 'FTYPE', label: 'Fabrics Type' },
+        { key: 'FGSM', label: 'Finish GSM' },
+        { key: 'FDIA', label: 'Finish Dia' },
+        { key: 'FEEDER_PLAN', label: 'Feeder Plan' },
+        { key: 'LOT_NO', label: 'Lot No' },
+        { key: 'CATEGORY', label: 'Category' }
+      ];
 
-      let scannedInfo = null;
+      const MESSAGE_DURATION_MS = 3000;
+      const PREVIEW_NOTICE_DURATION_MS = 2000;
+      let scannedRolls = [];
+      let pendingRolls = new Set();
+      let rollRetryAfter = new Map();
+      let rollDuplicateNoticeAfter = new Map();
+      let messageTimeout = null;
+      let messageModalId = 0;
       let selectedRack = null;
       let selectedRackSection = null;
       let selectedSubRack = null;
       let html5QrCode = null;
       let isScanning = false;
+      let isSaving = false;
       let hasLoadedData = false;
+      let lastInvalidQr = '';
+      let lastInvalidQrAt = 0;
 
       function renderDefaultData() {
         if (hasLoadedData) return;
-        scannedInfo = null;
         hideRackSection();
+        saveRackBtn.innerHTML = '<i class="fas fa-save"></i> Save Rack';
         resultContainer.innerHTML = `
-         <div class="manual-entry">
-         <input type="text" id="manualRollInput" placeholder="ROLL number (e.g. 3000000001)" autocomplete="off">
-         <button type="button" id="manualRollBtn">Load</button>
-        </div>
           <div class="data-row header-row"><span class="label">Default Information</span><span class="value"></span></div>
-          <div class="data-row default-row"><span class="label">Status</span><span class="value">Awaiting ROLL number</span></div>
+          <div class="data-row default-row"><span class="label">Status</span><span class="value">Scan rolls</span></div>
         `;
       }
 
-      function renderLoadedStateIfAny() {
-        if (scannedInfo) {
-          showRackSection();
+      function showMessage(msg, type) {
+        if (messageTimeout) clearTimeout(messageTimeout);
+        messageTimeout = null;
+        messageContainer.replaceChildren();
+
+        if (typeof Swal !== 'undefined') {
+          if (Swal.isVisible()) Swal.close();
+          const isPreviewNotice = type === 'success' || type === 'duplicate';
+          const messageId = String(++messageModalId);
+          const duration = type === 'duplicate' ? PREVIEW_NOTICE_DURATION_MS : MESSAGE_DURATION_MS;
+          const icon = type === 'duplicate' ? 'error' : (type === 'error' || type === 'warning' || type === 'success' ? type : 'info');
+          const alertOptions = {
+            toast: isPreviewNotice,
+            position: isPreviewNotice ? 'top-end' : 'center',
+            icon: icon,
+            title: msg,
+            showConfirmButton: false,
+            timer: duration,
+            timerProgressBar: true,
+            didOpen: function(popup) {
+              popup.dataset.knittingStoreMessageId = messageId;
+            }
+          };
+          if (!isPreviewNotice) {
+            alertOptions.allowOutsideClick = false;
+            alertOptions.allowEscapeKey = false;
+          }
+          Swal.fire(alertOptions);
+          messageTimeout = setTimeout(function() {
+            const popup = Swal.getPopup();
+            if (popup && popup.dataset.knittingStoreMessageId === messageId) {
+              Swal.close();
+            }
+            messageTimeout = null;
+          }, duration);
           return;
         }
-        renderDefaultData();
-      }
 
-      function showMessage(msg, type) {
-        messageContainer.innerHTML = `<div class="message-row ${type || ''}">${msg}</div>`;
+        const message = document.createElement('div');
+        message.className = 'message-row ' + (type || '');
+        message.textContent = msg;
+        messageContainer.appendChild(message);
+        const duration = type === 'duplicate' ? PREVIEW_NOTICE_DURATION_MS : MESSAGE_DURATION_MS;
+        messageTimeout = setTimeout(function() {
+          if (message.parentNode === messageContainer) {
+            messageContainer.removeChild(message);
+          }
+          messageTimeout = null;
+        }, duration);
       }
 
       function clearMessage() {
-        messageContainer.innerHTML = '';
-      }
-
-      function showQrError(message) {
-        qrErrorOpen = true;
-        restartScanner();
-        if (typeof Swal !== 'undefined') {
-          return Swal.fire({
-            icon: 'error',
-            title: message,
-            timer: 3000,
-            timerProgressBar: true,
-            showConfirmButton: false
-          }).then(function() {
-            qrErrorOpen = false;
-          });
-        }
-        showMessage(message, 'error');
-        setTimeout(function() {
-          clearMessage();
-          qrErrorOpen = false;
-        }, 3000);
-      }
-
-      function showRejectedQrError(message, qrText) {
-        clearMessage();
-        rejectedQrText = String(qrText || '');
-        if (rejectedQrRearmTimer) {
-          clearTimeout(rejectedQrRearmTimer);
-          rejectedQrRearmTimer = null;
-        }
-        showQrError(message);
-      }
-
-      function clearRejectedQrLatch() {
-        rejectedQrText = null;
-        if (rejectedQrRearmTimer) {
-          clearTimeout(rejectedQrRearmTimer);
-          rejectedQrRearmTimer = null;
-        }
+        if (messageTimeout) clearTimeout(messageTimeout);
+        messageTimeout = null;
+        messageModalId += 1;
+        messageContainer.replaceChildren();
+        if (typeof Swal !== 'undefined' && Swal.isVisible()) Swal.close();
       }
 
       function extractRollFromQR(qrText) {
@@ -1121,85 +1194,89 @@
         return /^\d+(?:-[RP])?$/i.test(roll) ? roll : null;
       }
 
-      function buildFieldRow(fields) {
-        return `
-          <div class="data-row default-row">
-            ${fields.map(function(field) {
-              const value = scannedInfo[field] !== undefined && scannedInfo[field] !== null && scannedInfo[field] !== ''
-                ? String(scannedInfo[field])
-                : '-';
-              const safeValue = value.replace(/[&<>"']/g, function(char) {
-                return {
-                  '&': '&amp;',
-                  '<': '&lt;',
-                  '>': '&gt;',
-                  '"': '&quot;',
-                  "'": '&#039;'
-                }[char];
-              });
-              return `
-                <div class="field-block">
-                  <span class="field-label">${FIELD_LABELS[field] || field}</span>
-                  <span class="field-value">${safeValue}</span>
-                </div>
-              `;
-            }).join('')}
-          </div>
-        `;
+      function escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g, function(char) {
+          return {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+          }[char];
+        });
       }
 
-      function getDataColumns() {
-        if (window.matchMedia('(min-width: 1200px)').matches) return 7;
-        if (window.matchMedia('(max-width: 480px)').matches) return 2;
-        if (window.matchMedia('(max-width: 767.98px)').matches) return 3;
-        return 4;
+      function getPreviewValue(row, key) {
+        const aliases = {
+          QTY: ['QTY', 'UQTY'],
+          MCDIA: ['MCDIA', 'MC_DIA'],
+          FEEDER_PLAN: ['FEEDER_PLAN', 'FPLAN'],
+          LOT_NO: ['LOT_NO', 'LOTNO']
+        };
+        const keys = aliases[key] || [key];
+        for (let index = 0; index < keys.length; index += 1) {
+          if (row[keys[index]] !== null && row[keys[index]] !== undefined && row[keys[index]] !== '') {
+            return row[keys[index]];
+          }
+        }
+        return '';
       }
-
-      let renderedFieldColumns = getDataColumns();
 
       function renderScannedData(row) {
-        scannedInfo = row;
-        hasLoadedData = true;
+        if (row) {
+          const rollKey = String(row.ROLL || '').trim().toUpperCase();
+          if (!rollKey || scannedRolls.some(function(item) {
+              return String(item.ROLL || '').trim().toUpperCase() === rollKey;
+            })) {
+            return false;
+          }
+          scannedRolls.push(row);
+        }
+
+        hasLoadedData = scannedRolls.length > 0;
+
+        if (!hasLoadedData) {
+          renderDefaultData();
+          return true;
+        }
+
         clearMessage();
         showRackSection();
-        const columns = getDataColumns();
-        renderedFieldColumns = columns;
-
         let html = `
-          <div class="data-row header-row" style="border-left-color:#4fc3f7;">
-            <span class="label"> ROLL Loaded <span class="scanned-badge">ROLL NO</span></span>
-            <span class="value">${new Date().toLocaleTimeString()}</span>
+          <div class="scan-preview-summary">
+            ${scannedRolls.length} roll${scannedRolls.length === 1 ? '' : 's'} ready — choose one rack location for all rolls.
           </div>
+          <div class="scan-preview-wrap">
+            <table class="scan-preview-table" aria-label="Scanned roll preview">
+              <thead>
+                <tr><th>Action</th>${PREVIEW_COLUMNS.map(function(column) {
+                  return '<th>' + escapeHtml(column.label) + '</th>';
+                }).join('')}</tr>
+              </thead>
+              <tbody>
         `;
 
-        const fields = [
-          'ROLL', 'UQTY', 'UNAME', 'BUDAT',
-          'TPOINT', 'PO_NUMBER', 'SONO', 'BUYER',
-          'STYLE', 'COLOR', 'MCNO', 'MC_DIA',
-          'CUSTOMER', 'FGSM', 'FDIA', 'FTYPE',
-          'FPLAN', 'O_T', 'SL', 'LOTNO',
-          'YCOUNT', 'YBRAND', 'YTYPE', 'QC_STATUS', 'CATEGORY'
-        ];
-        for (let index = 0; index < fields.length; index += columns) {
-          html += buildFieldRow(fields.slice(index, index + columns));
-        }
-
-        html += `
-          <button class="rescan-btn" onclick="window.location.reload();">
-            <i class="fas fa-redo"></i> Enter Another Roll
-          </button>
-        `;
-
+        scannedRolls.forEach(function(info, rowIndex) {
+          html += '<tr>';
+          html += '<td><button type="button" class="rescan-btn remove-roll-btn" data-roll-index="' + rowIndex + '" title="Remove roll" aria-label="Remove roll"><i class="fas fa-trash" aria-hidden="true"></i></button></td>';
+          PREVIEW_COLUMNS.forEach(function(column) {
+            const value = getPreviewValue(info, column.key);
+            html += '<td>' + escapeHtml(value === '' || value === null || value === undefined ? '-' : value) + '</td>';
+          });
+          html += '</tr>';
+        });
+        html += '</tbody></table></div>';
         resultContainer.innerHTML = html;
-        updateRackDisplay();
+        resultContainer.querySelectorAll('.remove-roll-btn').forEach(function(button) {
+          button.addEventListener('click', function() {
+            const index = Number(button.getAttribute('data-roll-index'));
+            scannedRolls.splice(index, 1);
+            renderScannedData();
+          });
+        });
+        saveRackBtn.innerHTML = '<i class="fas fa-save"></i> Store All Rolls (' + scannedRolls.length + ')';
+        return true;
       }
-
-      window.addEventListener('resize', function() {
-        const columns = getDataColumns();
-        if (hasLoadedData && columns !== renderedFieldColumns) {
-          renderScannedData(scannedInfo);
-        }
-      });
 
       function showRackSection() {
         rackSection.style.display = 'block';
@@ -1220,28 +1297,12 @@
         saveRackBtn.disabled = true;
       }
 
-      function updateRackDisplay() {
-        if (!scannedInfo) return;
-
-        const existingRack = scannedInfo.RACK;
-        if (existingRack) {
-          const match = existingRack.match(/^(\d+)([A-Z])?(\d+)?$/i);
-          if (match) {
-            rackNumberInput.value = match[1];
-            setActiveRack(match[1]);
-            if (match[2]) {
-              setActiveRackSection(match[2].toUpperCase());
-              if (match[3]) setActiveSubRack(match[2].toUpperCase() + match[3]);
-            }
-          }
-        }
-      }
-
       function setActiveRack(rack) {
         selectedRack = rack;
         selectedRackSection = null;
         selectedSubRack = null;
         updateSubRacks(rack);
+        if (hasLoadedData) renderScannedData();
       }
 
       function setActiveRackSection(section) {
@@ -1251,6 +1312,7 @@
           btn.classList.toggle('active-sub', btn.textContent.trim().toUpperCase() === section);
         });
         updateSubRackOptions(section);
+        if (hasLoadedData) renderScannedData();
       }
 
       function setActiveSubRack(sub) {
@@ -1259,12 +1321,7 @@
           btn.classList.toggle('active-sub', btn.textContent.trim().toUpperCase() === sub);
         });
         saveRackBtn.disabled = false;
-      }
-
-      function showSelectedRackMessage() {
-        if (selectedRack && selectedSubRack) {
-          showMessage('Selected: ' + selectedRack + selectedSubRack, '');
-        }
+        if (hasLoadedData) renderScannedData();
       }
 
       function updateSubRacks(rack) {
@@ -1278,7 +1335,6 @@
           btn.textContent = opt;
           btn.onclick = function() {
             setActiveRackSection(opt);
-            showMessage('Selected: ' + selectedRack + opt, '');
           };
           subRackGroup.appendChild(btn);
         });
@@ -1296,19 +1352,19 @@
           option.textContent = section + number;
           option.onclick = function() {
             setActiveSubRack(option.textContent);
-            showSelectedRackMessage();
           };
           subRackOptionsGroup.appendChild(option);
         });
       }
 
       function updateRackNumberOptions(value) {
-        const prefix = String(value || '').replace(/\D/g, '').slice(0, 1);
+        const rackNumber = String(value || '').replace(/\D/g, '').slice(0, 2);
         rackNumberOptions.innerHTML = '';
-        if (!prefix) {
+        if (rackNumber.length !== 1) {
           rackNumberOptions.classList.remove('visible');
           return;
         }
+        const prefix = rackNumber;
 
         const numbers = [];
         for (let number = 1; number <= 50; number += 1) {
@@ -1333,7 +1389,6 @@
               bubbles: true
             }));
             rackNumberOptions.classList.remove('visible');
-            rackNumberInput.focus();
           });
           rackNumberOptions.appendChild(option);
         });
@@ -1351,7 +1406,6 @@
         const rack = Number(value);
         if (value.length === 2 && rack >= 1 && rack <= 50) {
           setActiveRack(String(rack).padStart(2, '0'));
-          showMessage('Selected Rack: ' + selectedRack, '');
         } else {
           selectedRack = null;
           selectedRackSection = null;
@@ -1363,6 +1417,19 @@
 
       rackNumberInput.addEventListener('keydown', function(event) {
         const options = Array.from(rackNumberOptions.querySelectorAll('.rack-number-option'));
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          const currentIndex = options.findIndex(function(option) {
+            return option.classList.contains('keyboard-active');
+          });
+          if (currentIndex >= 0) {
+            options[currentIndex].click();
+          } else {
+            commitRackNumber();
+          }
+          rackNumberOptions.classList.remove('visible');
+          return;
+        }
         if (!options.length) return;
 
         const currentIndex = options.findIndex(function(option) {
@@ -1376,10 +1443,6 @@
         } else if (event.key === 'ArrowUp') {
           event.preventDefault();
           nextIndex = currentIndex > 0 ? currentIndex - 1 : options.length - 1;
-        } else if (event.key === 'Enter' && currentIndex >= 0) {
-          event.preventDefault();
-          options[currentIndex].click();
-          return;
         } else if (event.key === 'Escape') {
           rackNumberOptions.classList.remove('visible');
           return;
@@ -1398,6 +1461,22 @@
       rackNumberInput.addEventListener('focus', function() {
         updateRackNumberOptions(rackNumberInput.value);
       });
+
+      function commitRackNumber() {
+        const rackNumber = Number(rackNumberInput.value.replace(/\D/g, '').slice(0, 2));
+        if (!rackNumber || rackNumber > 50) {
+          showMessage('Enter a rack number from 01 to 50.', 'error');
+          return;
+        }
+
+        const rack = String(rackNumber).padStart(2, '0');
+        rackNumberInput.value = rack;
+        rackNumberOptions.classList.remove('visible');
+        setActiveRack(rack);
+        rackNumberInput.blur();
+      }
+
+      rackNumberInput.addEventListener('change', commitRackNumber);
 
       rackNumberInput.addEventListener('blur', function() {
         setTimeout(function() {
@@ -1424,11 +1503,12 @@
         });
       }
 
-      function saveRackData(roll, rackno, racklocation) {
-        var payload = Object.assign({}, scannedInfo || {});
-        payload.ROLL = roll;
-        payload.RACKNO = rackno;
-        payload.RACKLOCATION = racklocation;
+      function saveRackData(items, rackno, racklocation) {
+        var payload = {
+          items: items,
+          RACKNO: rackno,
+          RACKLOCATION: racklocation
+        };
         return new Promise(function(resolve, reject) {
           fetch('ajaxKnittingStore_Insert.php', {
               method: 'POST',
@@ -1459,87 +1539,88 @@
         const inp = document.getElementById('manualRollInput');
         const roll = inp ? String(inp.value).trim() : '';
 
+        if (isSaving) return;
         if (!roll) {
           showMessage('Please enter a ROLL number first.', 'error');
           return;
         }
 
-        cameraStatus.innerText = 'Searching...';
-        cameraStatus.style.color = '#fbbf24';
-
-        if (html5QrCode) {
-          try {
-            html5QrCode.stop();
-            html5QrCode.clear();
-          } catch (e) {}
-          isScanning = false;
-          scannerContainer.style.display = 'none';
-          cameraControls.style.display = 'none';
-        }
-
-        fetchDataByRoll(roll)
-          .then(function(row) {
-            renderScannedData(row);
-            cameraStatus.innerText = 'Found';
-            cameraStatus.style.color = '#7dd3fc';
-            showMessage('Data loaded for ROLL: ' + roll + '! Select rack location.', 'success');
-          })
-          .catch(function(err) {
-            cameraStatus.innerText = 'Not found';
-            cameraStatus.style.color = '#f7a1a1';
-            renderBareData(roll);
-            showRejectedQrError('Wrong QR Code! Please scan a valid knitting production QR.', roll);
-          });
+        addRollToPreview(roll);
+        inp.value = '';
       }
 
       function processScannedData(decodedText) {
+        if (isSaving) return;
         const roll = extractRollFromQR(decodedText);
 
         if (!roll) {
-          renderBareData(decodedText);
-          showRejectedQrError('Wrong QR Code! Please scan a valid knitting production QR.', decodedText);
+          const invalidText = String(decodedText || '');
+          if (invalidText !== lastInvalidQr || Date.now() - lastInvalidQrAt >= MESSAGE_DURATION_MS) {
+            showMessage('Invalid QR code. Scan a valid knitting production roll.', 'error');
+            lastInvalidQr = invalidText;
+            lastInvalidQrAt = Date.now();
+          }
           return;
         }
 
+        addRollToPreview(roll);
+      }
+
+      function addRollToPreview(roll) {
+        if (isSaving) return;
+        const normalizedRoll = normalizeProductionRoll(roll);
+        if (!normalizedRoll) {
+          showMessage('Invalid ROLL number. Enter a valid knitting production roll.', 'error');
+          return;
+        }
+
+        const rollKey = normalizedRoll.toUpperCase();
+        if (pendingRolls.has(rollKey)) return;
+        if (scannedRolls.some(function(row) {
+            return String(row.ROLL || '').trim().toUpperCase() === rollKey;
+          })) {
+          if (Date.now() >= (rollDuplicateNoticeAfter.get(rollKey) || 0)) {
+            showMessage('Roll ' + normalizedRoll + ' data is already shown in the preview.', 'duplicate');
+            rollDuplicateNoticeAfter.set(rollKey, Date.now() + PREVIEW_NOTICE_DURATION_MS);
+          }
+          return;
+        }
+        if (Date.now() < (rollRetryAfter.get(rollKey) || 0)) return;
+
+        pendingRolls.add(rollKey);
         cameraStatus.innerText = 'Searching...';
         cameraStatus.style.color = '#fbbf24';
 
-        fetchDataByRoll(roll)
+        fetchDataByRoll(normalizedRoll)
           .then(function(row) {
+            rollRetryAfter.delete(rollKey);
+            rollDuplicateNoticeAfter.set(rollKey, Date.now() + MESSAGE_DURATION_MS);
             renderScannedData(row);
-            cameraStatus.innerText = 'Found';
-            cameraStatus.style.color = '#7dd3fc';
-            showMessage('QR Code scanned successfully! Select rack location.', 'success');
+            cameraStatus.innerText = 'Scanning (' + scannedRolls.length + ' loaded)';
+            cameraStatus.style.color = '#4b4f51';
+            showMessage('Roll ' + normalizedRoll + ' added to preview. Scan the next roll or store all ' + scannedRolls.length + ' rolls.', 'success');
           })
           .catch(function(err) {
-            cameraStatus.innerText = 'Not found';
+            cameraStatus.innerText = isScanning ? 'Scanning' : 'Ready';
             cameraStatus.style.color = '#f7a1a1';
-            renderBareData(decodedText);
-            showRejectedQrError('Wrong QR Code! Please scan a valid knitting production QR.', decodedText);
+            const errorMessage = typeof err === 'string' ? err : ((err && err.message) || 'Roll data could not be loaded.');
+            rollRetryAfter.set(rollKey, Date.now() + MESSAGE_DURATION_MS);
+            showMessage(errorMessage, 'error');
+          })
+          .finally(function() {
+            pendingRolls.delete(rollKey);
           });
-      }
-
-      function renderBareData(text) {
-        hasLoadedData = false;
-        resultContainer.innerHTML = `
-          <div class="data-row" style="background:#d6e9e5; border-left-color:#6b7280; flex-wrap:wrap;">
-            <span class="label" style="color:#0b4f47; font-weight:700; min-width:100%;">Entered ROLL:</span>
-            <span class="value" style="text-align:left; font-size:0.8rem; word-break:break-all; color:#052522; font-weight:600;">${text}</span>
-          </div>
-          <button class="rescan-btn" onclick="window.location.reload();">
-            <i class="fas fa-redo"></i> Enter Another Roll
-          </button>
-        `;
-        hideRackSection();
       }
 
       resetRackBtn.addEventListener('click', function() {
         resetRackSelection();
+        renderScannedData();
         showMessage('Rack selection reset.', '');
       });
 
       saveRackBtn.addEventListener('click', function() {
-        if (!scannedInfo) {
+        if (isSaving) return;
+        if (!scannedRolls.length) {
           showMessage('No data loaded. Please enter a ROLL number first.', 'error');
           return;
         }
@@ -1560,22 +1641,26 @@
           return;
         }
 
-        const roll = scannedInfo.ROLL || '';
-
+        const rollsToSave = scannedRolls.slice();
+        const wasScanningBeforeSave = isScanning;
+        const manualRollInput = document.getElementById('manualRollInput');
+        const manualRollBtn = document.getElementById('manualRollBtn');
+        isSaving = true;
+        if (manualRollInput) manualRollInput.disabled = true;
+        if (manualRollBtn) manualRollBtn.disabled = true;
         saveRackBtn.disabled = true;
-        saveRackBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+        saveRackBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving ' + rollsToSave.length + ' rolls...';
 
-        saveRackData(roll, rackno.padStart(2, '0'), racklocation)
+        const saveAllRolls = function() {
+          saveRackData(rollsToSave, rackno.padStart(2, '0'), racklocation)
           .then(function(resp) {
-            scannedInfo.RACKNO = rackno.padStart(2, '0');
-            scannedInfo.RACKLOCATION = racklocation;
-            saveRackBtn.innerHTML = '<i class="fas fa-save"></i> Save Rack';
+            const storedCount = Number(resp.stored) || rollsToSave.length;
 
             if (typeof Swal !== "undefined") {
               Swal.fire({
                 icon: "success",
-                title: "Successfully Saved!",
-                text: "Roll No: " + roll + "  |  Rack: " + rackno.padStart(2, '0') + racklocation,
+                title: "All Rolls Stored!",
+                text: storedCount + " roll(s) stored in Rack " + rackno.padStart(2, '0') + racklocation,
                 timer: 3000,
                 timerProgressBar: true,
                 showConfirmButton: false,
@@ -1587,7 +1672,7 @@
               return;
             }
 
-            showMessage((resp.message || 'Saved - Rack No: ' + rackno + ', Location: ' + racklocation) + '<br><small>Page will reload in 2 seconds...</small>', 'success');
+            showMessage(resp.message || storedCount + ' roll(s) stored in Rack ' + rackno.padStart(2, '0') + racklocation, 'success');
             setTimeout(function() {
               window.location.reload();
             }, 2000);
@@ -1597,13 +1682,37 @@
             if (msg === '[object Object]' || msg === 'undefined') {
               msg = 'Save failed. Please try again.';
             }
-            if (!(err && err.messager_exist)) {
-              msg = msg;
-            }
+
             showMessage(msg, 'error');
+            isSaving = false;
+            if (manualRollInput) manualRollInput.disabled = false;
+            if (manualRollBtn) manualRollBtn.disabled = false;
             saveRackBtn.disabled = false;
-            saveRackBtn.innerHTML = '<i class="fas fa-save"></i> Save Rack';
+            saveRackBtn.innerHTML = '<i class="fas fa-save"></i> Store All Rolls (' + scannedRolls.length + ')';
+            if (wasScanningBeforeSave) restartScanner();
           });
+        };
+
+        if (wasScanningBeforeSave && html5QrCode) {
+          html5QrCode.stop()
+            .then(function() {
+              isScanning = false;
+              scannerContainer.style.display = 'none';
+              cameraControls.style.display = 'none';
+              saveAllRolls();
+            })
+            .catch(function(error) {
+              console.error('Unable to pause scanner before saving rolls:', error);
+              showMessage('Could not pause the camera. Please try storing again.', 'error');
+              isSaving = false;
+              if (manualRollInput) manualRollInput.disabled = false;
+              if (manualRollBtn) manualRollBtn.disabled = false;
+              saveRackBtn.disabled = false;
+              saveRackBtn.innerHTML = '<i class="fas fa-save"></i> Store All Rolls (' + scannedRolls.length + ')';
+            });
+        } else {
+          saveAllRolls();
+        }
       });
 
       function startScanner() {
@@ -1659,23 +1768,20 @@
           cameraControls.style.display = 'flex';
           applyCameraZoom();
         }).catch(function(err) {
+          isScanning = false;
           console.error("Camera start error:", err);
           const errorMessage = err && err.message ? err.message : String(err || 'Unknown camera error');
           cameraStatus.innerText = 'Camera error';
           cameraStatus.style.color = '#f7a1a1';
-          resultContainer.innerHTML = `
-            <div class="data-row default-row" style="border-left-color:#c44;">
-              <span class="label"><i class="fas fa-exclamation-triangle"></i> Camera unavailable</span>
-              <span class="value" id="cameraErrorDetails" style="font-size:0.8rem;"></span>
-            </div>
-            <button class="rescan-btn" id="retryCameraBtn" type="button">
-              <i class="fas fa-redo"></i> Retry Camera
-            </button>
-          `;
-          document.getElementById('cameraErrorDetails').textContent = errorMessage;
-          document.getElementById('retryCameraBtn').addEventListener('click', function() {
+          showMessage('Camera unavailable: ' + errorMessage + '. You can add rolls manually or retry the camera.', 'error');
+          const retryCameraBtn = document.createElement('button');
+          retryCameraBtn.className = 'rescan-btn';
+          retryCameraBtn.type = 'button';
+          retryCameraBtn.textContent = 'Retry Camera';
+          retryCameraBtn.addEventListener('click', function() {
             restartScanner();
           });
+          messageContainer.appendChild(retryCameraBtn);
         });
       }
 
@@ -1699,41 +1805,9 @@
       }
 
       function onScanSuccess(decodedText, decodedResult) {
-        if (qrErrorOpen) return;
-
-        if (rejectedQrText !== null && decodedText === rejectedQrText) {
-          if (rejectedQrRearmTimer) clearTimeout(rejectedQrRearmTimer);
-          rejectedQrRearmTimer = setTimeout(clearRejectedQrLatch, 1500);
-          return;
-        }
-        if (rejectedQrText !== null) clearRejectedQrLatch();
-
         console.log('QR Scanned:', decodedText);
         if (navigator.vibrate) navigator.vibrate(20);
-
-        var finish = function() {
-          isScanning = false;
-          cameraStatus.innerText = 'Scan complete';
-          cameraStatus.style.color = '#7dd3fc';
-          scannerContainer.style.display = 'none';
-          cameraControls.style.display = 'none';
-          processScannedData(decodedText);
-        };
-
-        if (html5QrCode) {
-          try {
-            html5QrCode.stop().then(function() {
-              try { html5QrCode.clear(); } catch (e) {}
-              finish();
-            }).catch(function() {
-              finish();
-            });
-          } catch (e) {
-            finish();
-          }
-        } else {
-          finish();
-        }
+        processScannedData(decodedText);
       }
 
       function restartScanner() {
