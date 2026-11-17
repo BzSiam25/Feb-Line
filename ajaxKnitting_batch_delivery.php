@@ -466,10 +466,10 @@ try {
             $remarksByCard[$cardNo] = $batchRemark;
             foreach ($rolls as $roll) {
                 $roll = is_scalar($roll) ? trim((string)$roll) : '';
-                if ($roll === '' || isset($seenRolls[$roll])) {
+                if ($roll === '' || isset($seenRolls[$cardNo][$roll])) {
                     respond(['success' => false, 'message' => 'A roll is missing or appears more than once in this challan.'], 400);
                 }
-                $seenRolls[$roll] = true;
+                $seenRolls[$cardNo][$roll] = true;
                 $rollCount++;
             }
         }

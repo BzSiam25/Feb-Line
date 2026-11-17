@@ -596,12 +596,6 @@ if (!isset($_SESSION['username'])) {
 
             function loadBatchForRoll(roll) {
                 return api('load_batch_by_roll', null, {roll: roll}).then(function(response) {
-                    if (completedBatches.some(function(savedBatch) {
-                        return String(savedBatch.card_no) === String(response.card_no);
-                    })) {
-                        throw new Error('Batch ' + response.card_no + ' is already included in this challan.');
-                    }
-
                     var sameBatch = batch && String(batch.card_no) === String(response.card_no);
                     if (batch && !sameBatch) {
                         if (scannedRolls.size && !batchAlreadyDelivered) {
@@ -618,6 +612,7 @@ if (!isset($_SESSION['username'])) {
                     if (sameBatch) return batch;
 
                     batch = response;
+                    scannedRolls.clear();
                     expectedByRoll.clear();
                     alreadyDeliveredRolls = new Set((response.delivered_rolls || []).map(function(deliveredRoll) {
                         return String(deliveredRoll);
@@ -625,6 +620,15 @@ if (!isset($_SESSION['username'])) {
                     batch.rows.forEach(function(row) {
                         expectedByRoll.set(String(row.ROLL), row);
                     });
+                    var savedBatchIndex = completedBatches.findIndex(function(savedBatch) {
+                        return String(savedBatch.card_no) === String(response.card_no);
+                    });
+                    if (savedBatchIndex !== -1) {
+                        var savedBatch = completedBatches.splice(savedBatchIndex, 1)[0];
+                        savedBatch.rows.forEach(function(savedRow) {
+                            scannedRolls.set(String(savedRow.ROLL), savedRow);
+                        });
+                    }
                     if (alreadyDeliveredRolls.size === response.rows.length) {
                         batchAlreadyDelivered = true;
                         var delivery = response.delivery || {};
@@ -653,14 +657,6 @@ if (!isset($_SESSION['username'])) {
             function addScannedRoll(rawRoll) {
                 var roll = extractRollValue(rawRoll);
                 if (!roll || processingRoll || scanPopupActive) return;
-                if (completedBatches.some(function(savedBatch) {
-                    return savedBatch.rows.some(function(row) {
-                        return String(row.ROLL).toUpperCase() === roll.toUpperCase();
-                    });
-                })) {
-                    showScanPopup('Roll ' + roll + ' is already included in this delivery challan.');
-                    return;
-                }
                 if (delivered) {
                     showScanPopup(alreadyDeliveredMessage, 'Batch Already Delivered', 'error');
                     return;
