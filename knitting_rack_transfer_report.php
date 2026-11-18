@@ -71,6 +71,11 @@ $sql = "
         l.FRACK AS TRANSFER_FROM_RACK,
         l.TORACK AS TRANSFER_TO_RACK,
         l.BUDAT AS TRANSFER_BUDAT,
+        COALESCE(
+            l.TBUDATE,
+            CAST(l.BUDAT AS DATETIME),
+            CAST(s.BUDAT AS DATETIME)
+        ) AS TRANSFER_DATETIME,
         s.*
 
     FROM knitting_rack_transfer l
@@ -97,6 +102,7 @@ if ($search !== '') {
             OR l.FRACK LIKE ?
             OR l.TORACK LIKE ?
             OR CAST(l.BUDAT AS CHAR) LIKE ?
+            OR CAST(l.TBUDATE AS CHAR) LIKE ?
             OR s.PO_NUMBER LIKE ?
             OR s.BUYER LIKE ?
             OR s.STYLE LIKE ?
@@ -108,9 +114,9 @@ if ($search !== '') {
 
     $term = '%' . $search . '%';
 
-    $params = array_fill(0, 12, $term);
+    $params = array_fill(0, 13, $term);
 
-    $types = str_repeat('s', 12);
+    $types = str_repeat('s', 13);
 }
 
 /* =====================================================
@@ -122,8 +128,9 @@ if ($dateFilter !== '') {
     $conditions[] = "
         DATE(
             COALESCE(
-                s.BUDAT,
-                l.BUDAT
+                l.TBUDATE,
+                l.BUDAT,
+                s.BUDAT
             )
         ) = ?
     ";
@@ -587,7 +594,7 @@ if (!$db) {
                     <tr>
 
                         <th class="no-print">Action</th>
-                        <th>Date</th>
+                        <th>Transfer Date</th>
                         <th>Roll No</th>
                         <th>PO No</th>
                         <th>Color</th>
@@ -634,10 +641,16 @@ if (!$db) {
                             $row['TO_RACK'] =
                                 $row['TRANSFER_TO_RACK'] ?? '';
 
-                            $row['BUDAT'] = knittingRackReportValue(
-                                $row['BUDAT'] ?? null,
-                                $row['TRANSFER_BUDAT'] ?? ''
-                            );
+                            $transferDateValue = $row['TRANSFER_DATETIME'] ?? null;
+                            $transferDateTimestamp = $transferDateValue
+                                ? strtotime((string)$transferDateValue)
+                                : false;
+                            $row['BUDAT'] = $transferDateTimestamp !== false
+                                ? date('d-m-Y H:i:s', $transferDateTimestamp)
+                                : knittingRackReportValue(
+                                    $row['TRANSFER_BUDAT'] ?? null,
+                                    $row['BUDAT'] ?? ''
+                                );
 
                             /* JSON for print */
 
@@ -728,7 +741,7 @@ if (!$db) {
 
         var TRANSFER_PRINT_COLS = [
 
-            { key: 'BUDAT', label: 'Date' },
+            { key: 'BUDAT', label: 'Transfer Date' },
             { key: 'ROLL', label: 'Roll No' },
             { key: 'FROM_RACK', label: 'From Rack' },
             { key: 'TO_RACK', label: 'To Rack' },
@@ -790,7 +803,7 @@ if (!$db) {
                     column.key === 'BUDAT' &&
                     !value
                 ) {
-                    value = row.TRANSFER_BUDAT || '';
+                    value = row.TRANSFER_DATETIME || row.TRANSFER_BUDAT || '';
                 }
 
                 if (

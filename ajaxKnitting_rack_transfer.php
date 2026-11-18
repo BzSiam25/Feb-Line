@@ -130,29 +130,14 @@ if ($action === 'get_roll_info') {
 }
 
 // -------------------------------------------------------------
-// HELPER: GET RACK OCCUPANCY & SHELF AVAILABILITY (FROM DB)
+// HELPER: GET RACK OCCUPANCY & FIXED SHELF AVAILABILITY
 // -------------------------------------------------------------
 function getRackOccupancy($db, $rackNoPad, $excludeRoll = '') {
-    // Dynamically fetch configured shelves from database (rack_master)
-    $shelvesStmt = $db->prepare("SELECT shelf FROM rack_master WHERE rack_no = ? AND is_active = 1 ORDER BY shelf ASC");
-    $masterShelves = [];
-    if ($shelvesStmt) {
-        $shelvesStmt->bind_param('s', $rackNoPad);
-        $shelvesStmt->execute();
-        $sRes = $shelvesStmt->get_result();
-        while ($sRow = $sRes->fetch_assoc()) {
-            $masterShelves[] = $sRow['shelf'];
-        }
-        $shelvesStmt->close();
-    }
-
-    if (empty($masterShelves)) {
-        $masterShelves = ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'C1', 'C2', 'C3'];
-    }
+    $fixedShelves = ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'C1', 'C2', 'C3'];
     
     $sql = "SELECT TRIM(ROLL) AS ROLL, UPPER(TRIM(RACKLOCATION)) AS LOC, BUYER, STYLE, QTY, PO_NUMBER 
             FROM knitting_store 
-            WHERE RACKNO = ? AND RACKLOCATION IS NOT NULL AND TRIM(RACKLOCATION) != ''";
+            WHERE LPAD(TRIM(RACKNO), 2, '0') = ? AND RACKLOCATION IS NOT NULL AND TRIM(RACKLOCATION) != ''";
     if ($excludeRoll !== '') {
         $sql .= " AND TRIM(ROLL) != ?";
         $stmt = $db->prepare($sql);
@@ -165,21 +150,15 @@ function getRackOccupancy($db, $rackNoPad, $excludeRoll = '') {
     $res = $stmt->get_result();
     $occupied = [];
     while ($row = $res->fetch_assoc()) {
-        $occupied[$row['LOC']] = $row;
+        if (in_array($row['LOC'], $fixedShelves, true)) {
+            $occupied[$row['LOC']] = $row;
+        }
     }
     $stmt->close();
 
-    $allShelves = $masterShelves;
-    foreach (array_keys($occupied) as $loc) {
-        if (!in_array($loc, $allShelves, true)) {
-            $allShelves[] = $loc;
-        }
-    }
-    sort($allShelves);
-
     $available = [];
     $slotList = [];
-    foreach ($allShelves as $sh) {
+    foreach ($fixedShelves as $sh) {
         if (isset($occupied[$sh])) {
             $slotList[] = [
                 'shelf' => $sh,
@@ -202,7 +181,7 @@ function getRackOccupancy($db, $rackNoPad, $excludeRoll = '') {
 
     return [
         'rack_no' => $rackNoPad,
-        'total_slots' => count($allShelves),
+        'total_slots' => count($fixedShelves),
         'occupied_count' => count($occupied),
         'available_count' => count($available),
         'available_shelves' => $available,
@@ -232,45 +211,47 @@ if ($action === 'get_rack_availability') {
 }
 
 // -------------------------------------------------------------
-// 2c. GET DYNAMIC MASTER RACKS LIST (FROM DATABASE)
+// 2c. GET FIXED RACK LIST WITH STORE OCCUPANCY
 // -------------------------------------------------------------
 if ($action === 'get_racks') {
-    $sql = "SELECT 
-                rm.rack_no,
-                COUNT(DISTINCT rm.shelf) AS total_shelves,
-                COUNT(DISTINCT ks.ROLL) AS rolls_stored
-            FROM rack_master rm
-            LEFT JOIN knitting_store ks ON TRIM(ks.RACKNO) = rm.rack_no AND UPPER(TRIM(ks.RACKLOCATION)) = rm.shelf
-            WHERE rm.is_active = 1
-            GROUP BY rm.rack_no
-            ORDER BY CAST(rm.rack_no AS UNSIGNED) ASC, rm.rack_no ASC";
-    $res = $db->query($sql);
-    $racks = [];
-    if ($res) {
-        while ($row = $res->fetch_assoc()) {
-            $pad = str_pad($row['rack_no'], 2, '0', STR_PAD_LEFT);
-            $racks[] = [
-                'rack_no' => $pad,
-                'rack_label' => "Rack $pad",
-                'total_shelves' => intval($row['total_shelves']),
-                'rolls_stored' => intval($row['rolls_stored']),
-                'available_shelves' => max(0, intval($row['total_shelves']) - intval($row['rolls_stored']))
-            ];
-        }
+    $storedByRack = [];
+    $res = $db->query("
+        SELECT TRIM(RACKNO) AS rack_no,
+               COUNT(DISTINCT KSTID) AS rolls_stored,
+               COUNT(DISTINCT CASE
+                   WHEN UPPER(TRIM(RACKLOCATION)) IN
+                       ('A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'C1', 'C2', 'C3')
+                   THEN UPPER(TRIM(RACKLOCATION))
+               END) AS occupied_shelves
+        FROM knitting_store
+        WHERE RACKNO IS NOT NULL AND TRIM(RACKNO) <> ''
+        GROUP BY TRIM(RACKNO)
+    ");
+    if (!$res) {
+        echo json_encode(['success' => false, 'message' => 'Unable to load rack occupancy.']);
+        exit();
     }
 
-    // Fallback if table was empty
-    if (empty($racks)) {
-        for ($r = 1; $r <= 50; $r++) {
-            $pad = str_pad($r, 2, '0', STR_PAD_LEFT);
-            $racks[] = [
-                'rack_no' => $pad,
-                'rack_label' => "Rack $pad",
-                'total_shelves' => 9,
-                'rolls_stored' => 0,
-                'available_shelves' => 9
-            ];
+    while ($row = $res->fetch_assoc()) {
+        $pad = str_pad($row['rack_no'], 2, '0', STR_PAD_LEFT);
+        if (!isset($storedByRack[$pad])) {
+            $storedByRack[$pad] = ['rolls_stored' => 0, 'occupied_shelves' => 0];
         }
+        $storedByRack[$pad]['rolls_stored'] += (int)$row['rolls_stored'];
+        $storedByRack[$pad]['occupied_shelves'] += (int)$row['occupied_shelves'];
+    }
+
+    $racks = [];
+    for ($r = 1; $r <= 50; $r++) {
+        $pad = str_pad($r, 2, '0', STR_PAD_LEFT);
+        $rackStats = $storedByRack[$pad] ?? ['rolls_stored' => 0, 'occupied_shelves' => 0];
+        $racks[] = [
+            'rack_no' => $pad,
+            'rack_label' => "Rack $pad",
+            'total_shelves' => 9,
+            'rolls_stored' => $rackStats['rolls_stored'],
+            'available_shelves' => max(0, 9 - $rackStats['occupied_shelves'])
+        ];
     }
 
     echo json_encode([
@@ -282,7 +263,7 @@ if ($action === 'get_racks') {
 }
 
 // -------------------------------------------------------------
-// 2d. GET DYNAMIC SHELVES FOR A SPECIFIC RACK (FROM DATABASE)
+// 2d. GET FIXED SHELVES FOR A SPECIFIC RACK
 // -------------------------------------------------------------
 if ($action === 'get_shelves') {
     $rackNo = trim($_GET['rack_no'] ?? '');
@@ -295,64 +276,54 @@ if ($action === 'get_shelves') {
 
     $rackNoPad = str_pad($rackNo, 2, '0', STR_PAD_LEFT);
 
-    $sql = "SELECT 
-                rm.shelf,
-                ks.ROLL AS roll,
-                ks.BUYER,
-                ks.STYLE,
-                ks.QTY,
-                ks.PO_NUMBER
-            FROM rack_master rm
-            LEFT JOIN knitting_store ks ON TRIM(ks.RACKNO) = rm.rack_no 
-                 AND UPPER(TRIM(ks.RACKLOCATION)) = rm.shelf
-                 " . ($roll !== '' ? " AND TRIM(ks.ROLL) != ?" : "") . "
-            WHERE rm.rack_no = ? AND rm.is_active = 1
-            ORDER BY rm.shelf ASC";
-    
-    $stmt = $db->prepare($sql);
+    $shelfCodes = ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'C1', 'C2', 'C3'];
+    $sql = "SELECT UPPER(TRIM(RACKLOCATION)) AS shelf, ROLL AS roll, BUYER, STYLE, QTY, PO_NUMBER
+            FROM knitting_store
+            WHERE LPAD(TRIM(RACKNO), 2, '0') = ?
+              AND RACKLOCATION IS NOT NULL
+              AND TRIM(RACKLOCATION) <> ''";
     if ($roll !== '') {
-        $stmt->bind_param('ss', $roll, $rackNoPad);
+        $sql .= " AND TRIM(ROLL) <> ?";
+    }
+    $stmt = $db->prepare($sql);
+    if (!$stmt) {
+        echo json_encode(['success' => false, 'message' => 'Unable to load rack shelves.']);
+        exit();
+    }
+    if ($roll !== '') {
+        $stmt->bind_param('ss', $rackNoPad, $roll);
     } else {
         $stmt->bind_param('s', $rackNoPad);
     }
     $stmt->execute();
     $res = $stmt->get_result();
 
+    $occupiedShelves = [];
+    while ($row = $res->fetch_assoc()) {
+        if (in_array($row['shelf'], $shelfCodes, true)) {
+            $occupiedShelves[$row['shelf']] = $row;
+        }
+    }
+    $stmt->close();
+
     $shelves = [];
     $occupiedCount = 0;
-    while ($row = $res->fetch_assoc()) {
+    foreach ($shelfCodes as $shelf) {
+        $row = $occupiedShelves[$shelf] ?? [];
         $isOcc = !empty($row['roll']);
         if ($isOcc) $occupiedCount++;
 
-        // Determine section (A, B, C...)
-        $section = preg_match('/^[A-Z]/', $row['shelf'], $m) ? 'Section ' . $m[0] : 'General';
-
         $shelves[] = [
-            'shelf' => $row['shelf'],
-            'section' => $section,
-            'label' => "Shelf " . $row['shelf'],
+            'shelf' => $shelf,
+            'section' => 'Section ' . substr($shelf, 0, 1),
+            'label' => "Shelf " . $shelf,
             'is_occupied' => $isOcc,
             'roll' => $row['roll'] ?? null,
             'buyer' => $row['BUYER'] ?? null,
             'style' => $row['STYLE'] ?? null,
-            'qty' => $row['QTY'] ? floatval($row['QTY']) : null,
+            'qty' => isset($row['QTY']) ? floatval($row['QTY']) : null,
             'po' => $row['PO_NUMBER'] ?? null
         ];
-    }
-    $stmt->close();
-
-    // If rack wasn't in rack_master yet, fallback to standard 9 shelves
-    if (empty($shelves)) {
-        $std = ['A1','A2','A3','B1','B2','B3','C1','C2','C3'];
-        foreach ($std as $sh) {
-            $shelves[] = [
-                'shelf' => $sh,
-                'section' => 'Section ' . substr($sh, 0, 1),
-                'label' => "Shelf $sh",
-                'is_occupied' => false,
-                'roll' => null
-            ];
-        }
     }
 
     echo json_encode([
@@ -441,8 +412,8 @@ if ($action === 'transfer_rack') {
         // 2. Insert into the KSTID-linked rack transfer table
         $fromRackRecord = $currFullRack ?: ($currRackNoPad ?: 'NONE');
         $logStmt = $db->prepare("
-            INSERT INTO knitting_rack_transfer (BUDAT, KSTID, ROLLNO, FRACK, TORACK)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO knitting_rack_transfer (BUDAT, KSTID, ROLLNO, FRACK, TORACK, TBUDATE)
+            VALUES (?, ?, ?, ?, ?, NOW())
         ");
         $logStmt->bind_param(
             'sisss',
@@ -546,8 +517,8 @@ if ($action === 'batch_transfer') {
 
             // Insert the transfer record linked to the store row
             $lStmt = $db->prepare("
-                INSERT INTO knitting_rack_transfer (BUDAT, KSTID, ROLLNO, FRACK, TORACK)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO knitting_rack_transfer (BUDAT, KSTID, ROLLNO, FRACK, TORACK, TBUDATE)
+                VALUES (?, ?, ?, ?, ?, NOW())
             ");
             $lStmt->bind_param(
                 'sisss',
@@ -590,9 +561,9 @@ if ($action === 'get_logs') {
     $limit = isset($_GET['limit']) ? intval($_GET['limit']) : 50;
     if ($limit <= 0 || $limit > 200) $limit = 50;
 
-    $sql = "SELECT l.KRTID AS id, l.KSTID, l.BUDAT, s.ROLL AS roll,
+    $sql = "SELECT l.KRTID AS id, l.KSTID, l.BUDAT, l.TBUDATE,
+                   s.ROLL AS roll,
                    l.FRACK AS from_rack, l.TORACK AS to_rack,
-                   l.BUDAT AS transfer_date,
                    s.BUYER, s.STYLE, s.COLOR, CAST(s.QTY AS DECIMAL(10,2)) AS QTY, s.PO_NUMBER
             FROM knitting_rack_transfer l
             INNER JOIN knitting_store s ON s.KSTID = l.KSTID
@@ -623,7 +594,7 @@ if ($action === 'get_stats') {
     $stRow = mysqli_fetch_assoc(mysqli_query($db, "SELECT COUNT(*) as total_rolls, COALESCE(SUM(CAST(QTY AS DECIMAL(10,2))),0) as total_qty, COUNT(DISTINCT RACKNO) as active_racks FROM knitting_store"));
     
     // Transfers today
-    $trRow = mysqli_fetch_assoc(mysqli_query($db, "SELECT COUNT(*) as transfers_today FROM knitting_rack_transfer WHERE BUDAT = CURDATE()"));
+    $trRow = mysqli_fetch_assoc(mysqli_query($db, "SELECT COUNT(*) as transfers_today FROM knitting_rack_transfer WHERE DATE(TBUDATE) = CURDATE()"));
 
     // Distinct rack numbers in use
     $rackListRes = mysqli_query($db, "SELECT DISTINCT RACKNO FROM knitting_store WHERE RACKNO IS NOT NULL AND TRIM(RACKNO) <> '' ORDER BY CAST(RACKNO AS UNSIGNED)");

@@ -110,26 +110,45 @@ if (!function_exists('ensureKnittingRackTransferTable')) {
         $tableExists = $result->num_rows > 0;
         $result->free();
 
-        if ($tableExists) {
-            return;
+        if (!$tableExists) {
+            $sql = "
+                    CREATE TABLE knitting_rack_transfer (
+                        BUDAT DATE NULL,
+                        KRTID INT(11) NOT NULL AUTO_INCREMENT,
+                        KSTID INT(11) NOT NULL,
+                        ROLLNO VARCHAR(100) NOT NULL,
+                        FRACK VARCHAR(50) NULL,
+                        TORACK VARCHAR(50) NULL,
+                        TBUDATE DATETIME NULL,
+                        PRIMARY KEY (KRTID),
+                        KEY idx_knitting_rack_transfer_kstid (KSTID),
+                        KEY idx_knitting_rack_transfer_budat (BUDAT)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            ";
+
+            if (!$db->query($sql)) {
+                throw new RuntimeException('Unable to create knitting rack transfer table: ' . $db->error);
+            }
         }
 
-        $sql = "
-            CREATE TABLE IF NOT EXISTS knitting_rack_transfer (
-                BUDAT DATE NULL,
-                KRTID INT(11) NOT NULL AUTO_INCREMENT,
-                KSTID INT(11) NOT NULL,
-                ROLLNO VARCHAR(100) NOT NULL,
-                FRACK VARCHAR(50) NULL,
-                TORACK VARCHAR(50) NULL,
-                PRIMARY KEY (KRTID),
-                KEY idx_knitting_rack_transfer_kstid (KSTID),
-                KEY idx_knitting_rack_transfer_budat (BUDAT)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-        ";
+        $columnResult = $db->query("
+            SELECT COLUMN_NAME
+            FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'knitting_rack_transfer'
+              AND COLUMN_NAME = 'TBUDATE'
+        ");
+        if (!$columnResult) {
+            throw new RuntimeException('Unable to inspect transfer datetime column: ' . $db->error);
+        }
 
-        if (!$db->query($sql)) {
-            throw new RuntimeException('Unable to create knitting rack transfer table: ' . $db->error);
+        $hasTransferDateTime = $columnResult->num_rows > 0;
+        $columnResult->free();
+
+        if (!$hasTransferDateTime && !$db->query(
+            'ALTER TABLE knitting_rack_transfer ADD COLUMN TBUDATE DATETIME NULL AFTER TORACK'
+        )) {
+            throw new RuntimeException('Unable to add transfer datetime column: ' . $db->error);
         }
     }
 }

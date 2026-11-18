@@ -10,18 +10,10 @@ if (!isset($_SESSION['username'])) {
 $currentUser = $_SESSION['user_name'] ?? $_SESSION['username'] ?? 'Operator';
 $userRole    = $_SESSION['user_role'] ?? $_SESSION['user_type'] ?? 'Staff';
 
-// Fetch active master racks directly from database
+// Rack numbers are fixed from 01 through 50; each rack uses the same fixed shelves.
 $initialMasterRacks = [];
-$rkMasterRes = $db->query("SELECT DISTINCT rack_no FROM rack_master WHERE is_active = 1 ORDER BY CAST(rack_no AS UNSIGNED) ASC, rack_no ASC");
-if ($rkMasterRes) {
-    while ($rkRow = $rkMasterRes->fetch_assoc()) {
-        $initialMasterRacks[] = str_pad($rkRow['rack_no'], 2, '0', STR_PAD_LEFT);
-    }
-}
-if (empty($initialMasterRacks)) {
-    for ($r = 1; $r <= 50; $r++) {
-        $initialMasterRacks[] = str_pad($r, 2, '0', STR_PAD_LEFT);
-    }
+for ($r = 1; $r <= 50; $r++) {
+    $initialMasterRacks[] = str_pad($r, 2, '0', STR_PAD_LEFT);
 }
 ?>
 <!DOCTYPE html>
@@ -376,12 +368,10 @@ if (empty($initialMasterRacks)) {
       left: 50%;
       transform: translate(-50%, 80px) scale(0.96);
       z-index: 1040;
-      background: linear-gradient(135deg, #0b1329 0%, #1e293b 100%);
-      border: 1.5px solid rgba(56, 189, 248, 0.35);
-      border-radius: 20px;
-      box-shadow: 0 20px 45px -6px rgba(11, 19, 41, 0.55), 0 4px 16px rgba(0, 0, 0, 0.35);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
+      background: #eff6ff;
+      border: 1.5px solid #93c5fd;
+      border-radius: 14px;
+      box-shadow: 0 12px 30px rgba(30, 64, 175, 0.2);
       opacity: 0;
       visibility: hidden;
       pointer-events: none;
@@ -403,41 +393,24 @@ if (empty($initialMasterRacks)) {
       padding: 11px 22px;
       white-space: nowrap;
       flex-wrap: nowrap;
-    }
-
-    .batch-left {
-      display: flex;
-      align-items: center;
-      gap: 13px;
-    }
-
-    .badge-batch-count {
-      background: rgba(56, 189, 248, 0.16);
-      color: #38bdf8;
-      border: 1px solid rgba(56, 189, 248, 0.35);
-      font-size: 1.05rem;
-      font-weight: 700;
-      padding: 7px 16px;
-      border-radius: 20px;
-      display: inline-flex;
-      align-items: center;
-      letter-spacing: 0.2px;
-    }
-
-    .batch-label {
-      color: #e2e8f0;
-      font-weight: 700;
-      font-size: 1.05rem;
-      letter-spacing: -0.2px;
+      justify-content: center;
     }
 
     .batch-center {
       display: flex;
       align-items: center;
+      justify-content: center;
+    }
+
+    .batch-control-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      white-space: nowrap;
     }
 
     .batch-center .shelf-picker {
-      flex: 1;
+      flex: 0 0 170px;
       min-width: 155px;
     }
 
@@ -451,9 +424,9 @@ if (empty($initialMasterRacks)) {
     }
 
     .batch-rack-select {
-      background: #0f172a;
-      color: #f8fafc;
-      border: 1.5px solid #475569;
+      background: #ecfdf5;
+      color: #065f46;
+      border: 1.5px solid #6ee7b7;
       border-radius: 12px;
       padding: 8px 16px;
       font-size: 1.05rem;
@@ -465,20 +438,13 @@ if (empty($initialMasterRacks)) {
     }
 
     .batch-rack-select:focus {
-      border-color: #38bdf8;
-      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25);
+      border-color: #10b981;
+      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18);
     }
 
     .batch-rack-select option {
-      background: #1e293b;
-      color: #ffffff;
-    }
-
-    .batch-divider {
-      width: 1px;
-      height: 26px;
-      background: rgba(255, 255, 255, 0.16);
-      flex-shrink: 0;
+      background: #ffffff;
+      color: #065f46;
     }
 
     .batch-right {
@@ -925,9 +891,27 @@ if (empty($initialMasterRacks)) {
       animation: toastIn 0.3s ease;
     }
 
+    .toast-alert.toast-centered {
+      top: 50%;
+      right: auto;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      border-left: 0;
+      border-top: 5px solid #10b981;
+      min-width: min(360px, calc(100vw - 32px));
+      justify-content: center;
+      text-align: center;
+      animation: centeredToastIn 0.25s ease;
+    }
+
     @keyframes toastIn {
       from { opacity: 0; transform: translateX(40px); }
       to { opacity: 1; transform: translateX(0); }
+    }
+
+    @keyframes centeredToastIn {
+      from { opacity: 0; transform: translate(-50%, -45%); }
+      to { opacity: 1; transform: translate(-50%, -50%); }
     }
 
     /* ========================================================= */
@@ -1543,30 +1527,30 @@ if (empty($initialMasterRacks)) {
 
     .batch-toolbar {
       bottom: 18px;
-      border: 1px solid rgba(45,212,191,.45);
+      border: 1px solid #93c5fd;
       border-radius: 13px;
-      background: linear-gradient(120deg, #134e4a, #0f766e);
-      box-shadow: 0 12px 30px rgba(15,70,65,.3);
+      background: #eff6ff;
+      box-shadow: 0 12px 30px rgba(30,64,175,.2);
     }
-    .batch-toolbar-content { gap: 12px; padding: 9px 13px; }
-    .batch-left, .batch-right { gap: 8px; }
-    .badge-batch-count {
-      padding: 6px 10px;
-      border-radius: 8px;
-      font-size: .82rem;
-      color: #d1fae5;
-      background: rgba(255,255,255,.12);
-      border-color: rgba(255,255,255,.24);
-    }
-    .batch-label { font-size: .85rem; }
+    .batch-toolbar-content { justify-content: center; gap: 10px; padding: 9px 13px; }
+    .batch-right { gap: 8px; }
     .batch-rack-select {
       min-height: 38px;
       min-width: 145px;
       padding: 7px 10px;
       border-radius: 7px;
       font-size: .82rem;
+      background: #ecfdf5;
+      color: #065f46;
+      border-color: #6ee7b7;
     }
-    .batch-divider { height: 22px; }
+    .batch-center .shelf-picker-trigger {
+      min-height: 38px;
+      background: #ffffff;
+      border-color: #bfdbfe;
+      color: #1e3a8a;
+      font-size: .82rem;
+    }
     .btn-batch-apply, .btn-batch-cancel {
       padding: 8px 11px;
       border-radius: 7px;
@@ -1646,13 +1630,14 @@ if (empty($initialMasterRacks)) {
       .rack-filter-select { width: 100%; }
       .table-container { padding: 0 8px 10px; }
       .batch-toolbar { width: calc(100% - 16px); max-width: none; bottom: 8px; }
-      .batch-toolbar-content { flex-wrap: wrap; justify-content: center; gap: 7px; padding: 8px; }
-      .batch-left { flex-basis: 100%; justify-content: center; }
-      .batch-center { flex: 1 1 100%; justify-content: center; }
-      .batch-center > .d-flex { width: 100%; }
-      .batch-rack-select { flex: 1; min-width: 0; width: 50%; }
-      .batch-divider { display: none; }
-      .batch-right { justify-content: center; }
+      .batch-toolbar-content { flex-wrap: nowrap; justify-content: center; gap: 4px; padding: 6px; }
+      .batch-center { flex: 0 1 auto; min-width: 0; }
+      .batch-control-row { min-width: 0; gap: 4px; }
+      .batch-center .shelf-picker { flex: 0 1 110px; min-width: 90px; }
+      .batch-center .shelf-picker-trigger { padding: 7px 21px 7px 6px; overflow: hidden; text-overflow: ellipsis; }
+      .batch-rack-select { flex: 0 1 100px; min-width: 82px; width: 100px; padding: 7px 5px; }
+      .batch-right { flex: 0 0 auto; justify-content: center; gap: 4px; }
+      .btn-batch-apply, .btn-batch-cancel { padding: 7px 6px; font-size: .72rem; white-space: nowrap; }
       .history-modal-wrapper { padding: 10px; }
       .history-modal-header, .history-modal-search, .history-modal-footer { padding: 10px 12px; }
       .history-modal-title { font-size: 1rem; }
@@ -1722,19 +1707,11 @@ if (empty($initialMasterRacks)) {
       <div class="batch-toolbar" id="batchToolbar">
         <div class="batch-toolbar-content">
           
-          <!-- Left: Count Badge & Action Label -->
-          <div class="batch-left">
-            <span class="badge-batch-count" id="selectedCountBadge">
-              <i class="fa-solid fa-circle-check me-1"></i> 0 rolls selected
-            </span>
-            <span class="batch-label d-none d-md-inline">Move to:</span>
-          </div>
-
-          <!-- Center: Target Rack & Shelf Dropdown -->
+          <!-- Center: Target Rack, Shelf, and actions -->
           <div class="batch-center">
-            <div class="d-flex align-items-center gap-2">
+            <div class="batch-control-row">
               <select class="batch-rack-select" id="batchTargetRack">
-                <option value="" disabled selected>Select Destination Rack...</option>
+                <option value="" disabled selected>Select Rack...</option>
                 <?php foreach ($initialMasterRacks as $pad): ?>
                     <option value="<?php echo $pad; ?>">Rack <?php echo $pad; ?></option>
                 <?php endforeach; ?>
@@ -1747,13 +1724,9 @@ if (empty($initialMasterRacks)) {
             </div>
           </div>
 
-          <!-- Vertical Divider -->
-          <div class="batch-divider"></div>
-
-          <!-- Right: Action Buttons -->
           <div class="batch-right">
             <button type="button" class="btn-batch-apply" id="btnApplyBatch">
-              <i class="fa-solid fa-check"></i> Apply Batch
+              <i class="fa-solid fa-check"></i> Update Rack
             </button>
             <button type="button" class="btn-batch-cancel" id="btnCancelBatch" title="Clear roll selection">
               <i class="fa-solid fa-xmark"></i> Cancel
@@ -2189,7 +2162,7 @@ if (empty($initialMasterRacks)) {
               // Re-check rack shelf availability for this row
               window.onRackChange(roll);
 
-              showToast(resp.message, 'success');
+              showTransferSuccess(resp.message);
               loadStats();
               loadDatabaseRacks();
             } else {
@@ -2211,7 +2184,6 @@ if (empty($initialMasterRacks)) {
         const count = checkedBoxes.length;
 
         if (count > 0) {
-          $('#selectedCountBadge').html(`<i class="fa-solid fa-circle-check me-1"></i> ${count} ${count === 1 ? 'roll' : 'rolls'} selected`);
           $('#batchToolbar').addClass('active');
         } else {
           $('#batchToolbar').removeClass('active');
@@ -2247,7 +2219,7 @@ if (empty($initialMasterRacks)) {
         }
 
         const $btn = $('#btnApplyBatch');
-        $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin me-1"></i> Applying Batch...');
+        $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin me-1"></i> Updating...');
 
         $.ajax({
           url: 'ajaxKnitting_rack_transfer.php',
@@ -2260,10 +2232,9 @@ if (empty($initialMasterRacks)) {
           },
           dataType: 'json',
           success: function(resp) {
-            $btn.prop('disabled', false).html('<i class="fa-solid fa-check me-1"></i> Apply Batch');
+            $btn.prop('disabled', false).html('<i class="fa-solid fa-check me-1"></i> Update Rack');
             if (resp && resp.success) {
-              showToast(resp.message, 'success');
-              $('#btnCancelBatch').trigger('click');
+              showTransferSuccess(resp.message);
               loadStats();
               loadDatabaseRacks();
               loadStoreRolls();
@@ -2272,7 +2243,7 @@ if (empty($initialMasterRacks)) {
             }
           },
           error: function() {
-            $btn.prop('disabled', false).html('<i class="fa-solid fa-check me-1"></i> Apply Batch');
+            $btn.prop('disabled', false).html('<i class="fa-solid fa-check me-1"></i> Update Rack');
             showToast('Error communicating with server.', 'danger');
           }
         });
@@ -2314,10 +2285,11 @@ if (empty($initialMasterRacks)) {
       // -----------------------------------------------------------
       // 6. Toast Notification
       // -----------------------------------------------------------
-      function showToast(msg, type = 'success') {
+      function showToast(msg, type = 'success', duration = 4000, centered = false) {
         const $toast = $('#toastAlert');
         const $icon = $toast.find('i');
         const $msg = $('#toastMessage');
+        $toast.toggleClass('toast-centered', centered);
 
         if (type === 'success') {
           $toast.css('border-left-color', '#10b981');
@@ -2331,11 +2303,18 @@ if (empty($initialMasterRacks)) {
         }
 
         $msg.text(msg);
-        $toast.stop(true, true).fadeIn(200);
+        $toast.stop(true, true).css('display', 'flex').hide().fadeIn(200);
 
         setTimeout(function() {
           $toast.fadeOut(300);
-        }, 4000);
+        }, Math.max(0, duration - 300));
+      }
+
+      function showTransferSuccess(message) {
+        showToast(message, 'success', 3000, true);
+        setTimeout(function() {
+          window.location.reload();
+        }, 3000);
       }
 
     })();
