@@ -6,7 +6,7 @@ $reportConfig = [
     'operator' => "COALESCE(t.DOP, '')",
     'operator_id' => "COALESCE(t.DID, '')",
     'process_alias' => 't',
-    'order' => 't.BCARD, t.DBDTID',
+    'order' => 't.DBDTID DESC',
     'theme_start' => '#1e3a8a',
     'theme_end' => '#4f46e5'
 ];

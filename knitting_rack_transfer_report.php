@@ -35,6 +35,8 @@ function knittingRackReportValue($value, $fallback = 'Not available'): string
 
 $search = trim((string)($_GET['q'] ?? ''));
 $dateFilter = trim((string)($_GET['date'] ?? ''));
+$today = (new DateTimeImmutable('now', new DateTimeZone('Asia/Dhaka')))
+    ->format('Y-m-d');
 
 $logs = [];
 $reportError = '';
@@ -56,6 +58,8 @@ if ($dateFilter !== '') {
 
         if (!checkdate($month, $day, $year)) {
             $reportError = 'Invalid date filter.';
+        } elseif ($dateFilter > $today) {
+            $reportError = 'Future dates are not allowed.';
         }
     }
 }
@@ -270,6 +274,13 @@ if (!$db) {
             background: #f1f5f9;
             color: #1e293b;
             font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+            font-size: 1.05rem;
+        }
+
+        .report-content {
+            width: fit-content;
+            max-width: 100%;
+            margin: 0 auto;
         }
 
         .back-link,
@@ -283,7 +294,7 @@ if (!$db) {
             border: 0;
             border-radius: 8px;
             color: #fff;
-            font-size: .9rem;
+            font-size: 1rem;
             font-weight: 700;
             text-decoration: none;
             white-space: nowrap;
@@ -306,6 +317,7 @@ if (!$db) {
         .report-toolbar {
             display: flex;
             align-items: stretch;
+            width: 100%;
             gap: 10px;
             margin-bottom: 14px;
             padding: 12px;
@@ -321,7 +333,7 @@ if (!$db) {
             padding: 9px 12px;
             border: 1px solid #cbd5e1;
             border-radius: 8px;
-            font-size: .95rem;
+            font-size: 1.05rem;
             outline: none;
         }
 
@@ -352,6 +364,7 @@ if (!$db) {
         }
 
         .table-card {
+            width: 100%;
             overflow: hidden;
             border: 1px solid #dbe3ee;
             border-radius: 10px;
@@ -360,18 +373,20 @@ if (!$db) {
         }
 
         .table-scroll {
+            width: 100%;
+            max-width: 100%;
             max-height: calc(100vh - 190px);
             overflow: auto;
         }
 
         .transfer-report-table {
             width: 100%;
-            min-width: 1180px;
+            table-layout: auto;
             border: 1px solid #94a3b8;
             border-collapse: separate;
             border-spacing: 0;
             font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
-            font-size: 1rem;
+            font-size: 1.05rem;
         }
 
         .transfer-report-table thead th {
@@ -383,14 +398,14 @@ if (!$db) {
             border-bottom: 3px solid #0f766e;
             background: #334155;
             color: #fff;
-            font-size: .86rem;
+            font-size: .95rem;
             font-weight: 800;
             text-align: left;
             white-space: nowrap;
         }
 
         .transfer-report-table tbody td {
-            padding: 8px;
+            padding: 9px 10px;
             border-right: 1px solid #cbd5e1;
             border-bottom: 1px solid #e5e7eb;
             color: #334155;
@@ -416,7 +431,7 @@ if (!$db) {
             border-radius: 6px;
             background: #16a34a;
             color: #fff;
-            font-size: .82rem;
+            font-size: .9rem;
             font-weight: 700;
             cursor: pointer;
         }
@@ -471,6 +486,12 @@ if (!$db) {
             body {
                 padding: 0;
                 background: #fff;
+            }
+
+            .report-content {
+                width: 100%;
+                max-width: none;
+                margin: 0;
             }
 
             .no-print {
@@ -534,6 +555,8 @@ if (!$db) {
 
 <body>
 
+    <main class="report-content">
+
     <!-- PAGE HEADER -->
 
     <div class="head-row knitting-report-header knitting-report-header--tabs">
@@ -559,6 +582,7 @@ if (!$db) {
             type="date"
             name="date"
             value="<?php echo knittingRackReportEscape($dateFilter); ?>"
+            max="<?php echo knittingRackReportEscape($today); ?>"
             aria-label="Filter by date"
         >
 
@@ -728,6 +752,8 @@ if (!$db) {
         </div>
 
     </div>
+
+    </main>
 
     <!-- QR CODE LIBRARY -->
 
