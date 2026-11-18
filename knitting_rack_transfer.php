@@ -364,9 +364,10 @@ for ($r = 1; $r <= 50; $r++) {
     /* ========================================================= */
     .batch-toolbar {
       position: fixed;
-      bottom: 28px;
+      top: 50%;
+      bottom: auto;
       left: 50%;
-      transform: translate(-50%, 80px) scale(0.96);
+      transform: translate(-50%, calc(-50% + 80px)) scale(0.96);
       z-index: 1040;
       background: #eff6ff;
       border: 1.5px solid #93c5fd;
@@ -380,7 +381,7 @@ for ($r = 1; $r <= 50; $r++) {
     }
 
     .batch-toolbar.active {
-      transform: translate(-50%, 0) scale(1);
+      transform: translate(-50%, -50%) scale(1);
       opacity: 1;
       visibility: visible;
       pointer-events: auto;
@@ -405,13 +406,13 @@ for ($r = 1; $r <= 50; $r++) {
     .batch-control-row {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 12px;
       white-space: nowrap;
     }
 
     .batch-center .shelf-picker {
-      flex: 0 0 170px;
-      min-width: 155px;
+      flex: 0 0 180px;
+      min-width: 180px;
     }
 
     .batch-center .shelf-picker-menu {
@@ -420,7 +421,7 @@ for ($r = 1; $r <= 50; $r++) {
       right: 0;
       bottom: calc(100% + 5px);
       left: auto !important;
-      width: 190px;
+      width: 210px;
     }
 
     .batch-rack-select {
@@ -445,6 +446,8 @@ for ($r = 1; $r <= 50; $r++) {
     .batch-rack-select option {
       background: #ffffff;
       color: #065f46;
+      font-size: 1.05rem;
+      padding: 8px;
     }
 
     .batch-right {
@@ -826,20 +829,22 @@ for ($r = 1; $r <= 50; $r++) {
     .shelf-picker-menu[hidden] { display: none; }
 
     .shelf-grid-option {
-      min-height: 34px;
-      border: 1px solid #e2e8f0;
+      min-height: 42px;
+      border: 1px solid #000000;
       border-radius: 6px;
-      background: #f8fafc;
-      color: #334155;
+      background: #111827;
+      color: #ffffff;
       font: inherit;
+      font-size: 1.05rem;
+      font-weight: 700;
       cursor: pointer;
     }
 
     .shelf-grid-option:hover,
     .shelf-grid-option:focus-visible {
-      border-color: #99d5c9;
-      background: #e6f8f3;
-      outline: none;
+      border-color: #10b981;
+      background: #000000;
+      outline: 2px solid rgba(16, 185, 129, .35);
     }
 
     /* Inline Transfer Button */
@@ -1526,40 +1531,66 @@ for ($r = 1; $r <= 50; $r++) {
     .rack-table td .btn-transfer-row { font-size: .88rem; }
 
     .batch-toolbar {
-      bottom: 18px;
+      top: 50%;
+      bottom: auto;
       border: 1px solid #93c5fd;
-      border-radius: 13px;
+      border-radius: 15px;
       background: #eff6ff;
       box-shadow: 0 12px 30px rgba(30,64,175,.2);
     }
-    .batch-toolbar-content { justify-content: center; gap: 10px; padding: 9px 13px; }
-    .batch-right { gap: 8px; }
+    .batch-toolbar-content { justify-content: center; gap: 16px; min-height: 84px; padding: 15px 24px; }
+    .batch-right { gap: 12px; }
     .batch-rack-select {
-      min-height: 38px;
-      min-width: 145px;
-      padding: 7px 10px;
-      border-radius: 7px;
-      font-size: .82rem;
-      background: #ecfdf5;
+      min-height: 50px;
+      min-width: 175px;
+      padding: 10px 14px;
+      border-radius: 9px;
+      font-size: 1.05rem;
+      background: #d1fae5;
       color: #065f46;
-      border-color: #6ee7b7;
+      border: 1.5px solid #34d399;
     }
     .batch-center .shelf-picker-trigger {
-      min-height: 38px;
-      background: #ffffff;
-      border-color: #bfdbfe;
-      color: #1e3a8a;
-      font-size: .82rem;
+      min-height: 50px;
+      padding: 10px 30px 10px 13px;
+      background: #dbeafe;
+      border: 1.5px solid #60a5fa;
+      color: #1e40af;
+      font-size: 1.05rem;
+      font-weight: 600;
+    }
+    .batch-center .shelf-picker-trigger:hover:not(:disabled),
+    .batch-center .shelf-picker-trigger:focus-visible {
+      background: #bfdbfe;
+      border-color: #3b82f6;
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(59,130,246,.16);
+    }
+    .batch-center .shelf-picker-trigger:disabled {
+      background: #e2e8f0;
+      border-color: #cbd5e1;
+      color: #64748b;
     }
     .btn-batch-apply, .btn-batch-cancel {
-      padding: 8px 11px;
-      border-radius: 7px;
-      font-size: .82rem;
+      min-height: 50px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: .98rem;
       box-shadow: none;
     }
-    .btn-batch-apply { background: #059669; }
+    .btn-batch-apply { background: #059669; padding-left: 20px; }
     .btn-batch-apply:hover { background: #047857; transform: none; }
-    .btn-batch-cancel { padding: 7px 9px; }
+    .btn-batch-cancel {
+      padding: 10px 14px;
+      background: #dc2626;
+      color: #ffffff;
+      border: 1px solid #b91c1c;
+    }
+    .btn-batch-cancel:hover {
+      background: #b91c1c;
+      color: #ffffff;
+      border-color: #991b1b;
+    }
 
     .history-modal-container { max-width: 1180px; border-radius: 14px; }
     .history-modal-header {
@@ -1629,15 +1660,30 @@ for ($r = 1; $r <= 50; $r++) {
       .search-box { min-width: 0; width: 100%; }
       .rack-filter-select { width: 100%; }
       .table-container { padding: 0 8px 10px; }
-      .batch-toolbar { width: calc(100% - 16px); max-width: none; bottom: 8px; }
+      .batch-toolbar { top: 50%; bottom: auto; width: calc(100% - 16px); max-width: none; }
       .batch-toolbar-content { flex-wrap: nowrap; justify-content: center; gap: 4px; padding: 6px; }
       .batch-center { flex: 0 1 auto; min-width: 0; }
-      .batch-control-row { min-width: 0; gap: 4px; }
-      .batch-center .shelf-picker { flex: 0 1 110px; min-width: 90px; }
-      .batch-center .shelf-picker-trigger { padding: 7px 21px 7px 6px; overflow: hidden; text-overflow: ellipsis; }
-      .batch-rack-select { flex: 0 1 100px; min-width: 82px; width: 100px; padding: 7px 5px; }
-      .batch-right { flex: 0 0 auto; justify-content: center; gap: 4px; }
-      .btn-batch-apply, .btn-batch-cancel { padding: 7px 6px; font-size: .72rem; white-space: nowrap; }
+      .batch-control-row { min-width: 0; gap: 8px; }
+      .batch-center .shelf-picker { flex: 0 1 120px; min-width: 96px; }
+      .batch-center .shelf-picker-trigger {
+        min-height: 44px;
+        padding: 7px 21px 7px 7px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: .88rem;
+      }
+      .batch-rack-select {
+        flex: 0 1 108px;
+        min-width: 92px;
+        width: 108px;
+        min-height: 44px;
+        padding: 7px 5px;
+        font-size: .88rem;
+      }
+      .batch-right { flex: 0 0 auto; justify-content: center; gap: 6px; }
+      .btn-batch-apply, .btn-batch-cancel { min-height: 44px; padding: 7px 8px; font-size: .8rem; white-space: nowrap; }
+      .btn-batch-apply { padding-left: 13px; }
+      .batch-toolbar-content { min-height: 60px; }
       .history-modal-wrapper { padding: 10px; }
       .history-modal-header, .history-modal-search, .history-modal-footer { padding: 10px 12px; }
       .history-modal-title { font-size: 1rem; }
@@ -1651,6 +1697,11 @@ for ($r = 1; $r <= 50; $r++) {
       .btn-nav-dashboard span { display: none; }
       .brand-main-title { font-size: .82rem; }
       .brand-subtitle { font-size: .5rem; }
+      .batch-toolbar-content { flex-wrap: wrap; row-gap: 6px; padding: 8px; }
+      .batch-center, .batch-control-row { width: 100%; justify-content: center; }
+      .batch-center .shelf-picker { flex: 1 1 110px; max-width: 140px; }
+      .batch-rack-select { flex: 1 1 110px; max-width: 140px; }
+      .batch-right { width: 100%; }
     }
   </style>
 </head>
@@ -1778,6 +1829,7 @@ for ($r = 1; $r <= 50; $r++) {
   <!-- Scripts -->
   <script src="jquery.min.js"></script>
   <script src="js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
   <script>
     (function() {
@@ -2162,7 +2214,7 @@ for ($r = 1; $r <= 50; $r++) {
               // Re-check rack shelf availability for this row
               window.onRackChange(roll);
 
-              showTransferSuccess(resp.message);
+              showTransferSuccess(1, resp.to_rackno, resp.to_racklocation);
               loadStats();
               loadDatabaseRacks();
             } else {
@@ -2234,7 +2286,7 @@ for ($r = 1; $r <= 50; $r++) {
           success: function(resp) {
             $btn.prop('disabled', false).html('<i class="fa-solid fa-check me-1"></i> Update Rack');
             if (resp && resp.success) {
-              showTransferSuccess(resp.message);
+              showTransferSuccess(resp.count, resp.to_rackno, resp.to_racklocation);
               loadStats();
               loadDatabaseRacks();
               loadStoreRolls();
@@ -2310,7 +2362,26 @@ for ($r = 1; $r <= 50; $r++) {
         }, Math.max(0, duration - 300));
       }
 
-      function showTransferSuccess(message) {
+      function showTransferSuccess(count, rackNo, shelf) {
+        const rackNumber = String(rackNo).padStart(2, '0');
+        const message = Number(count) + ' roll(s) stored in Rack ' + rackNumber + shelf;
+
+        if (typeof Swal !== 'undefined') {
+          Swal.fire({
+            icon: 'success',
+            title: 'All Rolls Stored!',
+            text: message,
+            timer: 3000,
+            timerProgressBar: true,
+            showConfirmButton: false,
+            allowOutsideClick: false,
+            allowEscapeKey: false
+          }).then(function() {
+            window.location.reload();
+          });
+          return;
+        }
+
         showToast(message, 'success', 3000, true);
         setTimeout(function() {
           window.location.reload();
