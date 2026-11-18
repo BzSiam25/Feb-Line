@@ -12,7 +12,15 @@ if (!$db) {
 }
 
 $action = trim($_REQUEST['action'] ?? '');
-$currentUser = $_SESSION['user_name'] ?? $_SESSION['username'] ?? 'User';
+
+try {
+    ensureKnittingRackTransferTable($db);
+} catch (Throwable $e) {
+    error_log('Knitting rack transfer schema setup failed: ' . $e->getMessage());
+    http_response_code(500);
+    echo json_encode(['success' => false, 'message' => 'Unable to prepare rack transfer logging.']);
+    exit();
+}
 
 // -------------------------------------------------------------
 // 1. GET INVENTORY & STATS
@@ -27,8 +35,8 @@ if ($action === 'get_inventory') {
 
     if ($search !== '') {
         $escaped = '%' . $search . '%';
-        $where[] = "(ROLL LIKE ? OR PO_NUMBER LIKE ? OR SONO LIKE ? OR BUYER LIKE ? OR STYLE LIKE ? OR COLOR LIKE ? OR MCNO LIKE ? OR LOT_NO LIKE ?)";
-        for ($i = 0; $i < 8; $i++) {
+        $where[] = "(BUDAT LIKE ? OR ROLL LIKE ? OR PO_NUMBER LIKE ? OR SONO LIKE ? OR BUYER LIKE ? OR STYLE LIKE ? OR COLOR LIKE ? OR MCNO LIKE ? OR LOT_NO LIKE ? OR FTYPE LIKE ? OR CONCAT(COALESCE(RACKNO, ''), ' ', COALESCE(RACKLOCATION, '')) LIKE ?)";
+        for ($i = 0; $i < 11; $i++) {
             $params[] = $escaped;
             $types .= 's';
         }
@@ -95,9 +103,16 @@ if ($action === 'get_roll_info') {
     $rollData['RACKNO_PAD'] = $rollData['RACKNO'] ? str_pad($rollData['RACKNO'], 2, '0', STR_PAD_LEFT) : '';
     $rollData['FULL_RACK'] = $rollData['RACKNO_PAD'] . ($rollData['RACKLOCATION'] ?? '');
 
-    // Fetch previous transfer logs for this roll
-    $historyStmt = $db->prepare("SELECT * FROM rack_transfer_log WHERE TRIM(roll) = ? ORDER BY id DESC LIMIT 10");
-    $historyStmt->bind_param('s', $roll);
+    // Fetch previous transfer logs for this store record
+    $historyStmt = $db->prepare("
+        SELECT KRTID AS id, BUDAT, KSTID, ROLLNO AS roll,
+               FRACK AS from_rack, TORACK AS to_rack
+        FROM knitting_rack_transfer
+        WHERE KSTID = ?
+        ORDER BY KRTID DESC
+        LIMIT 10
+    ");
+    $historyStmt->bind_param('i', $rollData['KSTID']);
     $historyStmt->execute();
     $histRes = $historyStmt->get_result();
     $history = [];
@@ -387,7 +402,7 @@ if ($action === 'transfer_rack') {
     $toRackNoPad = str_pad($toRackNo, 2, '0', STR_PAD_LEFT);
 
     // Check existing roll in knitting_store
-    $chkStmt = $db->prepare("SELECT KSTID, RACKNO, RACKLOCATION, QTY, PO_NUMBER, BUYER, STYLE, COLOR FROM knitting_store WHERE TRIM(ROLL) = ? LIMIT 1");
+    $chkStmt = $db->prepare("SELECT KSTID, ROLL, BUDAT, RACKNO, RACKLOCATION, QTY, PO_NUMBER, BUYER, STYLE, COLOR, FTYPE FROM knitting_store WHERE TRIM(ROLL) = ? LIMIT 1");
     $chkStmt->bind_param('s', $roll);
     $chkStmt->execute();
     $res = $chkStmt->get_result();
@@ -416,17 +431,27 @@ if ($action === 'transfer_rack') {
     $db->begin_transaction();
     try {
         // 1. Update knitting_store with explicit user-chosen Rack and Shelf
-        $updateStmt = $db->prepare("UPDATE knitting_store SET RACKNO = ?, RACKLOCATION = ? WHERE TRIM(ROLL) = ?");
-        $updateStmt->bind_param('sss', $toRackNoPad, $toRackLocation, $roll);
+        $updateStmt = $db->prepare("UPDATE knitting_store SET RACKNO = ?, RACKLOCATION = ? WHERE KSTID = ?");
+        $updateStmt->bind_param('ssi', $toRackNoPad, $toRackLocation, $curr['KSTID']);
         if (!$updateStmt->execute()) {
             throw new Exception("Store update failed: " . $updateStmt->error);
         }
         $updateStmt->close();
 
-        // 2. Insert into rack_transfer_log audit trail
-        $logStmt = $db->prepare("INSERT INTO rack_transfer_log (roll, from_rack, to_rack, transfer_by, transfer_date) VALUES (?, ?, ?, ?, NOW())");
+        // 2. Insert into the KSTID-linked rack transfer table
         $fromRackRecord = $currFullRack ?: ($currRackNoPad ?: 'NONE');
-        $logStmt->bind_param('ssss', $roll, $fromRackRecord, $newFullRack, $currentUser);
+        $logStmt = $db->prepare("
+            INSERT INTO knitting_rack_transfer (BUDAT, KSTID, ROLLNO, FRACK, TORACK)
+            VALUES (?, ?, ?, ?, ?)
+        ");
+        $logStmt->bind_param(
+            'sisss',
+            $curr['BUDAT'],
+            $curr['KSTID'],
+            $curr['ROLL'],
+            $fromRackRecord,
+            $newFullRack
+        );
         if (!$logStmt->execute()) {
             throw new Exception("Audit log insert failed: " . $logStmt->error);
         }
@@ -499,7 +524,7 @@ if ($action === 'batch_transfer') {
         $allocations = [];
 
         foreach ($rolls as $roll) {
-            $chkStmt = $db->prepare("SELECT RACKNO, RACKLOCATION FROM knitting_store WHERE TRIM(ROLL) = ? LIMIT 1");
+            $chkStmt = $db->prepare("SELECT KSTID, ROLL, BUDAT, RACKNO, RACKLOCATION FROM knitting_store WHERE TRIM(ROLL) = ? LIMIT 1");
             $chkStmt->bind_param('s', $roll);
             $chkStmt->execute();
             $curr = $chkStmt->get_result()->fetch_assoc();
@@ -512,15 +537,29 @@ if ($action === 'batch_transfer') {
             $fromRecord = ($currRackNoPad . $currLoc) ?: 'NONE';
 
             // Update knitting_store with explicit user-chosen Rack and Shelf
-            $uStmt = $db->prepare("UPDATE knitting_store SET RACKNO = ?, RACKLOCATION = ? WHERE TRIM(ROLL) = ?");
-            $uStmt->bind_param('sss', $toRackNoPad, $toRackLocation, $roll);
-            $uStmt->execute();
+            $uStmt = $db->prepare("UPDATE knitting_store SET RACKNO = ?, RACKLOCATION = ? WHERE KSTID = ?");
+            $uStmt->bind_param('ssi', $toRackNoPad, $toRackLocation, $curr['KSTID']);
+            if (!$uStmt->execute()) {
+                throw new Exception("Store update failed for roll '$roll': " . $uStmt->error);
+            }
             $uStmt->close();
 
-            // Insert into rack_transfer_log
-            $lStmt = $db->prepare("INSERT INTO rack_transfer_log (roll, from_rack, to_rack, transfer_by, transfer_date) VALUES (?, ?, ?, ?, NOW())");
-            $lStmt->bind_param('ssss', $roll, $fromRecord, $toRecord, $currentUser);
-            $lStmt->execute();
+            // Insert the transfer record linked to the store row
+            $lStmt = $db->prepare("
+                INSERT INTO knitting_rack_transfer (BUDAT, KSTID, ROLLNO, FRACK, TORACK)
+                VALUES (?, ?, ?, ?, ?)
+            ");
+            $lStmt->bind_param(
+                'sisss',
+                $curr['BUDAT'],
+                $curr['KSTID'],
+                $curr['ROLL'],
+                $fromRecord,
+                $toRecord
+            );
+            if (!$lStmt->execute()) {
+                throw new Exception("Transfer log insert failed for roll '$roll': " . $lStmt->error);
+            }
             $lStmt->close();
 
             $transferredCount++;
@@ -551,11 +590,13 @@ if ($action === 'get_logs') {
     $limit = isset($_GET['limit']) ? intval($_GET['limit']) : 50;
     if ($limit <= 0 || $limit > 200) $limit = 50;
 
-    $sql = "SELECT l.id, l.roll, l.from_rack, l.to_rack, l.transfer_by, l.transfer_date,
+    $sql = "SELECT l.KRTID AS id, l.KSTID, l.BUDAT, s.ROLL AS roll,
+                   l.FRACK AS from_rack, l.TORACK AS to_rack,
+                   l.BUDAT AS transfer_date,
                    s.BUYER, s.STYLE, s.COLOR, CAST(s.QTY AS DECIMAL(10,2)) AS QTY, s.PO_NUMBER
-            FROM rack_transfer_log l
-            LEFT JOIN knitting_store s ON TRIM(l.roll) = TRIM(s.ROLL)
-            ORDER BY l.id DESC 
+            FROM knitting_rack_transfer l
+            INNER JOIN knitting_store s ON s.KSTID = l.KSTID
+            ORDER BY l.KRTID DESC
             LIMIT $limit";
 
     $res = $db->query($sql);
@@ -582,7 +623,7 @@ if ($action === 'get_stats') {
     $stRow = mysqli_fetch_assoc(mysqli_query($db, "SELECT COUNT(*) as total_rolls, COALESCE(SUM(CAST(QTY AS DECIMAL(10,2))),0) as total_qty, COUNT(DISTINCT RACKNO) as active_racks FROM knitting_store"));
     
     // Transfers today
-    $trRow = mysqli_fetch_assoc(mysqli_query($db, "SELECT COUNT(*) as transfers_today FROM rack_transfer_log WHERE DATE(transfer_date) = CURDATE()"));
+    $trRow = mysqli_fetch_assoc(mysqli_query($db, "SELECT COUNT(*) as transfers_today FROM knitting_rack_transfer WHERE BUDAT = CURDATE()"));
 
     // Distinct rack numbers in use
     $rackListRes = mysqli_query($db, "SELECT DISTINCT RACKNO FROM knitting_store WHERE RACKNO IS NOT NULL AND TRIM(RACKNO) <> '' ORDER BY CAST(RACKNO AS UNSIGNED)");

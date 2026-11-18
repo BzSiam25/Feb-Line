@@ -341,6 +341,12 @@ $isFinishingUser = $user === 'f01' || $userType === 'finishing_operator';
       --knit-card-border: #bef264;
     }
 
+    .knitting-report-card--rack-transfer {
+      --knit-card-start: #075e54;
+      --knit-card-end: #0f9f8f;
+      --knit-card-border: #5eead4;
+    }
+
     .knitting-report-card--delivery {
       --knit-card-start: #1e3a8a;
       --knit-card-end: #4f46e5;
@@ -477,6 +483,19 @@ $isFinishingUser = $user === 'f01' || $userType === 'finishing_operator';
             </div>
           </div>
 
+          <!-- 8. Knitting Rack Transfer Report -->
+          <div class="col-6 col-md-4 mb-3 d-flex">
+            <div class="report-card w-100 knitting-report-card knitting-report-card--rack-transfer">
+              <form method="POST" action="knitting_rack_transfer_report.php" class="h-100 w-100">
+                <button type="submit" class="btn btn-report">
+                  <i class="fa-solid fa-arrow-right-arrow-left card-btn"></i>
+                  <span class="floor-text">
+                    <span>Rack Transfer Report</span>
+                  </span>
+                </button>
+              </form>
+            </div>
+          </div>
 
           <div class="col-6 col-md-4 mb-3 d-flex">
             <div class="report-card w-100 knitting-report-card knitting-report-card--delivery">

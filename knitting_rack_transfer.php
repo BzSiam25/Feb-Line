@@ -35,6 +35,9 @@ if (empty($initialMasterRacks)) {
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <!-- Bootstrap CSS -->
   <link rel="stylesheet" href="css/bootstrap.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
   <style>
     :root {
@@ -433,6 +436,20 @@ if (empty($initialMasterRacks)) {
       align-items: center;
     }
 
+    .batch-center .shelf-picker {
+      flex: 1;
+      min-width: 155px;
+    }
+
+    .batch-center .shelf-picker-menu {
+      position: absolute;
+      top: auto !important;
+      right: 0;
+      bottom: calc(100% + 5px);
+      left: auto !important;
+      width: 190px;
+    }
+
     .batch-rack-select {
       background: #0f172a;
       color: #f8fafc;
@@ -453,41 +470,6 @@ if (empty($initialMasterRacks)) {
     }
 
     .batch-rack-select option {
-      background: #1e293b;
-      color: #ffffff;
-    }
-
-    .batch-shelf-select {
-      background: #0f172a;
-      color: #f8fafc;
-      border: 1.5px solid #475569;
-      border-radius: 12px;
-      padding: 8px 16px;
-      font-size: 1.05rem;
-      font-weight: 700;
-      outline: none;
-      cursor: pointer;
-      min-width: 155px;
-      transition: all 0.2s ease;
-    }
-
-    .batch-shelf-select:disabled {
-      opacity: 0.45;
-      cursor: not-allowed;
-      border-color: #334155;
-    }
-
-    .batch-shelf-select:enabled {
-      border-color: #38bdf8;
-      background: #1e293b;
-    }
-
-    .batch-shelf-select:focus {
-      border-color: #38bdf8;
-      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25);
-    }
-
-    .batch-shelf-select option, .batch-shelf-select optgroup {
       background: #1e293b;
       color: #ffffff;
     }
@@ -820,26 +802,78 @@ if (empty($initialMasterRacks)) {
       box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.15);
     }
 
-    .shelf-hint-text {
-      font-size: 0.9rem;
-      font-weight: 700;
-      line-height: 1.2;
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      min-height: 16px;
+    .shelf-picker {
+      position: relative;
+      flex: 1;
+      min-width: 120px;
     }
 
-    .badge-batch-capacity {
-      margin-left: 12px;
-      font-size: 0.98rem;
-      font-weight: 700;
-      padding: 6px 13px;
-      border-radius: 12px;
-      display: inline-flex;
-      align-items: center;
+    .shelf-picker-trigger {
+      position: relative;
+      width: 100%;
+      min-height: 38px;
+      padding: 7px 28px 7px 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 7px;
+      background: #fff;
+      color: #334155;
+      font-family: inherit;
+      font-size: 1rem;
+      font-weight: 400;
+      text-align: left;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    .shelf-picker-trigger::after {
+      position: absolute;
+      top: 50%;
+      right: 11px;
+      width: 7px;
+      height: 7px;
+      border-right: 1.5px solid currentColor;
+      border-bottom: 1.5px solid currentColor;
+      content: "";
+      transform: translateY(-70%) rotate(45deg);
+    }
+
+    .shelf-picker-trigger:disabled {
+      background: #f1f5f9;
+      color: #94a3b8;
+      cursor: not-allowed;
+    }
+
+    .shelf-picker-menu {
+      position: fixed;
+      z-index: 2100;
+      display: grid;
+      width: 190px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 6px;
-      letter-spacing: 0.2px;
+      padding: 8px;
+      border: 1px solid #cbd5e1;
+      border-radius: 9px;
+      background: #fff;
+      box-shadow: 0 8px 22px rgba(15, 23, 42, .16);
+    }
+
+    .shelf-picker-menu[hidden] { display: none; }
+
+    .shelf-grid-option {
+      min-height: 34px;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      background: #f8fafc;
+      color: #334155;
+      font: inherit;
+      cursor: pointer;
+    }
+
+    .shelf-grid-option:hover,
+    .shelf-grid-option:focus-visible {
+      border-color: #99d5c9;
+      background: #e6f8f3;
+      outline: none;
     }
 
     /* Inline Transfer Button */
@@ -1283,6 +1317,356 @@ if (empty($initialMasterRacks)) {
       background: #334155;
       transform: translateY(-1px);
     }
+
+    /* Unified, compact warehouse dashboard theme */
+    body {
+      padding: clamp(8px, 2vw, 16px);
+      padding-bottom: 36px;
+      background: #f1f5f9;
+      color: #1e293b;
+      font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+      font-size: 0.95rem;
+    }
+
+    .top-navbar {
+      margin: 0 0 12px;
+      padding: 10px 14px;
+      border: 0;
+      border-radius: 10px;
+      border-bottom: 3px solid #34d399;
+      background: linear-gradient(115deg, #0f766e, #0d8a80 52%, #0f9b8e);
+      box-shadow: 0 6px 18px rgba(15, 70, 65, .16);
+    }
+
+    .header-nav-container {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+      gap: 12px;
+      min-height: 48px;
+    }
+    .nav-left { grid-column: 1; grid-row: 1; }
+    .nav-center { grid-column: 2; grid-row: 1; }
+    .brand-title { gap: 12px; }
+    .brand-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 11px;
+      background: rgba(255,255,255,.14);
+      border-color: rgba(255,255,255,.24);
+      color: #fff;
+      box-shadow: none;
+    }
+    .brand-main-title { font-size: clamp(1.15rem, 2.2vw, 1.55rem); }
+    .brand-subtitle { font-size: .75rem; color: #d1fae5; }
+    .btn-nav-dashboard, .btn-nav-history {
+      min-height: 40px;
+      padding: 8px 13px;
+      border-radius: 8px;
+      font-size: .88rem;
+      box-shadow: none;
+    }
+    .btn-nav-dashboard:hover { transform: translateY(-1px); }
+
+    .container-fluid {
+      max-width: 1800px;
+      margin: 0 auto;
+      padding-right: 8px !important;
+      padding-left: 8px !important;
+      padding-top: 0 !important;
+      padding-bottom: 0 !important;
+    }
+    .kpi-card {
+      min-height: 82px;
+      padding: 12px 15px;
+      gap: 12px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(15,23,42,.045);
+    }
+    .kpi-card:hover { transform: translateY(-1px); }
+    .kpi-icon { width: 40px; height: 40px; border-radius: 10px; font-size: 1.1rem; }
+    .kpi-label { font-size: .72rem; letter-spacing: .35px; }
+    .kpi-val { font-size: 1.45rem; }
+
+    .table-panel {
+      border-radius: 12px;
+      border-color: #dbe3ee;
+      box-shadow: 0 5px 16px rgba(15,23,42,.055);
+    }
+    .table-panel-header {
+      min-height: 58px;
+      padding: 12px 16px;
+      gap: 10px;
+    }
+    .table-panel-header h5 { gap: 9px; font-size: 1.05rem; letter-spacing: 0; }
+    .filter-bar {
+      align-items: stretch;
+      gap: 10px;
+      padding: 12px 16px;
+      border-bottom: 1px solid #e2e8f0;
+      background: #f8fafc;
+    }
+    .search-box { min-width: 220px; }
+    .search-box input {
+      min-height: 40px;
+      padding: 9px 12px 9px 38px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background: #fff;
+      font-size: .9rem;
+      font-weight: 500;
+    }
+    .search-box i { left: 13px; font-size: .95rem; }
+    .rack-filter-select {
+      min-height: 40px;
+      min-width: 190px;
+      padding: 8px 11px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background: #fff;
+      font-size: .88rem;
+      font-weight: 600;
+    }
+    .table-container { padding: 0 16px 16px; }
+    .rack-table {
+      min-width: 1120px;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+      font-size: .9rem;
+    }
+    .rack-table th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      padding: 11px 10px;
+      border: 0;
+      border-bottom: 3px solid #0f766e;
+      border-radius: 0 !important;
+      background: #134e4a;
+      color: #fff;
+      font-size: .78rem;
+      letter-spacing: .3px;
+      white-space: nowrap;
+    }
+    .rack-table th:first-child { border-top-left-radius: 8px !important; }
+    .rack-table th:last-child { border-top-right-radius: 8px !important; }
+    .rack-table td {
+      padding: 9px 10px;
+      border-bottom: 1px solid #e2e8f0;
+      color: #334155;
+      font-size: .88rem;
+      line-height: 1.35;
+    }
+    .rack-table tbody tr:nth-child(even) td { background: #f8fafc; }
+    .rack-table tbody tr:hover td { background: #eff6ff; }
+    .rack-table tr.row-updated td { background: #ecfdf5 !important; }
+    .rack-table tr.row-selected td { background: #e8f3ff !important; }
+    .rack-table tr.row-selected td:first-child { border-left: 3px solid #0f766e; }
+    .form-check-input { width: 18px; height: 18px; }
+    .roll-barcode-text {
+      padding: 5px 9px;
+      border-radius: 7px;
+      font-size: .85rem;
+      letter-spacing: 0;
+    }
+    .badge-curr-rack {
+      gap: 5px;
+      padding: 5px 9px;
+      border-radius: 7px;
+      font-size: .82rem;
+      box-shadow: none;
+    }
+    .table-data-po, .table-data-color, .table-data-fabric, .table-data-date {
+      font-size: .88rem;
+    }
+    .table-data-qty { font-size: .92rem; }
+    .destination-group { min-width: 240px; gap: 4px; }
+    .destination-selects-wrapper { gap: 6px; }
+    .inline-rack-select, .inline-shelf-select {
+      min-height: 38px;
+      padding: 7px 9px;
+      border-radius: 7px;
+      font-size: .82rem;
+    }
+    .inline-rack-select { width: 104px; }
+    .inline-shelf-select { min-width: 120px; }
+    .shelf-picker-trigger { min-height: 38px; padding: 7px 25px 7px 9px; font-size: .92rem; }
+    .btn-transfer-row {
+      padding: 7px 10px;
+      border-radius: 7px;
+      font-size: .8rem;
+      box-shadow: none;
+    }
+    .rack-table th { padding: 9px 7px; font-size: 1rem; }
+    .rack-table td {
+      padding: 6px 7px;
+      color: #334155;
+      font-size: 1rem;
+      font-weight: 500;
+      line-height: 1.2;
+    }
+    .rack-table td .roll-barcode-text,
+    .rack-table td .badge-curr-rack,
+    .rack-table td .table-data-date,
+    .rack-table td.table-data-qty,
+    .rack-table td .table-data-qty,
+    .rack-table td .table-data-fabric {
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+      color: #334155;
+      font-family: inherit;
+      font-size: 1.2rem;
+      font-weight: 400;
+      letter-spacing: 0;
+    }
+    .rack-table td .table-data-po,
+    .rack-table td .table-data-color {
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      color: #334155;
+      font-family: inherit;
+      font-size: 1.2rem;
+      font-weight: 400;
+      line-height: 1.15;
+      letter-spacing: 0;
+    }
+    .rack-table td .badge-curr-rack { gap: 5px; }
+    .rack-table td .badge-curr-rack i { color: inherit; }
+    .rack-table td .inline-rack-select,
+    .rack-table td .inline-shelf-select { font-size: .92rem; }
+    .rack-table td .btn-transfer-row { font-size: .88rem; }
+
+    .batch-toolbar {
+      bottom: 18px;
+      border: 1px solid rgba(45,212,191,.45);
+      border-radius: 13px;
+      background: linear-gradient(120deg, #134e4a, #0f766e);
+      box-shadow: 0 12px 30px rgba(15,70,65,.3);
+    }
+    .batch-toolbar-content { gap: 12px; padding: 9px 13px; }
+    .batch-left, .batch-right { gap: 8px; }
+    .badge-batch-count {
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-size: .82rem;
+      color: #d1fae5;
+      background: rgba(255,255,255,.12);
+      border-color: rgba(255,255,255,.24);
+    }
+    .batch-label { font-size: .85rem; }
+    .batch-rack-select {
+      min-height: 38px;
+      min-width: 145px;
+      padding: 7px 10px;
+      border-radius: 7px;
+      font-size: .82rem;
+    }
+    .batch-divider { height: 22px; }
+    .btn-batch-apply, .btn-batch-cancel {
+      padding: 8px 11px;
+      border-radius: 7px;
+      font-size: .82rem;
+      box-shadow: none;
+    }
+    .btn-batch-apply { background: #059669; }
+    .btn-batch-apply:hover { background: #047857; transform: none; }
+    .btn-batch-cancel { padding: 7px 9px; }
+
+    .history-modal-container { max-width: 1180px; border-radius: 14px; }
+    .history-modal-header {
+      padding: 14px 18px;
+      border-bottom: 3px solid #34d399;
+      background: linear-gradient(115deg, #0f766e, #0d8a80);
+    }
+    .history-header-icon-box { width: 40px; height: 40px; min-width: 40px; border-radius: 10px; }
+    .history-modal-title { font-size: 1.15rem; }
+    .history-modal-subtitle { font-size: .82rem; color: #d1fae5; }
+    .history-modal-search { gap: 10px; padding: 11px 16px; }
+    .history-search-wrapper { min-width: 220px; }
+    .history-search-input { padding: 9px 11px 9px 37px; border-radius: 8px; font-size: .88rem; }
+    .history-search-wrapper i { left: 13px; font-size: .95rem; }
+    .history-actions-wrapper { gap: 8px; }
+    .history-count-pill { padding: 6px 10px; font-size: .8rem; }
+    .btn-refresh-history, .btn-close-modal-bottom {
+      min-height: 38px;
+      padding: 7px 11px;
+      border-radius: 7px;
+      font-size: .82rem;
+    }
+    .history-modal-body { max-height: min(58vh, 560px); }
+    .history-table { font-size: .84rem; }
+    .history-table thead th { padding: 10px 11px; font-size: .75rem; }
+    .history-table tbody td { padding: 10px 11px; font-size: .84rem; }
+    .history-modal-footer { padding: 11px 16px; font-size: .82rem; }
+
+    .toast-alert {
+      top: 16px;
+      right: 16px;
+      padding: 11px 16px;
+      border-radius: 10px;
+      font-size: .88rem;
+    }
+
+    @media (max-width: 992px) {
+      .top-navbar { padding: 10px 12px; }
+      .header-nav-container { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
+      .table-panel-header { padding: 11px 13px; }
+      .table-container { padding: 0 12px 12px; }
+    }
+
+    @media (max-width: 700px) {
+      body { padding-bottom: 100px; }
+      .top-navbar { padding: 8px; }
+      .header-nav-container {
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 8px;
+        min-height: 42px;
+      }
+      .nav-left { grid-column: 1; }
+      .nav-center { grid-column: 2; justify-content: flex-end; }
+      .brand-icon { width: 32px; height: 32px; font-size: .95rem; }
+      .brand-title { gap: 7px; }
+      .brand-main-title { font-size: clamp(.85rem, 3.8vw, 1rem); white-space: nowrap; }
+      .brand-subtitle { font-size: .56rem; letter-spacing: .25px; }
+      .btn-nav-dashboard { min-height: 34px; padding: 6px 8px; font-size: .7rem; gap: 5px; }
+      .btn-nav-dashboard i { font-size: .75rem; }
+      .container-fluid { padding-right: 10px !important; padding-left: 10px !important; }
+      .kpi-card { min-height: 70px; padding: 9px 10px; gap: 8px; }
+      .kpi-icon { width: 34px; height: 34px; font-size: .95rem; }
+      .kpi-label { white-space: normal; font-size: .63rem; }
+      .kpi-val { font-size: 1.18rem; }
+      .table-panel-header { align-items: flex-start; flex-direction: column; }
+      .filter-bar { flex-direction: column; padding: 10px; }
+      .search-box { min-width: 0; width: 100%; }
+      .rack-filter-select { width: 100%; }
+      .table-container { padding: 0 8px 10px; }
+      .batch-toolbar { width: calc(100% - 16px); max-width: none; bottom: 8px; }
+      .batch-toolbar-content { flex-wrap: wrap; justify-content: center; gap: 7px; padding: 8px; }
+      .batch-left { flex-basis: 100%; justify-content: center; }
+      .batch-center { flex: 1 1 100%; justify-content: center; }
+      .batch-center > .d-flex { width: 100%; }
+      .batch-rack-select { flex: 1; min-width: 0; width: 50%; }
+      .batch-divider { display: none; }
+      .batch-right { justify-content: center; }
+      .history-modal-wrapper { padding: 10px; }
+      .history-modal-header, .history-modal-search, .history-modal-footer { padding: 10px 12px; }
+      .history-modal-title { font-size: 1rem; }
+      .history-modal-subtitle { font-size: .73rem; }
+      .history-search-wrapper { min-width: 100%; }
+      .history-actions-wrapper { width: 100%; justify-content: space-between; }
+      .history-modal-footer { align-items: flex-start; }
+    }
+
+    @media (max-width: 380px) {
+      .btn-nav-dashboard span { display: none; }
+      .brand-main-title { font-size: .82rem; }
+      .brand-subtitle { font-size: .5rem; }
+    }
   </style>
 </head>
 <body>
@@ -1295,7 +1679,7 @@ if (empty($initialMasterRacks)) {
       <div class="nav-left">
         <a href="initialPage.php" class="btn-nav-dashboard" title="Back to Dashboard">
           <i class="fa-solid fa-arrow-left"></i>
-          <span>Back to Dashboard</span>
+          <span>Back</span>
         </a>
       </div>
 
@@ -1307,27 +1691,8 @@ if (empty($initialMasterRacks)) {
           </span>
           <div class="brand-text-group">
             <h1 class="brand-main-title">Knitting Rack Transfer</h1>
-            <span class="brand-subtitle">Warehouse Inventory Relocation</span>
           </div>
         </div>
-      </div>
-
-      <!-- Right: User Profile & Transfer History -->
-      <div class="nav-right">
-        <div class="user-profile-badge">
-          <div class="user-avatar">
-            <i class="fa-solid fa-user-tie"></i>
-          </div>
-          <div class="user-details">
-            <span class="user-name"><?php echo htmlspecialchars($currentUser); ?></span>
-            <span class="user-role"><?php echo htmlspecialchars(ucfirst($userRole)); ?></span>
-          </div>
-        </div>
-
-        <button type="button" class="btn-nav-history" id="btnOpenHistory" style="cursor: pointer;">
-          <i class="fa-solid fa-clock-rotate-left"></i>
-          <span>Transfer History</span>
-        </button>
       </div>
 
     </div>
@@ -1335,68 +1700,14 @@ if (empty($initialMasterRacks)) {
 
   <div class="container-fluid px-3 px-md-5 py-3">
 
-    <!-- KPI Summary Row (Compact & Slim) -->
-    <div class="row g-3 mb-3">
-      <div class="col-12 col-sm-6 col-xl-3">
-        <div class="kpi-card">
-          <div class="kpi-icon blue"><i class="fa-solid fa-boxes-stacked"></i></div>
-          <div>
-            <div class="kpi-label">Total Rolls in Store</div>
-            <div class="kpi-val" id="kpiTotalRolls">--</div>
-          </div>
-        </div>
-      </div>
-      <div class="col-12 col-sm-6 col-xl-3">
-        <div class="kpi-card">
-          <div class="kpi-icon teal"><i class="fa-solid fa-weight-hanging"></i></div>
-          <div>
-            <div class="kpi-label">Total Weight (KG)</div>
-            <div class="kpi-val" id="kpiTotalQty">--</div>
-          </div>
-        </div>
-      </div>
-      <div class="col-12 col-sm-6 col-xl-3">
-        <div class="kpi-card">
-          <div class="kpi-icon amber"><i class="fa-solid fa-warehouse"></i></div>
-          <div>
-            <div class="kpi-label">Active Racks</div>
-            <div class="kpi-val" id="kpiActiveRacks">--</div>
-          </div>
-        </div>
-      </div>
-      <div class="col-12 col-sm-6 col-xl-3">
-        <div class="kpi-card">
-          <div class="kpi-icon purple"><i class="fa-solid fa-arrow-right-arrow-left"></i></div>
-          <div>
-            <div class="kpi-label">Transfers Today</div>
-            <div class="kpi-val" id="kpiTransfersToday">--</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <!-- Main Table Panel -->
     <div class="table-panel">
       
-      <!-- Panel Header -->
-      <div class="table-panel-header">
-        <h5>
-          <i class="fa-solid fa-layer-group text-primary"></i>
-          Stored Rolls & Rack Management
-        </h5>
-        <div class="d-flex align-items-center gap-3">
-          <span class="text-muted fw-bold" id="rollCountSummary" style="font-size: 0.95rem;">Loading store records...</span>
-          <button class="btn btn-outline-secondary btn-md rounded-2 px-3 py-2" id="btnRefresh" title="Refresh Table">
-            <i class="fa-solid fa-rotate"></i>
-          </button>
-        </div>
-      </div>
-
       <!-- Filter Controls -->
       <div class="filter-bar">
         <div class="search-box">
           <i class="fa-solid fa-magnifying-glass"></i>
-          <input type="text" id="tableSearchInput" placeholder="Search Roll Barcode, PO Number, Buyer, Style, Color, Rack...">
+          <input type="text" id="tableSearchInput" placeholder="Search Date, Roll No, PO No, Color, Rack...">
         </div>
 
         <select id="rackFilterSelect" class="rack-filter-select">
@@ -1428,11 +1739,12 @@ if (empty($initialMasterRacks)) {
                     <option value="<?php echo $pad; ?>">Rack <?php echo $pad; ?></option>
                 <?php endforeach; ?>
               </select>
-              <select class="batch-shelf-select" id="batchTargetShelf" disabled>
-                <option value="" disabled selected>Select Rack First...</option>
-              </select>
+              <div class="shelf-picker">
+                <input type="hidden" class="batch-shelf-select" id="batchTargetShelf" disabled>
+                <button type="button" class="shelf-picker-trigger" aria-haspopup="grid" aria-expanded="false" disabled>Select Rack First...</button>
+                <div class="shelf-picker-menu" role="grid" hidden></div>
+              </div>
             </div>
-            <span id="batchCapacityBadge" class="badge-batch-capacity" style="display: none;"></span>
           </div>
 
           <!-- Vertical Divider -->
@@ -1459,21 +1771,20 @@ if (empty($initialMasterRacks)) {
               <th style="width: 48px;" class="text-center">
                 <input type="checkbox" class="form-check-input" id="checkAll">
               </th>
-              <th>Roll Barcode</th>
-              <th>Current Rack</th>
-              <th>PO Number</th>
-              <th>Buyer</th>
-              <th>Style</th>
+              <th>Date</th>
+              <th>Roll No</th>
+              <th>PO No</th>
               <th>Color</th>
-              <th class="text-end">Qty (KG)</th>
-              <th>Machine</th>
-              <th style="min-width: 310px;">Destination (Rack & Shelf)</th>
+              <th class="text-end">QTY</th>
+              <th>Fabrics Type</th>
+              <th>Current Rack</th>
+              <th style="min-width: 250px;">Destination (Rack & Shelf)</th>
               <th style="width: 130px;" class="text-center">Action</th>
             </tr>
           </thead>
           <tbody id="rollsTableBody">
             <tr>
-              <td colspan="11" class="text-center py-5 text-muted fs-5">
+              <td colspan="10" class="text-center py-5 text-muted fs-5">
                 <i class="fa-solid fa-spinner fa-spin me-2"></i> Loading store rolls...
               </td>
             </tr>
@@ -1483,86 +1794,6 @@ if (empty($initialMasterRacks)) {
 
     </div>
 
-  </div>
-
-  <!-- BULLETPROOF TRANSFER HISTORY MODAL -->
-  <div id="historyModalBackdrop" class="history-modal-backdrop"></div>
-  
-  <div id="historyModal" class="history-modal-wrapper" role="dialog" aria-modal="true">
-    <div class="history-modal-container">
-      
-      <!-- Modal Header -->
-      <div class="history-modal-header">
-        <div class="history-header-left">
-          <div class="history-header-icon-box">
-            <i class="fa-solid fa-clock-rotate-left"></i>
-          </div>
-          <div class="history-header-titles">
-            <div class="d-flex align-items-center gap-2">
-              <h5 class="history-modal-title">Rack Transfer Audit History</h5>
-              <span class="badge bg-info-subtle text-info border border-info-subtle px-2 py-0.5 rounded-pill fw-bold" style="font-size: 0.74rem;">Audit Log</span>
-            </div>
-            <p class="history-modal-subtitle">Complete chronological log of roll movements and rack relocations</p>
-          </div>
-        </div>
-        <button type="button" class="btn-modal-dismiss" id="btnCloseHistoryModal" title="Close" aria-label="Close modal">
-          <i class="fa-solid fa-xmark"></i>
-        </button>
-      </div>
-
-      <!-- Modal Search & Filter Bar -->
-      <div class="history-modal-search">
-        <div class="history-search-wrapper">
-          <i class="fa-solid fa-magnifying-glass"></i>
-          <input type="text" id="modalHistorySearch" class="history-search-input" placeholder="Filter logs by Roll Barcode, User, Rack, Buyer, Style...">
-        </div>
-        <div class="history-actions-wrapper">
-          <span class="history-count-pill" id="historyCountBadge">
-            <i class="fa-solid fa-database text-primary"></i> -- entries
-          </span>
-          <button type="button" class="btn-refresh-history" id="btnRefreshHistoryModal">
-            <i class="fa-solid fa-arrows-rotate"></i> Refresh
-          </button>
-        </div>
-      </div>
-
-      <!-- Modal Body / Table Container -->
-      <div class="history-modal-body">
-        <div class="table-responsive">
-          <table class="table table-hover align-middle mb-0 text-nowrap history-table">
-            <thead>
-              <tr>
-                <th class="ps-4">#ID</th>
-                <th>Roll Barcode</th>
-                <th>From Rack</th>
-                <th class="text-center px-1"></th>
-                <th>To Rack</th>
-                <th>Transferred By</th>
-                <th>Date & Time</th>
-                <th class="pe-4">Buyer / Style</th>
-              </tr>
-            </thead>
-            <tbody id="historyTableBody">
-              <tr>
-                <td colspan="8" class="text-center py-5 text-muted fs-6">
-                  <i class="fa-solid fa-spinner fa-spin me-2 text-primary"></i> Loading audit history...
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Modal Footer -->
-      <div class="history-modal-footer">
-        <div class="d-flex align-items-center gap-2 text-muted fw-semibold small">
-          <i class="fa-solid fa-shield-halved text-success fs-6"></i>
-          <span>Permanent audit records in <code>rack_transfer_log</code> table</span>
-        </div>
-        <button type="button" class="btn-close-modal-bottom" id="btnCloseHistoryModalBottom">Close</button>
-      </div>
-
-    </div>
   </div>
 
   <!-- Notification Toast -->
@@ -1628,7 +1859,8 @@ if (empty($initialMasterRacks)) {
       // Dynamic Dependent Shelves Loader (From Database)
       // -----------------------------------------------------------
       function loadDatabaseShelves(rackNo, $shelfSelect, currentRoll, callback) {
-        $shelfSelect.prop('disabled', true).html('<option value="" disabled selected>Loading shelves from database...</option>');
+        const $picker = $shelfSelect.closest('.shelf-picker');
+        resetShelfPicker($shelfSelect, 'Loading shelves...');
         
         $.ajax({
           url: 'ajaxKnitting_rack_transfer.php',
@@ -1641,37 +1873,56 @@ if (empty($initialMasterRacks)) {
           dataType: 'json',
           success: function(resp) {
             if (resp && resp.success && resp.data && resp.data.length > 0) {
-              // Group shelves by section (Section A, B, C...)
-              const sections = {};
-              resp.data.forEach(function(item) {
-                const sec = item.section || 'General';
-                if (!sections[sec]) sections[sec] = [];
-                sections[sec].push(item);
+              const shelfOrder = ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'C1', 'C2', 'C3'];
+              const order = new Map(shelfOrder.map(function(shelf, index) { return [shelf, index]; }));
+              const shelves = resp.data.slice().sort(function(a, b) {
+                const aOrder = order.has(a.shelf) ? order.get(a.shelf) : shelfOrder.length;
+                const bOrder = order.has(b.shelf) ? order.get(b.shelf) : shelfOrder.length;
+                return aOrder - bOrder || String(a.shelf).localeCompare(String(b.shelf));
               });
-
-              let opts = '<option value="" disabled selected>Select Shelf...</option>';
-              for (const [secName, items] of Object.entries(sections)) {
-                opts += `<optgroup label="${secName}">`;
-                items.forEach(function(item) {
-                  const statusNote = item.is_occupied ? ` (Contains Roll ${item.roll})` : ' (Empty)';
-                  opts += `<option value="${item.shelf}">${item.label}${statusNote}</option>`;
+              if ($picker.length) {
+                const $menu = $picker.find('.shelf-picker-menu').empty();
+                shelves.forEach(function(item) {
+                  $('<button>', {
+                    type: 'button',
+                    class: 'shelf-grid-option',
+                    'data-shelf': item.shelf
+                  }).text(item.shelf).appendTo($menu);
                 });
-                opts += '</optgroup>';
+                $shelfSelect.val('').prop('disabled', false);
+                $picker.find('.shelf-picker-trigger').prop('disabled', false).text('Select Shelf...');
+              } else {
+                $shelfSelect.empty().append($('<option>', { value: '', disabled: true, selected: true }).text('Select Shelf...'));
+                shelves.forEach(function(item) {
+                  $shelfSelect.append($('<option>', { value: item.shelf }).text(item.shelf));
+                });
+                $shelfSelect.prop('disabled', false);
               }
-              $shelfSelect.html(opts).prop('disabled', false);
               if (typeof callback === 'function') callback(resp);
             } else {
-              $shelfSelect.html('<option value="" disabled selected>No shelves found</option>');
+              resetShelfPicker($shelfSelect, 'No shelves found');
             }
           },
           error: function() {
-            $shelfSelect.html('<option value="" disabled selected>Error loading shelves</option>');
+            resetShelfPicker($shelfSelect, 'Error loading shelves');
           }
         });
       }
 
+      function resetShelfPicker($shelfSelect, label) {
+        const $picker = $shelfSelect.closest('.shelf-picker');
+        if (!$picker.length) {
+          $shelfSelect.val('').prop('disabled', true)
+            .empty().append($('<option>', { value: '', disabled: true, selected: true }).text(label));
+          return;
+        }
+        $shelfSelect.val('').prop('disabled', true);
+        $picker.find('.shelf-picker-trigger').prop('disabled', true).text(label).attr('aria-expanded', 'false');
+        $picker.find('.shelf-picker-menu').prop('hidden', true).empty();
+      }
+
       $(document).ready(function() {
-        // First load master racks dynamically from DB, then fetch KPIs and stored rolls
+        // Load master racks before fetching stored rolls.
         loadDatabaseRacks(function() {
           loadStats();
           loadStoreRolls();
@@ -1684,31 +1935,66 @@ if (empty($initialMasterRacks)) {
           searchTimer = setTimeout(loadStoreRolls, 250);
         });
 
+        $(document).on('click', '.shelf-picker-trigger', function(event) {
+          event.stopPropagation();
+          const $picker = $(this).closest('.shelf-picker');
+          const $menu = $picker.find('.shelf-picker-menu');
+          const willOpen = $menu.prop('hidden');
+          $('.shelf-picker-menu').prop('hidden', true);
+          $('.shelf-picker-trigger').attr('aria-expanded', 'false');
+          if (!willOpen) return;
+
+          if (!$picker.closest('.batch-center').length) {
+            const bounds = this.getBoundingClientRect();
+            const menuHeight = Math.min(160, Math.ceil($menu.children().length / 3) * 40 + 18);
+            const top = bounds.bottom + menuHeight + 8 > window.innerHeight
+              ? Math.max(8, bounds.top - menuHeight - 4)
+              : bounds.bottom + 4;
+            const left = Math.min(bounds.left, window.innerWidth - 198);
+            $menu.css({ top: top + 'px', left: Math.max(8, left) + 'px' });
+          }
+          $menu.prop('hidden', false);
+          $(this).attr('aria-expanded', 'true');
+        });
+
+        $(document).on('click', '.shelf-grid-option', function(event) {
+          event.stopPropagation();
+          const $picker = $(this).closest('.shelf-picker');
+          const shelf = $(this).attr('data-shelf');
+          const $shelfSelect = $picker.find('.inline-shelf-select, .batch-shelf-select');
+          $shelfSelect.val(shelf).trigger('change');
+          $picker.find('.shelf-picker-trigger').text(shelf).attr('aria-expanded', 'false');
+          $picker.find('.shelf-picker-menu').prop('hidden', true);
+        });
+
+        $(document).on('click', function(event) {
+          if (!$(event.target).closest('.shelf-picker').length) {
+            $('.shelf-picker-menu').prop('hidden', true);
+            $('.shelf-picker-trigger').attr('aria-expanded', 'false');
+          }
+        });
+
+        $(window).on('scroll', function() {
+          $('.shelf-picker-menu').prop('hidden', true);
+          $('.shelf-picker-trigger').attr('aria-expanded', 'false');
+        });
+
         // Rack filter change
         $('#rackFilterSelect').on('change', function() {
           loadStoreRolls();
         });
 
-        // Refresh button
-        $('#btnRefresh').on('click', function() {
-          const $btn = $(this);
-          $btn.find('i').addClass('fa-spin');
-          loadDatabaseRacks(function() {
-            loadStats();
-            loadStoreRolls(function() {
-              $btn.find('i').removeClass('fa-spin');
-            });
-          });
-        });
-
         // Check All / Batch selection
         $('#checkAll').on('change', function() {
           const isChecked = $(this).is(':checked');
-          $('.row-checkbox').prop('checked', isChecked);
+          $('.row-checkbox').prop('checked', isChecked).each(function() {
+            $(this).closest('tr').toggleClass('row-selected', isChecked);
+          });
           updateBatchToolbar();
         });
 
         $(document).on('change', '.row-checkbox', function() {
+          $(this).closest('tr').toggleClass('row-selected', this.checked);
           updateBatchToolbar();
           const totalCheckboxes = $('.row-checkbox').length;
           const checkedCount = $('.row-checkbox:checked').length;
@@ -1729,97 +2015,14 @@ if (empty($initialMasterRacks)) {
         $('#batchTargetRack').on('change', function() {
           const rack = $(this).val();
           const $shelf = $('#batchTargetShelf');
-          const $badge = $('#batchCapacityBadge');
 
           if (rack) {
-            $badge.show().css({
-              'background': 'rgba(56, 189, 248, 0.15)',
-              'color': '#7dd3fc',
-              'border': '1px solid rgba(56, 189, 248, 0.35)'
-            }).html('<i class="fa-solid fa-spinner fa-spin"></i> Loading shelves from database...');
-
-            loadDatabaseShelves(rack, $shelf, null, function(resp) {
-              $badge.html(`<i class="fa-solid fa-layer-group"></i> Rack ${rack}: ${resp.available_count} of ${resp.total_shelves} shelves empty — please select a shelf`);
-            });
+            loadDatabaseShelves(rack, $shelf, null);
           } else {
-            $shelf.val('').prop('disabled', true).html('<option value="" disabled selected>Select Rack First...</option>');
-            $badge.hide();
+            resetShelfPicker($shelf, 'Select Rack First...');
           }
         });
 
-        // Batch target shelf change listener
-        $('#batchTargetShelf').on('change', function() {
-          const rack = $('#batchTargetRack').val();
-          const shelf = $(this).val();
-          const count = $('.row-checkbox:checked').length;
-          const $badge = $('#batchCapacityBadge');
-
-          if (rack && shelf) {
-            $badge.show().css({
-              'background': 'rgba(16, 185, 129, 0.2)',
-              'color': '#6ee7b7',
-              'border': '1px solid rgba(16, 185, 129, 0.4)'
-            }).html(`<i class="fa-solid fa-check-circle"></i> Target: Rack ${rack} (Shelf ${shelf}) for ${count} ${count === 1 ? 'roll' : 'rolls'}`);
-          }
-        });
-
-        // -----------------------------------------------------------
-        // Transfer History Modal Functions (Bulletproof)
-        // -----------------------------------------------------------
-        function openHistoryModal() {
-          $('#historyModalBackdrop').addClass('show');
-          $('#historyModal').addClass('show');
-          $('body').css('overflow', 'hidden');
-          loadHistoryLogs();
-        }
-
-        function closeHistoryModal() {
-          $('#historyModal').removeClass('show');
-          $('#historyModalBackdrop').removeClass('show');
-          $('body').css('overflow', '');
-        }
-
-        // Open modal on Transfer History button click
-        $('#btnOpenHistory').on('click', function(e) {
-          e.preventDefault();
-          e.stopPropagation();
-          openHistoryModal();
-        });
-
-        // Close modal on dismiss buttons
-        $(document).on('click', '#btnCloseHistoryModal, #btnCloseHistoryModalBottom', function(e) {
-          e.preventDefault();
-          closeHistoryModal();
-        });
-
-        // Close when clicking outside modal content
-        $('#historyModal, #historyModalBackdrop').on('click', function(e) {
-          if (e.target === this) {
-            closeHistoryModal();
-          }
-        });
-
-        // Close on Escape key
-        $(document).on('keydown', function(e) {
-          if (e.key === 'Escape' && $('#historyModal').hasClass('show')) {
-            closeHistoryModal();
-          }
-        });
-
-        // Search filter inside modal
-        $('#modalHistorySearch').on('input', function() {
-          const q = $(this).val().toLowerCase().trim();
-          filterHistoryLogs(q);
-        });
-
-        // Refresh inside modal
-        $('#btnRefreshHistoryModal').on('click', function() {
-          const $btn = $(this);
-          $btn.prop('disabled', true).find('i').addClass('fa-spin');
-          loadHistoryLogs(function() {
-            $btn.prop('disabled', false).find('i').removeClass('fa-spin');
-          });
-        });
       });
 
       // -----------------------------------------------------------
@@ -1842,17 +2045,15 @@ if (empty($initialMasterRacks)) {
             if (resp && resp.success && resp.data && resp.data.length > 0) {
               allRollsData = resp.data;
               renderTable(resp.data);
-              $('#rollCountSummary').text(`Showing ${resp.count} rolls in store`);
             } else {
               allRollsData = [];
-              $('#rollsTableBody').html('<tr><td colspan="11" class="text-center py-5 text-muted fs-5"><i class="fa-solid fa-box-open me-2 text-secondary"></i> No rolls found in store.</td></tr>');
-              $('#rollCountSummary').text('Showing 0 rolls');
+              $('#rollsTableBody').html('<tr><td colspan="10" class="text-center py-5 text-muted fs-5"><i class="fa-solid fa-box-open me-2 text-secondary"></i> No rolls found in store.</td></tr>');
             }
             updateBatchToolbar();
             if (typeof callback === 'function') callback();
           },
           error: function() {
-            $('#rollsTableBody').html('<tr><td colspan="11" class="text-center py-5 text-danger fs-5"><i class="fa-solid fa-triangle-exclamation me-2"></i> Failed to connect to server.</td></tr>');
+            $('#rollsTableBody').html('<tr><td colspan="10" class="text-center py-5 text-danger fs-5"><i class="fa-solid fa-triangle-exclamation me-2"></i> Failed to connect to server.</td></tr>');
             if (typeof callback === 'function') callback();
           }
         });
@@ -1863,7 +2064,7 @@ if (empty($initialMasterRacks)) {
         $tbody.empty();
 
         if (!data || data.length === 0) {
-          $tbody.html('<tr><td colspan="11" class="text-center py-5 text-muted fs-5"><i class="fa-solid fa-box-open me-2 text-secondary"></i> No rolls matched the search filter.</td></tr>');
+          $tbody.html('<tr><td colspan="10" class="text-center py-5 text-muted fs-5"><i class="fa-solid fa-box-open me-2 text-secondary"></i> No rolls matched the search filter.</td></tr>');
           return;
         }
 
@@ -1872,13 +2073,13 @@ if (empty($initialMasterRacks)) {
           const rackLoc = row.RACKLOCATION || '';
           const fullRackDisp = rawRack ? `Rack ${rawRack}${rackLoc ? ' (' + rackLoc + ')' : ''}` : 'Unassigned';
 
+          const safeDate = $('<div>').text(row.BUDAT || row.CREATED_DATE || '-').html();
           const safeRoll = $('<div>').text(row.ROLL).html();
           const safePO = $('<div>').text(row.PO_NUMBER || '-').html();
-          const safeBuyer = $('<div>').text(row.BUYER || '-').html();
-          const safeStyle = $('<div>').text(row.STYLE || '-').html();
           const safeColor = $('<div>').text(row.COLOR || '-').html();
-          const safeQty = parseFloat(row.QTY || 0).toFixed(2);
-          const safeMC = $('<div>').text(row.MCNO || '-').html();
+          const qtyText = String(row.QTY == null ? '' : row.QTY).trim();
+          const safeQty = /^-?\d+\.0+$/.test(qtyText) ? qtyText.replace(/\.0+$/, '') : $('<div>').text(qtyText || '-').html();
+          const safeFabric = $('<div>').text(row.FTYPE || '-').html();
 
           // Build row
           const tr = `
@@ -1886,31 +2087,31 @@ if (empty($initialMasterRacks)) {
               <td class="text-center">
                 <input type="checkbox" class="form-check-input row-checkbox" value="${safeRoll}">
               </td>
+              <td><span class="table-data-date">${safeDate}</span></td>
               <td>
                 <span class="roll-barcode-text">${safeRoll}</span>
               </td>
-              <td>
-                <span class="badge-curr-rack" id="badge-${safeRoll}">
-                  <i class="fa-solid fa-location-dot"></i> ${fullRackDisp}
-                </span>
-              </td>
               <td><span class="table-data-po">${safePO}</span></td>
-              <td><span class="table-data-buyer">${safeBuyer}</span></td>
-              <td><span class="table-data-style">${safeStyle}</span></td>
               <td><span class="table-data-color">${safeColor}</span></td>
               <td class="text-end table-data-qty">${safeQty}</td>
-              <td><span class="badge-machine">${safeMC}</span></td>
+              <td><span class="table-data-fabric">${safeFabric}</span></td>
+              <td>
+                <span class="badge-curr-rack" id="badge-${safeRoll}">
+                  ${fullRackDisp}
+                </span>
+              </td>
               <td>
                 <div class="destination-group">
                   <div class="destination-selects-wrapper">
                     <select class="inline-rack-select" id="select-rack-${safeRoll}" onchange="window.onRackChange('${safeRoll}')">
                       ${dbRackOptionsHtml}
                     </select>
-                    <select class="inline-shelf-select" id="select-shelf-${safeRoll}" onchange="window.onShelfChange('${safeRoll}')" disabled>
-                      <option value="" disabled selected>Select Rack First...</option>
-                    </select>
+                    <div class="shelf-picker">
+                      <input type="hidden" class="inline-shelf-select" id="select-shelf-${safeRoll}" disabled>
+                      <button type="button" class="shelf-picker-trigger" aria-haspopup="grid" aria-expanded="false" disabled>Select Rack First...</button>
+                      <div class="shelf-picker-menu" role="grid" hidden></div>
+                    </div>
                   </div>
-                  <div class="shelf-hint-text" id="shelf-hint-${safeRoll}"></div>
                 </div>
               </td>
               <td class="text-center">
@@ -1930,30 +2131,13 @@ if (empty($initialMasterRacks)) {
       window.onRackChange = function(roll) {
         const toRack = $(`#select-rack-${roll}`).val();
         const $shelfSelect = $(`#select-shelf-${roll}`);
-        const $hint = $(`#shelf-hint-${roll}`);
 
         if (!toRack) {
-          $shelfSelect.val('').prop('disabled', true).html('<option value="" disabled selected>Select Rack First...</option>');
-          $hint.empty();
+          resetShelfPicker($shelfSelect, 'Select Rack First...');
           return;
         }
 
-        $hint.html('<span class="text-muted"><i class="fa-solid fa-spinner fa-spin"></i> Loading shelves from database...</span>');
-
-        // Dynamically fetch shelves for this rack directly from database
-        loadDatabaseShelves(toRack, $shelfSelect, roll, function(resp) {
-          $hint.html(`<span class="text-primary"><i class="fa-solid fa-hand-pointer"></i> Rack ${toRack}: ${resp.available_count} of ${resp.total_shelves} shelves empty. Choose a shelf.</span>`);
-        });
-      };
-
-      window.onShelfChange = function(roll) {
-        const toRack = $(`#select-rack-${roll}`).val();
-        const toShelf = $(`#select-shelf-${roll}`).val();
-        const $hint = $(`#shelf-hint-${roll}`);
-
-        if (toRack && toShelf) {
-          $hint.html(`<span class="text-success"><i class="fa-solid fa-circle-check"></i> Destination: Rack ${toRack} (Shelf ${toShelf})</span>`);
-        }
+        loadDatabaseShelves(toRack, $shelfSelect, roll);
       };
 
       // -----------------------------------------------------------
@@ -1971,7 +2155,7 @@ if (empty($initialMasterRacks)) {
 
         if (!toRackLoc) {
           showToast('Please select a specific Shelf/Location (e.g., A1, B2) for this roll.', 'warning');
-          $(`#select-shelf-${roll}`).focus();
+          $(`#select-shelf-${roll}`).closest('.shelf-picker').find('.shelf-picker-trigger').trigger('focus');
           return;
         }
 
@@ -1993,7 +2177,7 @@ if (empty($initialMasterRacks)) {
             if (resp && resp.success) {
               // Update badge in real-time
               const newDisp = `Rack ${resp.to_rackno}${resp.to_racklocation ? ' (' + resp.to_racklocation + ')' : ''}`;
-              $(`#badge-${roll}`).html(`<i class="fa-solid fa-location-dot"></i> ${newDisp}`);
+              $(`#badge-${roll}`).text(newDisp);
 
               // Highlight row
               const $row = $(`#row-${roll}`);
@@ -2031,9 +2215,9 @@ if (empty($initialMasterRacks)) {
           $('#batchToolbar').addClass('active');
         } else {
           $('#batchToolbar').removeClass('active');
-          $('#batchCapacityBadge').hide();
+          $('.rack-table tr.row-selected').removeClass('row-selected');
           $('#batchTargetRack').val('');
-          $('#batchTargetShelf').val('').prop('disabled', true);
+          resetShelfPicker($('#batchTargetShelf'), 'Select Rack First...');
         }
       }
 
@@ -2048,7 +2232,7 @@ if (empty($initialMasterRacks)) {
         const toRackLocation = $('#batchTargetShelf').val();
         if (!toRackLocation) {
           showToast('Please select a target Shelf/Location (e.g., A1, B2) in the batch bar.', 'warning');
-          $('#batchTargetShelf').focus();
+          $('#batchTargetShelf').closest('.shelf-picker').find('.shelf-picker-trigger').trigger('focus');
           return;
         }
 
@@ -2095,7 +2279,7 @@ if (empty($initialMasterRacks)) {
       }
 
       // -----------------------------------------------------------
-      // 4. Load KPI Metrics
+      // 4. Refresh rack filter options.
       // -----------------------------------------------------------
       function loadStats() {
         $.ajax({
@@ -2105,11 +2289,6 @@ if (empty($initialMasterRacks)) {
           dataType: 'json',
           success: function(resp) {
             if (resp && resp.success) {
-              $('#kpiTotalRolls').text(resp.total_rolls || 0);
-              $('#kpiTotalQty').text(parseFloat(resp.total_qty || 0).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }));
-              $('#kpiActiveRacks').text(resp.active_racks || 0);
-              $('#kpiTransfersToday').text(resp.transfers_today || 0);
-
               // Update Rack Filter dropdown while preserving selection
               const curFilter = $('#rackFilterSelect').val() || 'ALL';
               const $select = $('#rackFilterSelect');
@@ -2129,118 +2308,6 @@ if (empty($initialMasterRacks)) {
               $select.val(curFilter);
             }
           }
-        });
-      }
-
-      // -----------------------------------------------------------
-      // 5. Load Audit History Logs & Modal Search
-      // -----------------------------------------------------------
-      let cachedHistoryLogs = [];
-
-      function loadHistoryLogs(callback) {
-        const $tbody = $('#historyTableBody');
-        $tbody.html('<tr><td colspan="8" class="text-center py-5 text-muted fs-6"><i class="fa-solid fa-spinner fa-spin me-2 text-primary"></i> Loading audit records...</td></tr>');
-        $('#historyCountBadge').text('Loading...');
-
-        $.ajax({
-          url: 'ajaxKnitting_rack_transfer.php',
-          type: 'GET',
-          data: { action: 'get_logs' },
-          dataType: 'json',
-          success: function(resp) {
-            if (resp && resp.success && resp.data) {
-              cachedHistoryLogs = resp.data;
-              const searchVal = $('#modalHistorySearch').val().toLowerCase().trim();
-              if (searchVal) {
-                filterHistoryLogs(searchVal);
-              } else {
-                renderHistoryTable(cachedHistoryLogs);
-              }
-            } else {
-              $tbody.html('<tr><td colspan="8" class="text-center py-5 text-muted fs-6">No transfer logs recorded yet.</td></tr>');
-              $('#historyCountBadge').text('0 entries');
-            }
-            if (typeof callback === 'function') callback();
-          },
-          error: function() {
-            $tbody.html('<tr><td colspan="8" class="text-center py-5 text-danger fs-6"><i class="fa-solid fa-triangle-exclamation me-2"></i> Failed to load transfer history.</td></tr>');
-            $('#historyCountBadge').html('<i class="fa-solid fa-triangle-exclamation text-danger me-1"></i> Error');
-            if (typeof callback === 'function') callback();
-          }
-        });
-      }
-
-      function filterHistoryLogs(query) {
-        if (!query) {
-          renderHistoryTable(cachedHistoryLogs);
-          return;
-        }
-        const filtered = cachedHistoryLogs.filter(function(log) {
-          const hay = `${log.id} ${log.roll} ${log.from_rack || ''} ${log.to_rack || ''} ${log.transfer_by || ''} ${log.transfer_date || ''} ${log.BUYER || ''} ${log.STYLE || ''} ${log.PO_NUMBER || ''}`.toLowerCase();
-          return hay.includes(query);
-        });
-        renderHistoryTable(filtered);
-      }
-
-      function renderHistoryTable(logs) {
-        const $tbody = $('#historyTableBody');
-        $tbody.empty();
-
-        if (!logs || logs.length === 0) {
-          $tbody.html('<tr><td colspan="8" class="text-center py-5 text-muted fs-6">No matching transfer records found.</td></tr>');
-          $('#historyCountBadge').html('<i class="fa-solid fa-database text-primary me-1"></i> 0 entries');
-          return;
-        }
-
-        $('#historyCountBadge').html(`<i class="fa-solid fa-database text-primary me-1"></i> ${logs.length} ${logs.length === 1 ? 'entry' : 'entries'}`);
-
-        logs.forEach(function(log) {
-          const safeId = log.id;
-          const safeRoll = $('<div>').text(log.roll).html();
-          const safeFrom = $('<div>').text(log.from_rack || '-').html();
-          const safeTo = $('<div>').text(log.to_rack || '-').html();
-          const safeBy = $('<div>').text(log.transfer_by || 'User').html();
-          const safeDate = $('<div>').text(log.transfer_date).html();
-          const safeBuyer = $('<div>').text(log.BUYER || '-').html();
-          const safeStyle = $('<div>').text(log.STYLE ? ' / ' + log.STYLE : '').html();
-
-          const tr = `
-            <tr>
-              <td class="ps-4">
-                <span class="badge bg-light text-secondary border px-3 py-1.5 fw-bold font-monospace" style="font-size: 1.05rem;">#${safeId}</span>
-              </td>
-              <td>
-                <span class="roll-barcode-text" style="font-size: 1.15rem; padding: 6px 14px;">${safeRoll}</span>
-              </td>
-              <td>
-                <span class="history-from-rack" style="color: #0f172a !important; font-weight: 800; font-size: 1.12rem; padding: 7px 16px; background: #f1f5f9 !important; border: 1.5px solid #cbd5e1 !important; opacity: 1 !important;">
-                  <i class="fa-solid fa-location-dot me-1" style="color: #475569 !important;"></i> ${safeFrom}
-                </span>
-              </td>
-              <td class="text-center px-1">
-                <i class="fa-solid fa-arrow-right-long fs-5 text-primary"></i>
-              </td>
-              <td>
-                <span class="history-to-rack" style="color: #065f46 !important; font-weight: 800; font-size: 1.12rem; padding: 7px 16px; background: #ecfdf5 !important; border: 1.5px solid #6ee7b7 !important; opacity: 1 !important;">
-                  <i class="fa-solid fa-circle-check me-1" style="color: #059669 !important;"></i> ${safeTo}
-                </span>
-              </td>
-              <td>
-                <span class="badge bg-dark-subtle text-dark px-3 py-2 fw-bold" style="font-size: 1.05rem;">
-                  <i class="fa-solid fa-user-check me-1 text-primary"></i> ${safeBy}
-                </span>
-              </td>
-              <td>
-                <span class="text-dark fw-bold" style="font-size: 1.05rem;">
-                  <i class="fa-regular fa-clock me-1 text-secondary"></i> ${safeDate}
-                </span>
-              </td>
-              <td class="pe-4">
-                <span class="fw-bold text-dark" style="font-size: 1.1rem;">${safeBuyer}</span> <span class="text-muted fw-semibold" style="font-size: 1.05rem;">${safeStyle}</span>
-              </td>
-            </tr>
-          `;
-          $tbody.append(tr);
         });
       }
 

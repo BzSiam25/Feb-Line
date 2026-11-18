@@ -94,6 +94,46 @@ if (!$db) {
 // Set charset
 mysqli_set_charset($db, 'utf8mb4');
 
+if (!function_exists('ensureKnittingRackTransferTable')) {
+    function ensureKnittingRackTransferTable(mysqli $db): void
+    {
+        $result = $db->query("
+            SELECT TABLE_NAME
+            FROM information_schema.TABLES
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'knitting_rack_transfer'
+        ");
+        if (!$result) {
+            throw new RuntimeException('Unable to inspect knitting rack transfer table: ' . $db->error);
+        }
+
+        $tableExists = $result->num_rows > 0;
+        $result->free();
+
+        if ($tableExists) {
+            return;
+        }
+
+        $sql = "
+            CREATE TABLE IF NOT EXISTS knitting_rack_transfer (
+                BUDAT DATE NULL,
+                KRTID INT(11) NOT NULL AUTO_INCREMENT,
+                KSTID INT(11) NOT NULL,
+                ROLLNO VARCHAR(100) NOT NULL,
+                FRACK VARCHAR(50) NULL,
+                TORACK VARCHAR(50) NULL,
+                PRIMARY KEY (KRTID),
+                KEY idx_knitting_rack_transfer_kstid (KSTID),
+                KEY idx_knitting_rack_transfer_budat (BUDAT)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        ";
+
+        if (!$db->query($sql)) {
+            throw new RuntimeException('Unable to create knitting rack transfer table: ' . $db->error);
+        }
+    }
+}
+
 if (!defined('APP_BASE_URL')) {
     $host = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : 'localhost';
     $scriptDir = isset($_SERVER['SCRIPT_NAME']) ? rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\') : '/Knitting Project';
