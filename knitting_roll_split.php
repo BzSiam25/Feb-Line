@@ -101,46 +101,55 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
     $qty = floatval($orig['QTY']);
 
     if ($splitQty >= $qty) {
-        echo json_encode(['success' => false, 'error' => 'Split QTY (' . $splitQty . ') must be less than current Store QTY (' . $qty . ')']);
+        echo json_encode(['success' => false, 'error' => 'Main roll QTY (' . $splitQty . ') must be less than current Store QTY (' . $qty . ')']);
         exit();
     }
+    $remainingQty = round($qty - $splitQty, 2);
 
-    // Base roll number (strip existing suffix like -A, -B)
-    $base = $roll;
-    $dashPos = strpos($roll, '-');
-    if ($dashPos !== false) {
-        $base = substr($roll, 0, $dashPos);
+    $lastDashPos = strrpos($roll, '-');
+    $lastSegment = $lastDashPos === false ? '' : substr($roll, $lastDashPos + 1);
+    $isSplitChild = false;
+    if ($lastDashPos !== false && strlen($lastSegment) === 1 && ctype_alpha($lastSegment) && strtoupper($lastSegment) !== 'P') {
+        $parentRoll = substr($roll, 0, $lastDashPos);
+        $parentEsc = mysqli_real_escape_string($db, $parentRoll);
+        $parentResult = mysqli_query($db, "SELECT KSTID FROM knitting_store WHERE ROLL = '$parentEsc' LIMIT 1");
+        if (!$parentResult) {
+            echo json_encode(['success' => false, 'error' => 'Could not determine the parent roll - ' . mysqli_error($db)]);
+            exit();
+        }
+        $isSplitChild = mysqli_num_rows($parentResult) > 0;
     }
 
-    // Find used suffix letters for this base (e.g. 300000001-A, 300000001-B)
-    $baseEsc = mysqli_real_escape_string($db, $base);
-    $sufQ = mysqli_query($db, "SELECT ROLL FROM knitting_store WHERE ROLL LIKE '$baseEsc-%'");
+    $rollEsc = mysqli_real_escape_string($db, $roll);
+    $sufQ = mysqli_query($db, "SELECT ROLL FROM knitting_store WHERE ROLL LIKE '$rollEsc-%'");
+    if (!$sufQ) {
+        echo json_encode(['success' => false, 'error' => 'Could not check existing roll suffixes - ' . mysqli_error($db)]);
+        exit();
+    }
     $used = [];
-    if ($sufQ) {
-        while ($r = mysqli_fetch_assoc($sufQ)) {
-            $suffix = substr($r['ROLL'], strlen($base) + 1);
-            if (strlen($suffix) === 1 && ctype_alpha($suffix)) {
-                $used[strtoupper($suffix)] = true;
-            }
+    while ($r = mysqli_fetch_assoc($sufQ)) {
+        $suffix = substr($r['ROLL'], strlen($roll) + 1);
+        if (strlen($suffix) === 1 && ctype_alpha($suffix)) {
+            $used[strtoupper($suffix)] = true;
         }
     }
 
-    // Pick next available letters (A, B, C, ...)
-    $letters = [];
-    foreach (range('A', 'Z') as $ch) {
+    // Keep the production "-P" roll suffix intact and nest subsequent split suffixes.
+    $startLetter = $isSplitChild ? ord(strtoupper($lastSegment)) + 1 : ord('A');
+    $nextLetter = '';
+    for ($letterCode = $startLetter; $letterCode <= ord('Z'); $letterCode++) {
+        $ch = chr($letterCode);
         if (!isset($used[$ch])) {
-            $letters[] = $ch;
-            if (count($letters) === 2) break;
+            $nextLetter = $ch;
+            break;
         }
     }
-    if (count($letters) < 2) {
-        echo json_encode(['success' => false, 'error' => 'No suffix letters available for base ' . $base]);
+    if ($nextLetter === '') {
+        echo json_encode(['success' => false, 'error' => 'No suffix letters available for roll ' . $roll]);
         exit();
     }
 
-    $newRollA = $base . '-' . $letters[0];
-    $newRollB = $base . '-' . $letters[1];
-    $remainB = round($qty - $splitQty, 2);
+    $newRoll = $roll . '-' . $nextLetter;
 
     // Copy fields from original store row
     $fBUDAT   = mysqli_real_escape_string($db, $orig['BUDAT']);
@@ -197,38 +206,45 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
     $fUNAME = mysqli_real_escape_string($db, $srcUNAME);
     $fUID   = mysqli_real_escape_string($db, $srcUID);
 
-    mysqli_begin_transaction($db);
+    // Keep the entered quantity on the original roll and move the remainder to its nested roll.
+    if (!mysqli_begin_transaction($db)) {
+        echo json_encode(['success' => false, 'error' => 'Could not start split transaction - ' . mysqli_error($db)]);
+        exit();
+    }
 
-    // Original store row becomes base-A with split qty
-    $u1 = "UPDATE knitting_store SET ROLL = '$newRollA', QTY = '$splitQty' WHERE KSTID = '" . intval($orig['KSTID']) . "'";
-    // New store row becomes base-B with remaining qty
+    $u1 = "UPDATE knitting_store SET QTY = '$splitQty' WHERE KSTID = '" . intval($orig['KSTID']) . "'";
     $i2 = "INSERT INTO knitting_store
             (BUDAT, RACKNO, RACKLOCATION, ROLL, PO_NUMBER, QTY, SONO, SHIFT, BUYER, STYLE, COLOR,
              MCNO, MCDIA, CUSTOMER, YTYPE, YCOUNT, YBRAND, O_T, SL, FTYPE, FGSM, FDIA,
              FEEDER_PLAN, CATEGORY, LOT_NO, TPOINT, MCODE, MDESCRIPTION, UNAME, UID, QC_STATUS, CREATED_DATE)
            VALUES
-            ('$fBUDAT', '$fRACKNO', '$fRACKLOC', '$newRollB', '$fPO', '$remainB', '$fSONO', '$fSHIFT', '$fBUYER', '$fSTYLE', '$fCOLOR',
+            ('$fBUDAT', '$fRACKNO', '$fRACKLOC', '$newRoll', '$fPO', '$remainingQty', '$fSONO', '$fSHIFT', '$fBUYER', '$fSTYLE', '$fCOLOR',
              '$fMCNO', '$fMCDIA', '$fCUST', '$fYTYPE', '$fYCOUNT', '$fYBRAND', '$fOT', '$fSL', '$fFTYPE', '$fFGSM', '$fFDIA',
              '$fFEEDER', '$fCATEGORY', '$fLOT', '$fTPOINT', '$fMCODE', '$fMDES', '$fUNAME', '$fUID', '$fQCSTATUS', NOW())";
 
     $ok1 = mysqli_query($db, $u1);
     $ok2 = $ok1 ? mysqli_query($db, $i2) : false;
-
-    if ($ok1 && $ok2) {
-        mysqli_commit($db);
-        echo json_encode([
-            'success' => true,
-            'message' => 'Roll split successfully',
-            'old_roll' => $roll,
-            'roll_a' => $newRollA,
-            'qty_a' => $splitQty,
-            'roll_b' => $newRollB,
-            'qty_b' => $remainB
-        ]);
-    } else {
+    if (!$ok1 || !$ok2) {
+        $error = mysqli_error($db);
         mysqli_rollback($db);
-        echo json_encode(['success' => false, 'error' => 'Split failed - ' . mysqli_error($db)]);
+        echo json_encode(['success' => false, 'error' => 'Split failed - ' . $error]);
+        exit();
     }
+    if (!mysqli_commit($db)) {
+        $error = mysqli_error($db);
+        mysqli_rollback($db);
+        echo json_encode(['success' => false, 'error' => 'Could not commit split - ' . $error]);
+        exit();
+    }
+
+    echo json_encode([
+        'success' => true,
+        'message' => 'Roll split successfully',
+        'original_roll' => $roll,
+        'original_qty' => $splitQty,
+        'new_roll' => $newRoll,
+        'new_qty' => $remainingQty
+    ]);
     exit();
 }
 ?>
@@ -1057,8 +1073,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
                 '<div class="info-grid mb-3">' +
                 infoItem('Roll No', d.ROLL, true) +
                 infoItem('Current QTY', d.QTY) +
-                infoItem('Rack No', d.RACKNO) +
-                infoItem('Rack Location', d.RACKLOCATION) +
+                infoItem('Rack', String(d.RACKNO || '') + String(d.RACKLOCATION || '')) +
                 infoItem('PO Number', d.PO_NUMBER) +
                 infoItem('SO No', d.SONO) +
                 infoItem('Buyer', d.BUYER) +
@@ -1077,16 +1092,15 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
                 infoItem('YARN BRAND', d.YBRAND) +
                 infoItem('LOT NO', d.LOT_NO) +
                 infoItem('Feeder Plan', d.FEEDER_PLAN) +
+                infoItem('TOTAL POINT', d.TPOINT) +
+                infoItem('QC STATUS', d.QC_STATUS) +
                 infoItem('CATEGORY', d.CATEGORY) +
-                infoItem('QC_STATUS', d.QC_STATUS) +
                 '</div>' +
                 '<hr>' +
-                '<h5 class="fw-bold mb-3" style="color:#1e293b;"><i class="fa-solid fa-scissors me-2 text-danger"></i>Split This Roll</h5>' +
                 '<div class="split-form-row">' +
                 '<div class="split-qty-field">' +
-                '<label class="form-label fw-semibold" style="color:black;">Split QTY</label>' +
-                '<input type="number" id="splitQtyInput" class="form-control" min="0.01" step="0.01" placeholder="Enter split QTY">' +
-                '<div class="small-muted mt-1">Example: Roll 300000001 (QTY 500), split 200 &rarr; <b>300000001-A</b> (200) + <b>300000001-B</b> (300)</div>' +
+                '<label class="form-label fw-semibold" style="color:black;">Main Roll QTY</label>' +
+                '<input type="number" id="splitQtyInput" class="form-control" min="0.01" step="0.01" placeholder="Enter main roll QTY">' +
                 '</div>' +
                 '<div class="split-action">' +
                 '<button class="btn" id="splitBtn" style="background:#dc2626;border:1px solid #dc2626;color:#fff;border-radius:8px;">' +
@@ -1114,7 +1128,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
                 Swal.fire({
                     icon: 'warning',
                     title: 'Invalid QTY',
-                    text: 'Please enter a valid Split QTY',
+                    text: 'Please enter a valid main roll QTY',
                     confirmButtonColor: '#2563eb'
                 });
                 return;
@@ -1123,20 +1137,21 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
                 Swal.fire({
                     icon: 'error',
                     title: 'QTY not valid!',
-                    text: 'Split QTY must be less than current Store QTY (' + qty + ')',
+                    text: 'Main roll QTY must be less than current Store QTY (' + qty + ')',
                     confirmButtonColor: '#2563eb'
                 });
                 return;
             }
+            var remainingQty = Math.round((qty - splitQty) * 100) / 100;
 
             Swal.fire({
                 title: 'Split this store roll?',
-                html: 'Roll <b>' + esc(currentRoll.ROLL) + '</b> (' + qty + ')<br>Split QTY: <b>' + splitQty + '</b>',
+                html: 'Original roll <b>' + esc(currentRoll.ROLL) + '</b> QTY: <b>' + splitQty + '</b>.<br>New roll QTY: <b>' + remainingQty + '</b>',
                 icon: 'question',
                 showCancelButton: true,
                 confirmButtonColor: '#dc2626',
                 cancelButtonColor: '#6b7280',
-                confirmButtonText: 'Yes, Split!',
+                confirmButtonText: 'Yes, Split',
                 customClass: { popup: 'roll-split-popup' }
             }).then(function(r) {
                 if (!r.isConfirmed) return;
@@ -1158,12 +1173,10 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
                             var msgHtml =
                                 '<div style="text-align:left;font-size:18px;line-height:1.55;">' +
                                 '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:14px 16px;margin-bottom:10px;">' +
-                                '<b>Original Roll:</b> ' + resp.old_roll + '</div>' +
-                                '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px 16px;margin-bottom:10px;">' +
-                                '<b>Roll A:</b> <span style="color:#16a34a;font-weight:800;">' + resp.roll_a + '</span> &rarr; QTY: <b>' + resp.qty_a + '</b></div>' +
+                                '<b>Original Roll:</b> <span style="color:#16a34a;font-weight:800;">' + resp.original_roll + '</span> &rarr; QTY: <b>' + resp.original_qty + '</b></div>' +
                                 '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px 16px;">' +
-                                '<b>Roll B:</b> <span style="color:#16a34a;font-weight:800;">' + resp.roll_b + '</span> &rarr; QTY: <b>' + resp.qty_b + '</b></div>' +
-                                '<div class="small-muted mt-3" style="font-size:15px;">Old roll number will no longer exist - print new labels for both rolls</div>' +
+                                '<b>New Roll:</b> <span style="color:#16a34a;font-weight:800;">' + resp.new_roll + '</span> &rarr; QTY: <b>' + resp.new_qty + '</b></div>' +
+                                '<div class="small-muted mt-3" style="font-size:15px;">The original roll number remains unchanged. Print a label for the new roll.</div>' +
                                 '</div>';
 
                             if (typeof Swal !== 'undefined') {
@@ -1179,7 +1192,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
                                     window.location.reload();
                                 });
                             } else {
-                                alert('Roll Split Successful! ' + resp.roll_a + ' (' + resp.qty_a + ') & ' + resp.roll_b + ' (' + resp.qty_b + ')');
+                                alert('Roll Split Successful! ' + resp.original_roll + ' (' + resp.original_qty + ') & ' + resp.new_roll + ' (' + resp.new_qty + ')');
                                 window.location.reload();
                             }
                         } else {

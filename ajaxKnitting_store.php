@@ -57,7 +57,6 @@ if ($action === 'search') {
 
     $rollEsc = mysqli_real_escape_string($db, $roll);
     $cleanRoll = preg_replace('/-(R|P)$/i', '', $roll);
-    $cleanRollEsc = mysqli_real_escape_string($db, $cleanRoll);
 
     // If the roll is already stored in knitting_store, do NOT show data again
     $storeRes = mysqli_query($db, "SELECT ROLL FROM knitting_store WHERE TRIM(ROLL) = '$rollEsc' LIMIT 1");
@@ -70,12 +69,12 @@ if ($action === 'search') {
         exit;
     }
 
-    // Search exact roll first, then fallback to clean base roll
-    $sql = "SELECT * FROM $TABLE WHERE TRIM(ROLL) = '$rollEsc' LIMIT 1";
+    // Search the exact roll first, using the latest inspection record when duplicates exist.
+    $sql = "SELECT * FROM $TABLE WHERE TRIM(ROLL) = '$rollEsc' ORDER BY KITID DESC LIMIT 1";
     $result = mysqli_query($db, $sql);
-    if (!$result || mysqli_num_rows($result) == 0) {
-        $sql = "SELECT * FROM $TABLE WHERE TRIM(ROLL) = '$cleanRollEsc' ORDER BY KITID DESC LIMIT 1";
-        $result = mysqli_query($db, $sql);
+    if (!$result) {
+        echo json_encode(['success' => false, 'error' => 'Unable to match this roll in Knitting Inspection: ' . mysqli_error($db)]);
+        exit;
     }
 
     if ($result && mysqli_num_rows($result) > 0) {
@@ -116,10 +115,10 @@ if ($action === 'search') {
             }
             echo json_encode(['success' => true, 'data' => $data]);
         } else {
-            echo json_encode(['success' => false, 'error' => 'No data found for this Roll number']);
+            echo json_encode(['success' => false, 'error' => "Roll $roll does not match any ROLL in Knitting Inspection."]);
         }
     } else {
-        echo json_encode(['success' => false, 'error' => mysqli_error($db)]);
+        echo json_encode(['success' => false, 'error' => "Roll $roll does not match any ROLL in Knitting Inspection."]);
     }
 
 } elseif ($action === 'save_rack') {

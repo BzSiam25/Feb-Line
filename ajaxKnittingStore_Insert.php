@@ -56,12 +56,10 @@ function insertKnittingStoreRoll($statement, $item, $rackNo, $rackLocation, $una
 }
 
 function assertKnittingRollPassed($db, $roll) {
-    $cleanRoll = preg_replace('/-(R|P)$/i', '', $roll);
     $escapedRoll = mysqli_real_escape_string($db, $roll);
-    $escapedCleanRoll = mysqli_real_escape_string($db, $cleanRoll);
     $sql = "SELECT QC_STATUS FROM knitting_inspection
-        WHERE TRIM(ROLL) IN ('$escapedRoll', '$escapedCleanRoll')
-        ORDER BY CASE WHEN TRIM(ROLL) = '$escapedRoll' THEN 0 ELSE 1 END, KITID DESC
+        WHERE TRIM(ROLL) = '$escapedRoll'
+        ORDER BY KITID DESC
         LIMIT 1";
     $result = mysqli_query($db, $sql);
     if (!$result) {
