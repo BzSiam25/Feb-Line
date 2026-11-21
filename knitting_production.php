@@ -974,57 +974,105 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
     white-space: nowrap;
 }
 
-    .production-header {
-      display: flex;
+    .knitting-page-header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
       align-items: center;
-      gap: 10px;
-      margin-bottom: 20px;
-      padding: 0 4px;
+      gap: 12px;
+      margin-bottom: 14px;
+      padding: 12px 18px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1);
+      color: #fff;
+      font-family: "Segoe UI", Arial, sans-serif;
     }
 
-    .production-header h2 {
-      color: #083a36;
-      font-size: 1.4rem;
-      font-weight: 800;
-      letter-spacing: 0.5px;
+    .knitting-page-header.production-page-header {
+      background: linear-gradient(135deg, #166534 0%, #15803d 50%, #16a34a 100%);
+    }
+
+    .knitting-page-header h1 {
+      grid-column: 2;
+      grid-row: 1;
       margin: 0;
+      color: #fff;
+      text-align: center;
+      font-size: clamp(1.2rem, 3vw, 1.5rem);
+      font-weight: 800;
+      white-space: nowrap;
     }
 
-    .production-header h2 i {
-      color: #0f7a6f;
-      margin-right: 8px;
+    .knitting-header-back {
+      grid-column: 1;
+      grid-row: 1;
+      justify-self: start;
+      display: inline-flex;
+      align-items: center;
+      padding: 9px 14px;
+      border: 2px solid #000;
+      border-radius: 8px;
+      background: #000;
+      color: #fff;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 1rem;
+      white-space: nowrap;
     }
 
-    .production-header .badge-production {
-      margin-left: auto;
-      background: #2563eb;
-      color: white;
-      font-size: 0.7rem;
-      padding: 3px 14px;
-      border-radius: 100px;
-      font-weight: 600;
-      letter-spacing: 0.3px;
+    .knitting-header-refresh {
+      grid-column: 3;
+      grid-row: 1;
+      justify-self: end;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      min-height: 40px;
+      padding: 8px 12px;
+      border: 0;
+      border-radius: 8px;
+      background: #087f70;
+      color: #fff;
+      font-size: 0.85rem;
+      font-weight: 800;
+      white-space: nowrap;
+      cursor: pointer;
     }
 
-    @media (max-width: 480px) {
-      .production-header {
-        flex-wrap: wrap;
+    .knitting-header-back:hover {
+      background: #fff;
+      color: #000;
+      text-decoration: none;
+    }
+
+    .knitting-header-refresh:hover {
+      filter: brightness(0.94);
+    }
+
+    @media (max-width: 800px) {
+      .knitting-page-header {
+        gap: 8px;
+        padding: 10px;
       }
 
-      .production-header .badge-production {
-        margin-left: auto;
+      .knitting-page-header h1 {
+        font-size: 1.1rem;
       }
 
+      .knitting-header-back {
+        padding: 8px 10px;
+      }
     }
   </style>
 </head>
 
 <body>
   <div class="card" id="mainCard">
-    <div class="production-header">
-      <h2><i class="fa-solid fa-industry"></i>Knitting Production</h2>
-      <span class="badge-production">PRODUCTION</span>
-      <button type="button" class="camera-action-btn" id="cameraRefreshBtn" title="Reload the full page">
+    <div class="knitting-page-header production-page-header">
+      <a class="knitting-header-back" href="initialPage.php">← Back</a>
+      <h1>Knitting Production</h1>
+      <button type="button" class="knitting-header-refresh" id="cameraRefreshBtn" title="Reload the full page">
         <i class="fa-solid fa-rotate-right"></i> Refresh
       </button>
     </div>
@@ -1062,14 +1110,6 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
         <!-- Default content will be injected by JS -->
       </div>
       <div id="action-content" class="action-content"></div>
-    </div>
-    <!-- FOOTER -->
-    <div class="footer-note" style="margin-top:6px; text-align:center; color:#334155; letter-spacing:0.5px;">
-      <button class="back-btn"
-        onclick="window.location.href='initialPage.php';">
-        <i class="fa-solid fa-arrow-left" style="margin-right:6px;"></i>
-        Back to Initial Page
-      </button>
     </div>
   </div>
 

@@ -249,8 +249,24 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
     <style>
         body {
             margin: 0;
-            padding: 6px 18px 18px;
-            background: #f5f7fa;
+            padding: 16px;
+            background: linear-gradient(135deg, #e2e8f0, #f8fafc, #dbeafe);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            font-family: "Segoe UI", Roboto, system-ui, -apple-system, sans-serif;
+        }
+
+        .roll-split-card {
+            max-width: 1200px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 14px 16px 18px;
+            background: #fff;
+            border: 1px solid #dbe4ef;
+            border-radius: 18px;
+            box-shadow: 0 10px 25px rgba(30, 60, 120, 0.12);
         }
 
         .panel {
@@ -268,64 +284,94 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
             text-align: center;
         }
 
-        .page-header {
+        .knitting-page-header {
             display: grid;
-            grid-template-columns: 1fr auto 1fr;
+            grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
             align-items: center;
             gap: 12px;
             width: 100%;
             margin-bottom: 14px;
-            padding: 14px 18px;
-            border: 1px solid #0f766e;
-            border-radius: 14px;
-            background: linear-gradient(120deg, #0f766e, #2563eb);
-            box-shadow: 0 8px 20px rgba(15, 118, 110, 0.18);
+            padding: 12px 18px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1);
+            color: #fff;
+            font-family: "Segoe UI", Arial, sans-serif;
         }
 
-        .page-header .back-btn {
+        .knitting-page-header.roll-split-page-header {
+            background: linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #3b82f6 100%);
+        }
+
+        .knitting-page-header h1 {
+            grid-column: 2;
+            grid-row: 1;
+            margin: 0;
+            color: #fff;
+            text-align: center;
+            font-size: clamp(1.2rem, 3vw, 1.5rem);
+            font-weight: 800;
+            white-space: nowrap;
+        }
+
+        .knitting-header-back {
+            grid-column: 1;
+            grid-row: 1;
             justify-self: start;
-        }
-
-        .reenter-btn {
-            justify-self: end;
-            display: none;
+            display: inline-flex;
             align-items: center;
-            gap: 7px;
-            padding: 10px 16px;
-            border: 1px solid rgba(255, 255, 255, 0.75);
+            padding: 9px 14px;
+            border: 2px solid #000;
             border-radius: 8px;
-            background: #ffffff;
-            color: #0f766e;
+            background: #000;
+            color: #fff;
+            text-decoration: none;
             font-weight: 700;
-            transition: background .2s ease, transform .2s ease;
+            font-size: 1rem;
+            white-space: nowrap;
         }
 
-        .reenter-btn:hover {
-            background: #ecfeff;
-            transform: translateY(-1px);
+        .knitting-header-refresh {
+            grid-column: 3;
+            grid-row: 1;
+            justify-self: end;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            min-height: 40px;
+            padding: 8px 12px;
+            border: 0;
+            border-radius: 8px;
+            background: #087f70;
+            color: #fff;
+            font-size: 0.85rem;
+            font-weight: 800;
+            white-space: nowrap;
+            cursor: pointer;
         }
 
-        @media (max-width: 767.98px) {
-            .page-header {
-                grid-template-columns: 1fr auto;
-                gap: 10px;
-                padding: 12px;
+        .knitting-header-back:hover {
+            background: #fff;
+            color: #000;
+            text-decoration: none;
+        }
+
+        .knitting-header-refresh:hover {
+            filter: brightness(0.94);
+        }
+
+        @media (max-width: 800px) {
+            .knitting-page-header {
+                gap: 8px;
+                padding: 10px;
             }
 
-            .page-header .back-btn {
-                grid-column: 1;
-                grid-row: 1;
-                padding: 8px 10px;
+            .knitting-page-header h1 {
+                font-size: 1.1rem;
             }
 
-            h1.title {
-                grid-column: 1 / -1;
-                grid-row: 2;
-            }
-
-            .reenter-btn {
-                grid-column: 2;
-                grid-row: 1;
+            .knitting-header-back {
                 padding: 8px 10px;
             }
         }
@@ -372,27 +418,6 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
             color: #1d4ed8;
             font-family: Consolas, monospace;
             font-size: 17px;
-        }
-
-        .back-btn, #backBtn {
-            background: #000000 !important;
-            color: #ffffff !important;
-            border: 2px solid #000000 !important;
-            border-radius: 8px;
-            padding: 10px 18px;
-            font-weight: 600;
-            transition: all 0.2s ease;
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            cursor: pointer;
-        }
-
-        .back-btn:hover, #backBtn:hover {
-            background: #ffffff !important;
-            border-color: #000000 !important;
-            color: #000000 !important;
-            text-decoration: none;
         }
 
         #qrScannerPanel {
@@ -527,26 +552,34 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
         .scanner-container {
             position: relative;
             width: 100%;
-            max-width: 520px;
+            max-width: min(100%, 54vh, 560px);
+            max-height: 54vh;
             aspect-ratio: 1 / 1;
             margin-left: auto;
             margin-right: auto;
-            background: #d9ede9;
-            border-radius: 28px;
+            background: #eef2f7;
+            border-radius: 14px;
             overflow: hidden;
-            box-shadow: inset 0 0 0 1px #b5d8d2, 0 8px 20px rgba(10, 60, 55, 0.18);
-            margin-bottom: 0;
+            box-shadow: inset 0 0 0 1px #d7e0ea, 0 4px 12px rgba(30, 60, 120, 0.1);
+            margin: 0 auto;
+        }
+
+        @supports (height: 100dvh) {
+            .scanner-container {
+                max-width: min(100%, 54dvh, 560px);
+                max-height: 54dvh;
+            }
         }
 
         .compact-lookup-panel {
-            width: min(100%, 520px);
+            width: min(100%, 460px);
             margin: 12px auto 16px;
         }
 
         .compact-lookup-panel label {
             display: block;
             margin-bottom: 6px;
-            font-size: 1rem;
+            font-size: 16px;
             font-weight: 700;
             color: #123b39;
         }
@@ -559,23 +592,23 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
         }
 
         .compact-lookup-controls .form-control {
-            flex: 1 1 auto;
+            flex: 1 1 0;
             min-width: 0;
             min-height: 46px;
             padding: 10px 12px;
             border: 1px solid #afc8c4;
             border-radius: 8px 0 0 8px;
-            font-size: 1rem;
+            font-size: 16px;
         }
 
         .compact-lookup-controls .btn {
             flex: 0 0 auto;
             min-height: 44px;
-            padding: 10px 12px;
+            padding: 10px 16px;
             border: 0;
             border-radius: 0;
             color: #fff;
-            font-size: 0.98rem;
+            font-size: 15.68px;
             font-weight: 800;
         }
 
@@ -590,12 +623,8 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
             box-shadow: none;
         }
 
-        .compact-lookup-controls #searchBtn {
+        .compact-lookup-controls #addRollBtn {
             background: #087f70 !important;
-        }
-
-        .compact-lookup-controls #clearBtn {
-            background: #94a3b8 !important;
             border-radius: 0 8px 8px 0;
         }
 
@@ -614,12 +643,12 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
             width: 100%;
             height: 100%;
             padding: 0 !important;
-            background: #e6f4f1;
+            background: #f4f7fb;
             overflow: hidden;
         }
 
         #qr-reader video {
-            border-radius: 28px;
+            border-radius: 14px;
             width: 100%;
             height: 100%;
             object-fit: cover;
@@ -630,7 +659,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
             position: absolute;
             inset: 0;
             pointer-events: none;
-            border-radius: 28px;
+            border-radius: 14px;
             box-shadow: inset 0 0 0 2px rgba(0, 255, 200, 0.3);
         }
 
@@ -639,12 +668,12 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
             position: absolute;
             top: 50%;
             left: 50%;
-            width: 76%;
-            height: 76%;
+            width: 65%;
+            height: 65%;
             transform: translate(-50%, -50%);
             border: 2px solid rgba(0, 255, 200, 0.5);
-            border-radius: 20px;
-            box-shadow: 0 0 30px rgba(0, 255, 200, 0.1);
+            border-radius: 12px;
+            box-shadow: 0 0 20px rgba(0, 255, 200, 0.1);
             animation: pulse-border 2.2s infinite ease-in-out;
         }
 
@@ -682,7 +711,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
             padding: 10px 16px;
             border: 0;
             background: #087f70;
-            font-size: 0.98rem;
+            font-size: 15.68px;
             font-weight: 800;
         }
 
@@ -708,7 +737,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
             padding: 9px 10px;
             border: 1px solid #afc8c4;
             border-radius: 8px;
-            font-size: 1rem;
+            font-size: 16px;
         }
 
         .camera-action-btn {
@@ -716,14 +745,15 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
             align-items: center;
             justify-content: center;
             gap: 6px;
-            min-height: 42px;
-            padding: 8px 14px;
+            padding: 7px 12px;
             border: 1px solid #0b5c53;
             border-radius: 8px;
             background: #0f7a6f;
             color: #fff;
+            font-size: 0.78rem;
             font-weight: 700;
             cursor: pointer;
+            transition: background 0.2s ease, transform 0.1s ease;
             white-space: nowrap;
         }
 
@@ -792,7 +822,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
 
         @media (min-width: 576px) and (max-width: 991.98px) {
             body {
-                padding: 0 14px 14px;
+                padding: 16px 14px 14px;
             }
 
             .lookup-panel {
@@ -811,19 +841,9 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
                 padding: 10px;
             }
 
-            .page-header {
-                margin-bottom: 14px;
-                padding: 10px;
-            }
-
-            .page-header .back-btn,
-            .reenter-btn {
-                max-width: 100%;
-                font-size: 0.85rem;
-            }
-
-            .page-header .back-btn {
-                white-space: nowrap;
+            .roll-split-card {
+                padding: 12px 10px 16px;
+                border-radius: 18px;
             }
 
             .camera-controls {
@@ -903,13 +923,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
 
         @media (max-width: 360px) {
             body {
-                padding: 6px;
-            }
-
-            .page-header .back-btn,
-            .reenter-btn {
-                padding: 8px !important;
-                font-size: 0.75rem;
+                padding: 10px;
             }
 
             .info-grid {
@@ -927,13 +941,8 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
         }
 
         @media (max-width: 767.98px) {
-            .scanner-container,
             .camera-controls {
                 max-width: 100%;
-            }
-
-            .scanner-container {
-                width: min(100%, 460px);
             }
 
             .camera-controls {
@@ -945,7 +954,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
             }
 
             .compact-lookup-controls .form-control {
-                flex: 1 1 auto;
+                flex: 1 1 0;
             }
 
             .compact-lookup-controls .btn {
@@ -963,15 +972,12 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
 
 <body>
 
-    <div class="container-fluid">
-        <div class="page-header">
-            <button class="back-btn" id="backBtn">
-                <i class="fa-solid fa-arrow-left" style="margin-right:6px;"></i>
-                Back to Initial Page
-            </button>
+    <main class="roll-split-card">
+        <div class="knitting-page-header roll-split-page-header">
+            <a class="knitting-header-back" href="initialPage.php">← Back</a>
             <h1 class="title">Knitting Roll Split</h1>
-            <button class="reenter-btn" id="reenterBtn" type="button">
-                <i class="fa-solid fa-rotate-right"></i> Re-enter Roll
+            <button class="knitting-header-refresh" id="pageRefreshBtn" type="button" title="Reload the full page">
+                <i class="fa-solid fa-rotate-right"></i> Refresh
             </button>
         </div>
 
@@ -1002,11 +1008,8 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
             <label for="rollInput">Roll Number (from Knitting Store)</label>
             <div class="compact-lookup-controls">
                 <input type="text" id="rollInput" class="form-control" placeholder="Unlock to enter manually" autocomplete="off" readonly>
-                <button class="btn" id="searchBtn" type="button">
-                    <i class="fa-solid fa-magnifying-glass me-1" style="margin-right:6px;"></i> Search
-                </button>
-                <button class="btn" id="clearBtn" type="button">
-                    <i class="fa-solid fa-rotate-left me-1" style="margin-right:6px;"></i> Clear
+                <button class="btn" id="addRollBtn" type="button">
+                    Add Roll
                 </button>
             </div>
             <div id="searchStatus" role="status" aria-live="polite"></div>
@@ -1014,7 +1017,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
         </div>
 
         <div id="resultArea"></div>
-    </div>
+    </main>
 
     <script src="jquery.min.js"></script>
     <script src="js/bootstrap.bundle.min.js"></script>
@@ -1031,11 +1034,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
             var resumeScannerAfterVisibility = false;
             var pageIsLeaving = false;
 
-        $('#backBtn').on('click', function() {
-            history.back();
-        });
-
-        $('#reenterBtn').on('click', function() {
+        $('#pageRefreshBtn').on('click', function() {
             window.location.reload();
         });
 
@@ -1050,8 +1049,6 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
         function renderRoll(d) {
             currentRoll = d;
             $('#rollLookupPanel').hide();
-            $('#reenterBtn').css('display', 'inline-flex');
-
             var html = '' +
                 '<div class="panel">' +
                 '<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2" style="font-size: x-large; color: black; font-weight: bold;">' +
@@ -1578,20 +1575,8 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
             $('#rollInput').on('click', function() {
                 if (!manualEntryAuthorized) showManualEntryLocked();
             });
-            $('#searchBtn').on('click', searchRoll);
+            $('#addRollBtn').on('click', searchRoll);
             $('#scanQrBtn').on('click', switchCamera);
-            $('#clearBtn').on('click', function() {
-                stopQrScanner().then(function(stopped) {
-                    $('#rollInput').val('');
-                    currentRoll = null;
-                    $('#resultArea').html('');
-                    if (stopped) {
-                        $('#qrScannerPanel').show();
-                        $('#qr-reader').empty();
-                        startQrScanner();
-                    }
-                });
-            });
             $('#rollInput').on('keyup', function(e) {
                 if (e.key === 'Enter') searchRoll();
             });

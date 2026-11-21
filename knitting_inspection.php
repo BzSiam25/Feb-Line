@@ -904,36 +904,95 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
       }
     }
 
-    .production-header {
-      display: flex;
+    .knitting-page-header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
       align-items: center;
-      gap: 8px;
-      margin-bottom: 10px;
-      padding: 0 2px;
+      gap: 12px;
+      margin-bottom: 14px;
+      padding: 12px 18px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1);
+      color: #fff;
+      font-family: "Segoe UI", Arial, sans-serif;
     }
 
-    .production-header h2 {
-      color: #083a36;
-      font-size: 1.15rem;
-      font-weight: 800;
-      letter-spacing: 0.3px;
+    .knitting-page-header.inspection-page-header {
+      background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 50%, #3b82f6 100%);
+    }
+
+    .knitting-page-header h1 {
+      grid-column: 2;
+      grid-row: 1;
       margin: 0;
+      color: #fff;
+      text-align: center;
+      font-size: clamp(1.2rem, 3vw, 1.5rem);
+      font-weight: 800;
+      white-space: nowrap;
     }
 
-    .production-header h2 i {
-      color: #0f7a6f;
-      margin-right: 6px;
+    .knitting-header-back {
+      grid-column: 1;
+      grid-row: 1;
+      justify-self: start;
+      display: inline-flex;
+      align-items: center;
+      padding: 9px 14px;
+      border: 2px solid #000;
+      border-radius: 8px;
+      background: #000;
+      color: #fff;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 1rem;
+      white-space: nowrap;
     }
 
-    .production-header .badge-production {
-      margin-left: auto;
-      background: #10b981;
-      color: white;
-      font-size: 0.65rem;
-      padding: 2px 10px;
-      border-radius: 100px;
-      font-weight: 600;
-      letter-spacing: 0.3px;
+    .knitting-header-refresh {
+      grid-column: 3;
+      grid-row: 1;
+      justify-self: end;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      min-height: 40px;
+      padding: 8px 12px;
+      border: 0;
+      border-radius: 8px;
+      background: #087f70;
+      color: #fff;
+      font-size: 0.85rem;
+      font-weight: 800;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+
+    .knitting-header-back:hover {
+      background: #fff;
+      color: #000;
+      text-decoration: none;
+    }
+
+    .knitting-header-refresh:hover {
+      filter: brightness(0.94);
+    }
+
+    @media (max-width: 800px) {
+      .knitting-page-header {
+        gap: 8px;
+        padding: 10px;
+      }
+
+      .knitting-page-header h1 {
+        font-size: 1.1rem;
+      }
+
+      .knitting-header-back {
+        padding: 8px 10px;
+      }
     }
 
     .page-refresh-btn {
@@ -1403,10 +1462,12 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
 <body>
 
   <div class="card" id="mainCard">
-    <div class="production-header">
-      <h2><i class="fa-solid fa-list-check"></i>Knitting Inspection</h2>
-      <span class="badge-production">INSPECTION</span>
-      <button type="button" class="page-refresh-btn" id="pageRefreshBtn" title="Refresh page"><i class="fa-solid fa-rotate-right"></i>Refresh</button>
+    <div class="knitting-page-header inspection-page-header">
+      <a class="knitting-header-back" href="initialPage.php">← Back</a>
+      <h1>Knitting Inspection</h1>
+      <button type="button" class="knitting-header-refresh" id="pageRefreshBtn" title="Reload the full page">
+        <i class="fa-solid fa-rotate-right"></i> Refresh
+      </button>
     </div>
 
     <?php if (!empty($msg)): ?>
@@ -2047,13 +2108,6 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
       <div id="action-content" class="action-content"></div>
     </div>
 
-    <!-- FOOTER -->
-    <div class="footer-note" style="margin-top:10px; text-align:center;">
-      <button class="back-btn" onclick="window.location.href='initialPage.php';">
-        <i class="fa-solid fa-arrow-left" style="margin-right:6px;"></i>
-        Back to Initial Page
-      </button>
-    </div>
   </div>
 
   <script>

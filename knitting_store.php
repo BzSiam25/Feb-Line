@@ -85,38 +85,97 @@ unset($_SESSION['knitting_store_manual_entry_authorized']);
       transform: translateY(-2px);
     }
 
-    .store-header {
-      display: flex;
+    .knitting-page-header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
       align-items: center;
-      gap: 10px;
-      margin-bottom: 20px;
-      padding: 0 4px;
+      gap: 12px;
+      margin-bottom: 14px;
+      padding: 12px 18px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1);
+      color: #fff;
+      font-family: "Segoe UI", Arial, sans-serif;
     }
 
-    .store-header h2 {
-      color: #083a36;
-      font-size: 1.4rem;
+    .knitting-page-header.store-page-header {
+      background: linear-gradient(135deg, #0f766e 0%, #0d9488 50%, #14b8a6 100%);
+    }
+
+    .knitting-page-header h1 {
+      grid-column: 2;
+      grid-row: 1;
+      margin: 0;
+      color: #fff;
+      text-align: center;
+      font-size: clamp(1.2rem, 3vw, 1.5rem);
       font-weight: 800;
-      letter-spacing: 0.5px;
+      white-space: nowrap;
     }
 
-    .store-header h2 i {
-      color: #0f7a6f;
-      margin-right: 8px;
+    .knitting-header-back {
+      grid-column: 1;
+      grid-row: 1;
+      justify-self: start;
+      display: inline-flex;
+      align-items: center;
+      padding: 9px 14px;
+      border: 2px solid #000;
+      border-radius: 8px;
+      background: #000;
+      color: #fff;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 1rem;
+      white-space: nowrap;
     }
 
-    .store-header .badge-store {
-      margin-left: auto;
-      background: #1d8b5e;
-      color: white;
-      font-size: 0.7rem;
-      padding: 3px 14px;
-      border-radius: 100px;
-      font-weight: 600;
-      letter-spacing: 0.3px;
+    .knitting-header-refresh {
+      grid-column: 3;
+      grid-row: 1;
+      justify-self: end;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      min-height: 40px;
+      padding: 8px 12px;
+      border: 0;
+      border-radius: 8px;
+      background: #087f70;
+      color: #fff;
+      font-size: 0.85rem;
+      font-weight: 800;
+      white-space: nowrap;
+      cursor: pointer;
     }
 
-    .page-refresh-btn,
+    .knitting-header-back:hover {
+      background: #fff;
+      color: #000;
+      text-decoration: none;
+    }
+
+    .knitting-header-refresh:hover {
+      filter: brightness(0.94);
+    }
+
+    @media (max-width: 800px) {
+      .knitting-page-header {
+        gap: 8px;
+        padding: 10px;
+      }
+
+      .knitting-page-header h1 {
+        font-size: 1.1rem;
+      }
+
+      .knitting-header-back {
+        padding: 8px 10px;
+      }
+    }
+
     .camera-action-btn {
       display: inline-flex;
       align-items: center;
@@ -134,12 +193,10 @@ unset($_SESSION['knitting_store_manual_entry_authorized']);
       white-space: nowrap;
     }
 
-    .page-refresh-btn:hover,
     .camera-action-btn:hover {
       background: #0b5c53;
     }
 
-    .page-refresh-btn:active,
     .camera-action-btn:active {
       transform: scale(0.97);
     }
@@ -887,10 +944,6 @@ unset($_SESSION['knitting_store_manual_entry_authorized']);
         padding: 18px 14px 20px;
       }
 
-      .store-header {
-        margin-bottom: 14px;
-      }
-
       .scanner-container {
         margin-bottom: 0;
       }
@@ -992,18 +1045,6 @@ unset($_SESSION['knitting_store_manual_entry_authorized']);
         border-radius: 18px;
       }
 
-      .store-header h2 {
-        font-size: 1.15rem;
-      }
-
-      .store-header {
-        flex-wrap: wrap;
-      }
-
-      .store-header .badge-store {
-        margin-left: auto;
-      }
-
       .scanner-container {
         border-radius: 20px;
       }
@@ -1067,10 +1108,10 @@ unset($_SESSION['knitting_store_manual_entry_authorized']);
 
 <body>
   <div class="card">
-    <div class="store-header">
-      <h2><i class="fa-solid fa-warehouse"></i>Knitting Store</h2>
-      <span class="badge-store">STORE</span>
-      <button type="button" class="page-refresh-btn" id="pageRefreshBtn" title="Reload the full page">
+    <div class="knitting-page-header store-page-header">
+      <a class="knitting-header-back" href="initialPage.php">← Back</a>
+      <h1>Knitting Store</h1>
+      <button type="button" class="knitting-header-refresh" id="pageRefreshBtn" title="Reload the full page">
         <i class="fa-solid fa-rotate-right"></i> Refresh
       </button>
     </div>
@@ -1158,14 +1199,6 @@ unset($_SESSION['knitting_store_manual_entry_authorized']);
       <div id="message"></div>
     </div>
 
-    <!-- FOOTER -->
-    <div class="footer-note" style="margin-top:16px; text-align:center; color:#115e59; letter-spacing:0.5px;">
-      <button class="back-btn"
-        onclick="window.location.href='initialPage.php';">
-        <i class="fa-solid fa-arrow-left" style="margin-right:6px;"></i>
-        Back to Initial Page
-      </button>
-    </div>
   </div>
 
   <script>
