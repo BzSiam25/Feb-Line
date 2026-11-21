@@ -169,7 +169,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
       border-radius: 28px;
       overflow: hidden;
       box-shadow: inset 0 0 0 1px #d7e0ea, 0 8px 20px rgba(30, 60, 120, 0.12);
-      margin-bottom: 24px;
+      margin-bottom: 0;
       aspect-ratio: 1 / 1;
     }
 
@@ -243,12 +243,24 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
     }
 
     .camera-controls {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+      display: flex;
+      justify-content: center;
       align-items: center;
+      flex-wrap: nowrap;
+      width: min(100%, 520px);
       gap: 8px;
-      margin-top: 12px;
+      margin: 10px auto 0;
       padding: 0 6px;
+    }
+
+    .camera-controls .camera-action-btn {
+      flex: 0 0 auto;
+      min-height: 44px;
+      padding: 10px 16px;
+      border: 0;
+      background: #087f70;
+      font-size: 0.98rem;
+      font-weight: 800;
     }
 
     .status-badge {
@@ -258,7 +270,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
       color: #334155;
       font-size: 0.85rem;
       font-weight: 600;
-      display: flex;
+      display: none;
       align-items: center;
       gap: 8px;
       border: 1px solid #cbd5e1;
@@ -267,6 +279,10 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
     .status-badge i {
       color: #2563eb;
       font-size: 0.9rem;
+    }
+
+    #toggle-camera-btn {
+      order: -1;
     }
 
     .camera-action-btn {
@@ -309,26 +325,26 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
       gap: 6px;
     }
 
-    .manual-unlock-controls {
-      justify-self: center;
+    .manual-password-row {
+      flex-wrap: nowrap;
     }
 
-    #toggle-camera-btn {
-      justify-self: end;
+    .manual-unlock-controls {
+      justify-self: center;
     }
 
     .manual-password-row input {
       width: 190px;
       min-width: 0;
-      min-height: 36px;
-      padding: 7px 10px;
-      border: 1px solid #cbd5e1;
+      min-height: 42px;
+      padding: 9px 10px;
+      border: 1px solid #afc8c4;
       border-radius: 8px;
-      font: inherit;
+      font-size: 1rem;
     }
 
     .manual-password-row button {
-      min-height: 36px;
+      min-height: 44px;
     }
 
     .manual-entry input[readonly] {
@@ -347,16 +363,12 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
 
     @media (max-width: 480px) {
       .camera-controls {
-        grid-template-columns: 1fr auto;
-      }
-
-      .manual-unlock-controls {
-        grid-column: 1 / -1;
-        grid-row: 2;
+        flex-wrap: wrap;
+        gap: 8px;
       }
 
       .manual-password-row input {
-        width: 170px;
+        width: 190px;
       }
     }
 
@@ -735,20 +747,61 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
     }
 
     .compact-entry-container {
-      width: min(100%, 720px);
+      width: min(100%, 460px);
       margin: 12px auto 16px;
     }
 
     .compact-entry-container label {
       display: block;
       margin-bottom: 6px;
-      color: #475569;
-      font-size: 0.85rem;
+      color: #123b39;
+      font-size: 1rem;
       font-weight: 700;
     }
 
     .compact-entry-container .manual-entry {
+      display: flex;
+      flex-wrap: nowrap;
+      gap: 0;
+      width: 100%;
       margin-top: 0;
+    }
+
+    .compact-entry-container .manual-entry input {
+      flex: 1 1 0;
+      min-height: 46px;
+      padding: 10px 12px;
+      border: 1px solid #afc8c4;
+      border-radius: 8px 0 0 8px;
+      font-size: 1rem;
+    }
+
+    .camera-controls .camera-action-btn:hover,
+    .compact-entry-container .manual-entry button:hover {
+      filter: brightness(0.94);
+    }
+
+    .compact-entry-container .manual-entry button {
+      flex: 0 0 auto;
+      min-height: 44px;
+      padding: 10px 16px;
+      border: 0;
+      border-radius: 0 8px 8px 0;
+      background: #087f70;
+      font-size: 0.98rem;
+      font-weight: 800;
+    }
+
+    .compact-entry-container .manual-entry button:disabled {
+      background: #94a3b8;
+      opacity: 1;
+    }
+
+    .compact-entry-container .manual-entry input:focus,
+    .camera-controls .manual-password-row input:focus {
+      outline: 2px solid #54b7a8;
+      border-color: #159685;
+      box-shadow: none;
     }
 
     .manual-entry input {
@@ -993,7 +1046,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
         </div>
       </div>
       <button type="button" class="camera-action-btn" id="toggle-camera-btn" title="Switch Front/Back camera">
-        <i class="fas fa-sync-alt"></i> Switch Camera
+        Switch Camera
       </button>
     </div>
 
@@ -2372,7 +2425,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
           cameraStatus.innerText = 'Scanning (' + (currentFacingMode === 'environment' ? 'Rear' : 'Front') + ')';
           cameraStatus.style.color = '#8bcbff';
           scannerContainer.style.display = 'block';
-          cameraControls.style.display = 'grid';
+          cameraControls.style.display = 'flex';
           if (resultContainer.children.length === 0) {
             renderDefaultData();
           }
@@ -2489,7 +2542,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
       async function restartScanner() {
         if (isStartingCamera) return;
         scannerContainer.style.display = 'block';
-        cameraControls.style.display = 'grid';
+        cameraControls.style.display = 'flex';
         cameraStatus.innerText = 'Restarting...';
         await startNewScanner();
       }

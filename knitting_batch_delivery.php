@@ -15,6 +15,7 @@ unset($_SESSION['knitting_delivery_manual_entry_authorized']);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Knitting | Batch Delivery</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
@@ -51,6 +52,14 @@ unset($_SESSION['knitting_delivery_manual_entry_authorized']);
             grid-row: 1;
             text-align: center;
             font-size: clamp(1.2rem, 3vw, 1.5rem);
+        }
+        .refresh-button {
+            grid-column: 3;
+            grid-row: 1;
+            justify-self: end;
+            min-height: 40px;
+            padding: 8px 12px;
+            font-size: .85rem;
         }
         h1 { margin: 0; font-size: 1.5rem; }
         .back {
@@ -228,6 +237,9 @@ unset($_SESSION['knitting_delivery_manual_entry_authorized']);
         <header class="header">
             <a class="back" href="initialPage.php">← Back</a>
             <h1>Knitting Batch Delivery</h1>
+            <button type="button" class="refresh-button" id="pageRefreshBtn" title="Reload the full page">
+                <i class="fa-solid fa-rotate-right"></i> Refresh
+            </button>
         </header>
 
         <section class="panel" id="deliveryPanel">
@@ -1057,6 +1069,9 @@ unset($_SESSION['knitting_delivery_manual_entry_authorized']);
             });
 
             switchCameraBtn.addEventListener('click', switchCamera);
+            document.getElementById('pageRefreshBtn').addEventListener('click', function() {
+                window.location.reload();
+            });
             confirmBtn.addEventListener('click', function() {
                 if (confirmBtn.disabled) return;
                 confirmBtn.disabled = true;

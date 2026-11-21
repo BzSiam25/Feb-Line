@@ -535,31 +535,68 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
             border-radius: 28px;
             overflow: hidden;
             box-shadow: inset 0 0 0 1px #b5d8d2, 0 8px 20px rgba(10, 60, 55, 0.18);
-            margin-bottom: 12px;
+            margin-bottom: 0;
         }
 
         .compact-lookup-panel {
-            width: min(100%, 900px);
+            width: min(100%, 520px);
             margin: 12px auto 16px;
         }
 
         .compact-lookup-panel label {
             display: block;
             margin-bottom: 6px;
-            font-size: 0.9rem;
+            font-size: 1rem;
             font-weight: 700;
-            color: #334155;
+            color: #123b39;
         }
 
         .compact-lookup-controls {
             display: flex;
             align-items: center;
-            gap: 8px;
+            flex-wrap: nowrap;
+            gap: 0;
         }
 
         .compact-lookup-controls .form-control {
             flex: 1 1 auto;
             min-width: 0;
+            min-height: 46px;
+            padding: 10px 12px;
+            border: 1px solid #afc8c4;
+            border-radius: 8px 0 0 8px;
+            font-size: 1rem;
+        }
+
+        .compact-lookup-controls .btn {
+            flex: 0 0 auto;
+            min-height: 44px;
+            padding: 10px 12px;
+            border: 0;
+            border-radius: 0;
+            color: #fff;
+            font-size: 0.98rem;
+            font-weight: 800;
+        }
+
+        .camera-controls .camera-action-btn:hover {
+            filter: brightness(0.94);
+        }
+
+        .compact-lookup-controls .form-control:focus,
+        .camera-controls .manual-password-row input:focus {
+            outline: 2px solid #54b7a8;
+            border-color: #159685;
+            box-shadow: none;
+        }
+
+        .compact-lookup-controls #searchBtn {
+            background: #087f70 !important;
+        }
+
+        .compact-lookup-controls #clearBtn {
+            background: #94a3b8 !important;
+            border-radius: 0 8px 8px 0;
         }
 
         #searchStatus {
@@ -629,21 +666,35 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
         }
 
         .camera-controls {
-            display: grid;
-            grid-template-columns: minmax(170px, 1fr) auto minmax(140px, 1fr);
+            display: flex;
+            justify-content: center;
             align-items: center;
-            gap: 20px;
-            width: 100%;
-            max-width: 720px;
-            margin: 16px auto 0;
+            flex-wrap: nowrap;
+            width: min(100%, 520px);
+            gap: 8px;
+            margin: 10px auto 0;
             padding: 0 6px;
+        }
+
+        .camera-controls .camera-action-btn {
+            flex: 0 0 auto;
+            min-height: 44px;
+            padding: 10px 16px;
+            border: 0;
+            background: #087f70;
+            font-size: 0.98rem;
+            font-weight: 800;
         }
 
         .manual-unlock-controls,
         .manual-password-row {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 6px;
+        }
+
+        .manual-password-row {
+            flex-wrap: nowrap;
         }
 
         .manual-unlock-controls {
@@ -655,8 +706,9 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
             min-width: 0;
             min-height: 42px;
             padding: 9px 10px;
-            border: 1px solid #cbd5e1;
+            border: 1px solid #afc8c4;
             border-radius: 8px;
+            font-size: 1rem;
         }
 
         .camera-action-btn {
@@ -680,7 +732,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
         }
 
         #scanQrBtn {
-            justify-self: end;
+            order: -1;
         }
 
         #rollInput[readonly] {
@@ -696,7 +748,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
             color: #083a36;
             font-size: 0.85rem;
             font-weight: 600;
-            display: flex;
+            display: none;
             align-items: center;
             justify-content: center;
             gap: 8px;
@@ -775,16 +827,12 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
             }
 
             .camera-controls {
-                grid-template-columns: 1fr auto;
-            }
-
-            .manual-unlock-controls {
-                grid-column: 1 / -1;
-                grid-row: 2;
+                flex-wrap: wrap;
+                gap: 8px;
             }
 
             .manual-password-row input {
-                width: 170px;
+                width: 190px;
             }
 
             .lookup-panel {
@@ -885,29 +933,23 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
             }
 
             .scanner-container {
-                width: min(100%, 520px);
+                width: min(100%, 460px);
             }
 
             .camera-controls {
-                grid-template-columns: minmax(0, 1fr) auto;
-                gap: 12px;
+                gap: 8px;
             }
 
             .compact-lookup-controls {
-                flex-wrap: wrap;
+                flex-wrap: nowrap;
             }
 
             .compact-lookup-controls .form-control {
-                flex: 1 1 100%;
+                flex: 1 1 auto;
             }
 
             .compact-lookup-controls .btn {
-                flex: 1 1 0;
-            }
-
-            .manual-unlock-controls {
-                grid-column: 1 / -1;
-                grid-row: 2;
+                flex: 0 0 auto;
             }
 
             .status-badge {
@@ -951,7 +993,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
                     </div>
                 </div>
                 <button class="camera-action-btn" id="scanQrBtn" type="button" title="Switch Front/Back camera" aria-label="Switch camera">
-                    <i class="fas fa-sync-alt"></i> Switch Camera
+                    Switch Camera
                 </button>
             </div>
         </div>
@@ -960,10 +1002,10 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
             <label for="rollInput">Roll Number (from Knitting Store)</label>
             <div class="compact-lookup-controls">
                 <input type="text" id="rollInput" class="form-control" placeholder="Unlock to enter manually" autocomplete="off" readonly>
-                <button class="btn px-4" id="searchBtn" type="button" style="background:#2563eb;border:1px solid #2563eb;color:#fff;border-radius:8px;">
+                <button class="btn" id="searchBtn" type="button">
                     <i class="fa-solid fa-magnifying-glass me-1" style="margin-right:6px;"></i> Search
                 </button>
-                <button class="btn px-4" id="clearBtn" type="button" style="background:#6b7280;border:1px solid #6b7280;color:#fff;border-radius:8px;">
+                <button class="btn" id="clearBtn" type="button">
                     <i class="fa-solid fa-rotate-left me-1" style="margin-right:6px;"></i> Clear
                 </button>
             </div>

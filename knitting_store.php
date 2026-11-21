@@ -156,7 +156,7 @@ unset($_SESSION['knitting_store_manual_entry_authorized']);
       border-radius: 28px;
       overflow: hidden;
       box-shadow: inset 0 0 0 1px #b5d8d2, 0 8px 20px rgba(10, 60, 55, 0.18);
-      margin-bottom: 24px;
+      margin-bottom: 0;
     }
 
     @supports (height: 100dvh) {
@@ -230,33 +230,49 @@ unset($_SESSION['knitting_store_manual_entry_authorized']);
     }
 
     .camera-controls {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+      display: flex;
+      justify-content: center;
       align-items: center;
+      flex-wrap: nowrap;
+      width: min(100%, 520px);
       gap: 8px;
-      margin-top: 12px;
+      margin: 10px auto 0;
       padding: 0 6px;
     }
 
+    .camera-controls .camera-action-btn {
+      flex: 0 0 auto;
+      min-height: 44px;
+      padding: 10px 16px;
+      border: 0;
+      background: #087f70;
+      font-size: 0.98rem;
+      font-weight: 800;
+    }
+
     .compact-entry-container {
-      width: min(100%, 720px);
+      width: min(100%, 460px);
       margin: 12px auto 16px;
     }
 
     .compact-entry-container label {
       display: block;
       margin-bottom: 6px;
-      color: #0b4f47;
-      font-size: 0.85rem;
+      color: #123b39;
+      font-size: 1rem;
       font-weight: 700;
     }
 
     .compact-entry-container .manual-entry {
+      display: flex;
+      flex-wrap: nowrap;
+      gap: 0;
+      width: 100%;
       margin-top: 0;
     }
 
     #toggle-camera-btn {
-      justify-self: end;
+      order: -1;
     }
 
     .manual-unlock-controls,
@@ -266,6 +282,10 @@ unset($_SESSION['knitting_store_manual_entry_authorized']);
       gap: 6px;
     }
 
+    .manual-password-row {
+      flex-wrap: nowrap;
+    }
+
     .manual-unlock-controls {
       justify-self: center;
     }
@@ -273,11 +293,52 @@ unset($_SESSION['knitting_store_manual_entry_authorized']);
     .manual-password-row input {
       width: 190px;
       min-width: 0;
-      min-height: 36px;
-      padding: 7px 10px;
-      border: 1px solid #cbd5e1;
+      min-height: 42px;
+      padding: 9px 10px;
+      border: 1px solid #afc8c4;
       border-radius: 8px;
-      font: inherit;
+      font-size: 1rem;
+    }
+
+    .manual-password-row button {
+      min-height: 44px;
+    }
+
+    .compact-entry-container .manual-entry input {
+      flex: 1 1 0;
+      min-height: 46px;
+      padding: 10px 12px;
+      border: 1px solid #afc8c4;
+      border-radius: 8px 0 0 8px;
+      font-size: 1rem;
+    }
+
+    .compact-entry-container .manual-entry button {
+      flex: 0 0 auto;
+      min-height: 44px;
+      padding: 10px 16px;
+      border: 0;
+      border-radius: 0 8px 8px 0;
+      background: #087f70;
+      font-size: 0.98rem;
+      font-weight: 800;
+    }
+
+    .compact-entry-container .manual-entry button:disabled {
+      background: #94a3b8;
+      opacity: 1;
+    }
+
+    .camera-controls .camera-action-btn:hover,
+    .compact-entry-container .manual-entry button:hover {
+      filter: brightness(0.94);
+    }
+
+    .compact-entry-container .manual-entry input:focus,
+    .camera-controls .manual-password-row input:focus {
+      outline: 2px solid #54b7a8;
+      border-color: #159685;
+      box-shadow: none;
     }
 
     .status-badge {
@@ -287,7 +348,7 @@ unset($_SESSION['knitting_store_manual_entry_authorized']);
       color: #083a36;
       font-size: 0.85rem;
       font-weight: 600;
-      display: flex;
+      display: none;
       align-items: center;
       gap: 8px;
       border: 1px solid #9fc8c1;
@@ -831,7 +892,7 @@ unset($_SESSION['knitting_store_manual_entry_authorized']);
       }
 
       .scanner-container {
-        margin-bottom: 10px;
+        margin-bottom: 0;
       }
 
       .result-panel {
@@ -914,16 +975,12 @@ unset($_SESSION['knitting_store_manual_entry_authorized']);
 
     @media(max-width:480px) {
       .camera-controls {
-        grid-template-columns: 1fr auto;
-      }
-
-      .manual-unlock-controls {
-        grid-column: 1 / -1;
-        grid-row: 2;
+        flex-wrap: wrap;
+        gap: 8px;
       }
 
       .manual-password-row input {
-        width: 170px;
+        width: 190px;
       }
 
       body {
@@ -1035,7 +1092,7 @@ unset($_SESSION['knitting_store_manual_entry_authorized']);
         </div>
       </div>
       <button type="button" class="camera-action-btn" id="toggle-camera-btn" title="Switch Front/Back camera">
-        <i class="fas fa-sync-alt"></i> Switch Camera
+        Switch Camera
       </button>
     </div>
 
@@ -1957,7 +2014,7 @@ unset($_SESSION['knitting_store_manual_entry_authorized']);
           cameraStatus.innerText = 'Scanning (' + (currentFacingMode === 'environment' ? 'Rear' : 'Front') + ')';
           cameraStatus.style.color = '#8bcbff';
           scannerContainer.style.display = 'block';
-          cameraControls.style.display = 'grid';
+          cameraControls.style.display = 'flex';
           applyCameraZoom();
         } catch (err) {
           isScanning = false;
@@ -2024,7 +2081,7 @@ unset($_SESSION['knitting_store_manual_entry_authorized']);
       async function restartScanner() {
         if (isCameraTransitioning) return;
         scannerContainer.style.display = 'block';
-        cameraControls.style.display = 'grid';
+        cameraControls.style.display = 'flex';
         cameraStatus.innerText = 'Restarting...';
         cameraStatus.style.color = '#fbbf24';
         await startNewScanner();

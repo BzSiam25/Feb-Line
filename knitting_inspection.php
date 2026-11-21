@@ -969,7 +969,7 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
       border-radius: 14px;
       overflow: hidden;
       box-shadow: inset 0 0 0 1px #d7e0ea, 0 4px 12px rgba(30, 60, 120, 0.1);
-      margin: 0 auto 10px;
+      margin: 0 auto;
       aspect-ratio: 1 / 1;
     }
 
@@ -1027,16 +1027,28 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
     }
 
     .camera-controls {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+      display: flex;
+      justify-content: center;
       align-items: center;
+      flex-wrap: nowrap;
+      width: min(100%, 520px);
       gap: 8px;
-      margin-top: 6px;
+      margin: 10px auto 0;
       padding: 0 2px;
     }
 
+    .camera-controls .page-refresh-btn {
+      flex: 0 0 auto;
+      min-height: 44px;
+      padding: 10px 16px;
+      border: 0;
+      background: #087f70;
+      font-size: 0.98rem;
+      font-weight: 800;
+    }
+
     #toggle-camera-btn {
-      justify-self: end;
+      order: -1;
     }
 
     .status-badge {
@@ -1046,10 +1058,10 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
       color: #334155;
       font-size: 0.75rem;
       font-weight: 600;
-      display: flex;
+      display: none;
       align-items: center;
       gap: 6px;
-      border: 1px solid #cbd5e1;
+      border: 1px solid #afc8c4;
     }
 
     .status-badge i {
@@ -1145,19 +1157,23 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
     }
 
     .compact-entry-container {
-      width: min(100%, 720px);
+      width: min(100%, 460px);
       margin: 12px auto 16px;
     }
 
     .compact-entry-container label {
       display: block;
       margin-bottom: 6px;
-      color: #475569;
-      font-size: 0.85rem;
+      color: #123b39;
+      font-size: 1rem;
       font-weight: 700;
     }
 
     .compact-entry-container .manual-entry {
+      display: flex;
+      flex-wrap: nowrap;
+      gap: 0;
+      width: 100%;
       margin-top: 0;
     }
 
@@ -1168,6 +1184,10 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
       gap: 6px;
     }
 
+    .manual-password-row {
+      flex-wrap: nowrap;
+    }
+
     .manual-unlock-controls {
       justify-self: center;
     }
@@ -1175,11 +1195,52 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
     .manual-password-row input {
       width: 190px;
       min-width: 0;
-      min-height: 36px;
-      padding: 7px 10px;
+      min-height: 42px;
+      padding: 9px 10px;
       border: 1px solid #cbd5e1;
       border-radius: 8px;
-      font: inherit;
+      font-size: 1rem;
+    }
+
+    .manual-password-row button {
+      min-height: 44px;
+    }
+
+    .compact-entry-container .manual-entry input {
+      flex: 1 1 0;
+      min-height: 46px;
+      padding: 10px 12px;
+      border: 1px solid #afc8c4;
+      border-radius: 8px 0 0 8px;
+      font-size: 1rem;
+    }
+
+    .compact-entry-container .manual-entry button {
+      flex: 0 0 auto;
+      min-height: 44px;
+      padding: 10px 16px;
+      border: 0;
+      border-radius: 0 8px 8px 0;
+      background: #087f70;
+      font-size: 0.98rem;
+      font-weight: 800;
+    }
+
+    .compact-entry-container .manual-entry button:disabled {
+      background: #94a3b8;
+      opacity: 1;
+    }
+
+    .camera-controls .page-refresh-btn:hover,
+    .compact-entry-container .manual-entry button:hover {
+      filter: brightness(0.94);
+    }
+
+    .compact-entry-container .manual-entry input:focus,
+    .camera-controls .manual-password-row input:focus {
+      outline: 2px solid #54b7a8;
+      border-color: #159685;
+      box-shadow: none;
     }
 
     .manual-entry input[readonly] {
@@ -1198,16 +1259,12 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
 
     @media (max-width: 576px) {
       .camera-controls {
-        grid-template-columns: 1fr auto;
-      }
-
-      .manual-unlock-controls {
-        grid-column: 1 / -1;
-        grid-row: 2;
+        flex-wrap: wrap;
+        gap: 8px;
       }
 
       .manual-password-row input {
-        width: 170px;
+        width: 190px;
       }
     }
 
@@ -1396,7 +1453,7 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
         </div>
       </div>
       <button type="button" class="page-refresh-btn" id="toggle-camera-btn" title="Switch Front/Back camera">
-        <i class="fas fa-sync-alt"></i>Switch Camera
+        Switch Camera
       </button>
     </div>
 
@@ -2189,7 +2246,7 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
         const cc = document.getElementById('cameraControls');
         const mc = document.getElementById('mainCard');
         if (sc) sc.style.display = 'block';
-        if (cc) cc.style.display = 'grid';
+        if (cc) cc.style.display = 'flex';
         if (mc) mc.classList.remove('card-wide');
         if (!isScanning && !isStartingScanner) {
           startCameraScanner();
