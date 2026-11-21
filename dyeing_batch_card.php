@@ -114,7 +114,7 @@ unset($_SESSION['dyeing_batch']['saved']);
 
         .batch-search-layout {
             display: grid;
-            grid-template-columns: minmax(0, 2.5fr) minmax(300px, 1fr);
+            grid-template-columns: minmax(440px, 1fr) minmax(620px, 1.2fr);
             align-items: stretch;
             gap: 16px;
         }
@@ -158,8 +158,59 @@ unset($_SESSION['dyeing_batch']['saved']);
 
         .process-grid {
             display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
+            grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(180px, 1.2fr);
             gap: 8px 10px;
+        }
+
+        .others-detail input {
+            width: 100%;
+            min-height: 34px;
+            padding: 7px 9px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            background: #fff;
+            color: #0f172a;
+            font-size: .82rem;
+            outline: none;
+        }
+
+        .others-detail input:focus {
+            border-color: #0d9488;
+            box-shadow: 0 0 0 3px rgba(13, 148, 136, .12);
+        }
+
+        .others-detail input:disabled {
+            background: #f1f5f9;
+        }
+
+        .process-others {
+            grid-column: 4;
+            grid-row: 3;
+        }
+
+        .process-nonsilicon {
+            grid-column: 3;
+            grid-row: 4;
+        }
+
+        .process-peach {
+            grid-column: 4;
+            grid-row: 1;
+        }
+
+        .process-shearing {
+            grid-column: 4;
+            grid-row: 2;
+        }
+
+        .others-detail {
+            min-width: 0;
+            grid-column: 4;
+            grid-row: 4;
+        }
+
+        .others-detail input {
+            min-width: 0;
         }
 
         .process-option {
@@ -171,6 +222,7 @@ unset($_SESSION['dyeing_batch']['saved']);
             font-size: .8rem;
             font-weight: 650;
             line-height: 1.3;
+            white-space: nowrap;
             cursor: pointer;
         }
 
@@ -282,13 +334,28 @@ unset($_SESSION['dyeing_batch']['saved']);
             }
         }
 
-        @container (max-width: 850px) {
+        @container (max-width: 1100px) {
             .batch-search-layout {
                 grid-template-columns: minmax(0, 1fr);
             }
 
             .process-panel {
                 width: 100%;
+            }
+        }
+
+        @media (max-width: 700px) {
+            .process-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .process-others,
+            .others-detail,
+            .process-nonsilicon,
+            .process-peach,
+            .process-shearing {
+                grid-column: auto;
+                grid-row: auto;
             }
         }
 
@@ -308,10 +375,6 @@ unset($_SESSION['dyeing_batch']['saved']);
 
             .search-action-row > .btn {
                 width: 100%;
-            }
-
-            .process-grid {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
             }
         }
 
@@ -428,6 +491,33 @@ unset($_SESSION['dyeing_batch']['saved']);
             height: 18px;
             accent-color: #0d9488;
             cursor: pointer;
+        }
+
+        .required-qty-input {
+            width: 92px;
+            min-height: 34px;
+            padding: 6px 9px;
+            border: 1px solid #b8c8d8;
+            border-radius: 8px;
+            background: #fff;
+            color: #0f172a;
+            font: inherit;
+            font-weight: 650;
+            text-align: right;
+            box-shadow: inset 0 1px 2px rgba(15, 23, 42, .04);
+            transition: border-color .15s ease, box-shadow .15s ease;
+        }
+
+        .required-qty-input:focus {
+            border-color: #0d9488;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(13, 148, 136, .14);
+        }
+
+        .required-qty-input:disabled {
+            background: #f1f5f9;
+            color: #64748b;
+            cursor: not-allowed;
         }
 
         .remove-roll-btn {
@@ -653,15 +743,22 @@ unset($_SESSION['dyeing_batch']['saved']);
                         <label class="process-option"><input type="checkbox" data-process-field="SILICON"> Silicon</label>
                         <label class="process-option"><input type="checkbox" data-process-field="ENZYME"> Enzyme</label>
                         <label class="process-option"><input type="checkbox" data-process-field="AOP"> AOP</label>
-                        <label class="process-option"><input type="checkbox" data-process-field="NONSILICON"> Non-Silicon</label>
+                        <label class="process-option process-nonsilicon"><input type="checkbox" data-process-field="NONSILICON"> Non-Silicon</label>
                         <label class="process-option"><input type="checkbox" data-process-field="NONENZYME"> Non-Enzyme</label>
                         <label class="process-option"><input type="checkbox" data-process-field="SOFTENER"> Softener</label>
                         <label class="process-option"><input type="checkbox" data-process-field="NWASH"> Normal Wash (YD)</label>
-                        <label class="process-option"><input type="checkbox" data-process-field="PEACH"> Peach</label>
+                        <label class="process-option process-peach"><input type="checkbox" data-process-field="PEACH"> Peach</label>
                         <label class="process-option"><input type="checkbox" data-process-field="NONSOFTENER"> Non-Softener</label>
                         <label class="process-option"><input type="checkbox" data-process-field="EWASH"> Enzyme Wash (YD)</label>
                         <label class="process-option"><input type="checkbox" data-process-field="BRUSH"> Brush</label>
-                        <label class="process-option"><input type="checkbox" data-process-field="OTHERS"> Others</label>
+                        <label class="process-option process-shearing"><input type="checkbox" data-process-field="SHEARING"> Shearing</label>
+                        <label class="process-option"><input type="checkbox" data-process-field="SINGEING"> Singeing</label>
+                        <label class="process-option"><input type="checkbox" data-process-field="HEAT_SET"> Heat Set</label>
+                        <label class="process-option process-others"><input type="checkbox" data-process-field="OTHERS"> Others</label>
+                        <div class="others-detail is-hidden" id="othersDetail">
+                            <input type="text" id="othersProcessInput" maxlength="100"
+                                placeholder="Enter other process" aria-label="Other dyeing process" disabled>
+                        </div>
                     </div>
                 </fieldset>
             </div>
@@ -681,7 +778,9 @@ unset($_SESSION['dyeing_batch']['saved']);
                             <th>ROLL</th>
                             <th>Rack</th>
                             <th>PO Number</th>
-                            <th>QTY</th>
+                            <th>Knitting QTY</th>
+                            <th>Available QTY</th>
+                            <th>Required QTY</th>
                             <th>Color</th>
                             <th>SONO</th>
                             <th>Buyer</th>
@@ -699,7 +798,7 @@ unset($_SESSION['dyeing_batch']['saved']);
                         </tr>
                     </thead>
                     <tbody id="storeBody">
-                        <tr class="empty-row"><td colspan="19">Select PO Number and Color, then search.</td></tr>
+                        <tr class="empty-row"><td colspan="21">Select PO Number and Color, then search.</td></tr>
                     </tbody>
                     <tfoot id="storeFoot"></tfoot>
                 </table>
@@ -711,9 +810,9 @@ unset($_SESSION['dyeing_batch']['saved']);
             <div class="suggestion-preview" id="suggestionPreview">
                 <div class="table-scroll">
                     <table>
-                        <thead><tr><th>ROLL</th><th>Rack</th><th>QTY</th><th>ACTION</th></tr></thead>
+                        <thead><tr><th>ROLL</th><th>Rack</th><th>Knitting QTY</th><th>Available QTY</th><th>Required QTY</th><th>ACTION</th></tr></thead>
                         <tbody id="suggestionRolls">
-                            <tr class="empty-row"><td colspan="4">Select rolls from the Matching Rolls table above.</td></tr>
+                            <tr class="empty-row"><td colspan="6">Select rolls from the Matching Rolls table above.</td></tr>
                         </tbody>
                         <tfoot id="selectedRollsFoot"></tfoot>
                     </table>
@@ -735,7 +834,6 @@ unset($_SESSION['dyeing_batch']['saved']);
         var searchInProgress = false;
         var poInputTimer = null;
         var targetQtyTimer = null;
-        var targetQtyManuallySet = false;
         var batchMessageTimer = null;
         var poNumberSelect = document.getElementById('poNumberSelect');
         var colorSelect = document.getElementById('colorSelect');
@@ -822,12 +920,21 @@ unset($_SESSION['dyeing_batch']['saved']);
                 processPanel.querySelectorAll('input[type="checkbox"]').forEach(function(checkbox) {
                     checkbox.checked = false;
                 });
+                document.getElementById('othersProcessInput').value = '';
+                document.getElementById('othersProcessInput').disabled = true;
+                document.getElementById('othersDetail').classList.add('is-hidden');
             }
         }
 
         function getSelectedProcesses() {
-            return Array.from(processPanel.querySelectorAll('input[data-process-field]:checked'))
-                .map(function(checkbox) { return checkbox.dataset.processField; });
+            var selected = {};
+            processPanel.querySelectorAll('input[data-process-field]:checked').forEach(function(checkbox) {
+                var field = checkbox.dataset.processField;
+                selected[field] = field === 'OTHERS'
+                    ? (document.getElementById('othersProcessInput').value.trim() || 'Others')
+                    : field;
+            });
+            return selected;
         }
 
         function resetResults(preserveTargetQty) {
@@ -844,7 +951,6 @@ unset($_SESSION['dyeing_batch']['saved']);
             document.getElementById('resultCount').textContent = '0 roll';
             if (!preserveTargetQty) {
                 targetQtyInput.value = '';
-                targetQtyManuallySet = false;
             }
             confirmCreateBtn.disabled = true;
             document.getElementById('suggestionRolls').innerHTML =
@@ -903,8 +1009,25 @@ unset($_SESSION['dyeing_batch']['saved']);
         }
 
         function qtyUnits(row) {
-            var qty = Number(row.QTY);
+            var qty = Number(row.RQTY);
             return Number.isFinite(qty) && qty > 0 ? Math.round(qty * 1000) : 0;
+        }
+
+        function availableQtyUnits(row) {
+            var qty = Number(row.AQTY);
+            return Number.isFinite(qty) && qty > 0 ? Math.round(qty * 1000) : 0;
+        }
+
+        function knittingQtyUnits(row) {
+            var qty = Number(row.KQTY);
+            return Number.isFinite(qty) && qty > 0 ? Math.round(qty * 1000) : 0;
+        }
+
+        function formatQty(value) {
+            var qty = Number(value);
+            return Number.isFinite(qty)
+                ? qty.toFixed(3).replace(/\.?0+$/, '')
+                : '';
         }
 
         function targetUnits() {
@@ -921,9 +1044,26 @@ unset($_SESSION['dyeing_batch']['saved']);
                 : '';
         }
 
+        function renderMatchingRollsFoot() {
+            var totals = candidateRolls.reduce(function(sum, row) {
+                sum.knitting += knittingQtyUnits(row);
+                sum.available += availableQtyUnits(row);
+                var selectedRow = selectedRolls.get(String(row.ROLL));
+                if (selectedRow) sum.required += qtyUnits(selectedRow);
+                return sum;
+            }, {knitting: 0, available: 0, required: 0});
+            document.getElementById('storeFoot').innerHTML =
+                '<tr><th colspan="4" class="total-label">Total QTY:</th>' +
+                '<th>' + formatQty(totals.knitting / 1000) + ' KG</th>' +
+                '<th id="availableQtyTotal">' + formatQty(totals.available / 1000) + ' KG</th>' +
+                '<th>' + formatQty(totals.required / 1000) + ' KG</th>' +
+                '<th colspan="14"></th></tr>';
+        }
+
         function renderRolls(rolls) {
             var fields = [
-                ['ROLL', 'ROLL'], ['RACK', 'RACK'], ['PO_NUMBER', 'PO_NUMBER'], ['QTY', 'QTY'],
+                ['ROLL', 'ROLL'], ['RACK', 'RACK'], ['PO_NUMBER', 'PO_NUMBER'],
+                ['KQTY', 'KQTY'], ['AQTY', 'AQTY'], ['RQTY', 'RQTY'],
                 ['COLOR', 'COLOR'], ['SONO', 'SONO'], ['BUYER', 'BUYER'], ['STYLE', 'STYLE'],
                 ['MCDIA', 'MCDIA'], ['CUSTOMER', 'CUSTOMER'], ['O_T', 'O_T'], ['SL', 'SL'],
                 ['FTYPE', 'FTYPE'], ['FGSM', 'FGSM'], ['FDIA', 'FDIA'], ['YTYPE', 'YTYPE'],
@@ -936,26 +1076,61 @@ unset($_SESSION['dyeing_batch']['saved']);
                     index + '" aria-label="Select roll ' + esc(rollKey) + '"' +
                     (selectedRolls.has(rollKey) ? ' checked' : '') + '></td>' +
                     fields.map(function(field) {
-                    var value = row[field[1]];
                     if (field[0] === 'ROLL') {
-                        return '<td><span class="roll-badge">' + esc(value) + '</span></td>';
+                        return '<td><span class="roll-badge">' + esc(row.ROLL) + '</span></td>';
                     }
-                    return '<td>' + esc(value) + '</td>';
+                    if (field[0] === 'RQTY') {
+                        var selectedRow = selectedRolls.get(rollKey);
+                        var requiredQty = selectedRow ? selectedRow.RQTY : row.AQTY;
+                        return '<td><input type="number" class="required-qty-input" data-required-index="' +
+                            index + '" min="0.001" max="' + esc(row.AQTY) +
+                            '" step="0.001" value="' + esc(formatQty(requiredQty)) + '"' +
+                            (selectedRow ? '' : ' disabled') + ' aria-label="Required QTY for roll ' +
+                            esc(rollKey) + '"></td>';
+                    }
+                    return '<td>' + (['KQTY', 'AQTY'].indexOf(field[0]) >= 0
+                        ? esc(formatQty(row[field[1]]))
+                        : esc(row[field[1]])) + '</td>';
                 }).join('') + '</tr>';
             });
             document.getElementById('storeBody').innerHTML = html ||
-                '<tr class="empty-row"><td colspan="19">No available rolls found for this PO Number and Color.</td></tr>';
-            var availableTotal = rolls.reduce(function(total, row) {
-                return total + qtyUnits(row);
-            }, 0);
-            document.getElementById('storeFoot').innerHTML =
-                '<tr><th colspan="4" class="total-label">Available total QTY</th>' +
-                '<th id="availableQtyTotal">' + (availableTotal / 1000).toFixed(2) + ' KG</th>' +
-                '<th colspan="14"></th></tr>';
+                '<tr class="empty-row"><td colspan="21">No available rolls found for this PO Number and Color.</td></tr>';
+            renderMatchingRollsFoot();
             document.querySelectorAll('.roll-select-checkbox').forEach(function(checkbox) {
                 checkbox.addEventListener('change', function() {
                     var row = candidateRolls[Number(this.dataset.rollIndex)];
                     if (row) toggleRollSelection(row, this.checked, this);
+                });
+            });
+            document.querySelectorAll('.required-qty-input').forEach(function(input) {
+                input.addEventListener('input', function() {
+                    var row = candidateRolls[Number(this.dataset.requiredIndex)];
+                    if (!row) return;
+                    var requiredQty = Number(this.value);
+                    var rollKey = String(row.ROLL);
+                    if (!selectedRolls.has(rollKey)) return;
+                    if (!Number.isFinite(requiredQty) || requiredQty <= 0 ||
+                        requiredQty - Number(row.AQTY) > 0.000001) {
+                        selectedRolls.get(rollKey).RQTY = 0;
+                    } else {
+                        selectedRolls.get(rollKey).RQTY = requiredQty;
+                        syncTargetQtyFromSelection();
+                        hideMsg();
+                    }
+                    updateCreateButton();
+                });
+                input.addEventListener('change', function() {
+                    var row = candidateRolls[Number(this.dataset.requiredIndex)];
+                    if (!row) return;
+                    var requiredQty = Number(this.value);
+                    if (!Number.isFinite(requiredQty) || requiredQty <= 0 ||
+                        requiredQty - Number(row.AQTY) > 0.000001) {
+                        showBatchPopup(
+                            'Batch Card was NOT created. Required QTY must be greater than 0 and cannot exceed Available QTY (' +
+                                row.AQTY + ' KG) for roll ' + row.ROLL + '.',
+                            'error'
+                        );
+                    }
                 });
             });
             document.getElementById('resultCount').textContent =
@@ -968,41 +1143,47 @@ unset($_SESSION['dyeing_batch']['saved']);
             var selectedTotal = selected.reduce(function(sum, row) {
                 return sum + qtyUnits(row);
             }, 0);
-            var minimum = Math.max(0, qty - 5000);
-            var maximum = qty + 5000;
             document.getElementById('suggestionPanel').classList.toggle(
                 'is-hidden',
                 candidateRolls.length === 0 || qty <= 0
             );
             var hasValidSelectedQty = selected.length > 0 &&
-                selectedTotal >= minimum && selectedTotal <= maximum;
-            confirmCreateBtn.disabled = !hasValidSelectedQty || !dyeingMcnoSelect.value;
+                selected.every(function(row) {
+                    return qtyUnits(row) > 0 &&
+                        Number(row.RQTY) <= Number(row.AQTY) + 0.000001;
+                });
+            var selectedProcessCheckboxes = processPanel.querySelectorAll('input[data-process-field]:checked');
+            var hasSelectedProcess = selectedProcessCheckboxes.length > 0;
+            confirmCreateBtn.disabled = !hasValidSelectedQty || !dyeingMcnoSelect.value ||
+                !hasSelectedProcess;
             confirmCreateBtn.title = !dyeingMcnoSelect.value
-                ? 'Select a Dyeing MC No to enable batch creation. Dyeing Process selections are optional.'
+                ? 'Select a Dyeing MC No to enable batch creation.'
                 : !hasValidSelectedQty
-                    ? 'Select rolls whose total QTY is within 5 KG of the target.'
-                    : 'Create the batch card. Dyeing Process selections are optional.';
+                    ? 'Select at least one roll with a valid Required QTY.'
+                    : !hasSelectedProcess
+                        ? 'Select at least one Dyeing Process.'
+                        : 'Create the batch card.';
 
             var status = document.getElementById('resultsStatus');
             if (candidateRolls.length === 0) {
                 status.textContent = 'No available rolls match this PO Number and Color.';
             } else if (qty > 0) {
                 status.textContent = 'Available total: ' +
-                    (candidateRolls.reduce(function(sum, row) { return sum + qtyUnits(row); }, 0) / 1000).toFixed(2) +
-                    ' KG. Selected total: ' + (selectedTotal / 1000).toFixed(2) +
-                    ' KG; target: ' + (qty / 1000).toFixed(2) + ' KG (' +
-                    (minimum / 1000).toFixed(2) + '–' + (maximum / 1000).toFixed(2) + ' KG allowed).';
+                    formatQty(candidateRolls.reduce(function(sum, row) { return sum + availableQtyUnits(row); }, 0) / 1000) +
+                    ' KG. Selected total: ' + formatQty(selectedTotal / 1000) +
+                    ' KG; target: ' + formatQty(qty / 1000) + ' KG.';
             } else {
                 status.textContent = 'Available total: ' +
-                    (candidateRolls.reduce(function(sum, row) { return sum + qtyUnits(row); }, 0) / 1000).toFixed(2) +
+                    formatQty(candidateRolls.reduce(function(sum, row) { return sum + availableQtyUnits(row); }, 0) / 1000) +
                     ' KG. Select rolls to automatically fill Target QTY.';
             }
+            renderMatchingRollsFoot();
             renderSelectedRolls();
         }
 
         function buildSuggestedRolls(target) {
             var available = candidateRolls.reduce(function(sum, row) {
-                return sum + qtyUnits(row);
+                return sum + availableQtyUnits(row);
             }, 0);
             var minimum = Math.max(0, target - 5000);
             var maximum = Math.min(available, target + 5000);
@@ -1016,7 +1197,7 @@ unset($_SESSION['dyeing_batch']['saved']);
             var reachableSums = [0];
 
             candidateRolls.forEach(function(row, rowIndex) {
-                var units = qtyUnits(row);
+                var units = availableQtyUnits(row);
                 if (units <= 0 || units > maximum) return;
 
                 var countBeforeRow = reachableSums.length;
@@ -1068,13 +1249,20 @@ unset($_SESSION['dyeing_batch']['saved']);
             selectedRolls.clear();
             if (suggested) {
                 suggested.forEach(function(row) {
-                    selectedRolls.set(String(row.ROLL), row);
+                    selectedRolls.set(String(row.ROLL), Object.assign({}, row, {RQTY: Number(row.AQTY)}));
                 });
+                syncTargetQtyFromSelection();
             }
 
             document.querySelectorAll('.roll-select-checkbox').forEach(function(checkbox) {
                 var row = candidateRolls[Number(checkbox.dataset.rollIndex)];
                 checkbox.checked = Boolean(row && selectedRolls.has(String(row.ROLL)));
+                var requiredInput = checkbox.closest('tr').querySelector('.required-qty-input');
+                if (requiredInput) {
+                    var selectedRow = row ? selectedRolls.get(String(row.ROLL)) : null;
+                    requiredInput.disabled = !selectedRow;
+                    requiredInput.value = formatQty(selectedRow ? selectedRow.RQTY : row.AQTY);
+                }
             });
 
             updateCreateButton();
@@ -1126,21 +1314,17 @@ unset($_SESSION['dyeing_batch']['saved']);
 
         function toggleRollSelection(row, checked, checkbox) {
             var key = String(row.ROLL);
+            var requiredInput = checkbox.closest('tr').querySelector('.required-qty-input');
             if (checked) {
-                var currentTotal = Array.from(selectedRolls.values()).reduce(function(sum, selectedRow) {
-                    return sum + qtyUnits(selectedRow);
-                }, 0);
-                if (targetQtyManuallySet && currentTotal + qtyUnits(row) > targetUnits() + 5000) {
-                    checkbox.checked = false;
-                    showMsg('This roll would exceed the target by more than 5 KG. Remove a selected roll or increase the target.', 'error');
-                    return;
-                }
-                selectedRolls.set(key, row);
+                selectedRolls.set(key, Object.assign({}, row, {RQTY: Number(row.AQTY)}));
+                requiredInput.disabled = false;
+                requiredInput.value = formatQty(row.AQTY);
                 hideMsg();
             } else {
                 selectedRolls.delete(key);
+                requiredInput.disabled = true;
             }
-            if (!targetQtyManuallySet) syncTargetQtyFromSelection();
+            syncTargetQtyFromSelection();
             updateCreateButton();
         }
 
@@ -1149,19 +1333,26 @@ unset($_SESSION['dyeing_batch']['saved']);
             var total = rows.reduce(function(sum, row) {
                 return sum + qtyUnits(row);
             }, 0);
-            var target = targetUnits();
+            var knittingTotal = rows.reduce(function(sum, row) {
+                return sum + knittingQtyUnits(row);
+            }, 0);
+            var availableTotal = rows.reduce(function(sum, row) {
+                return sum + availableQtyUnits(row);
+            }, 0);
             document.getElementById('suggestionRolls').innerHTML = rows.length
                 ? rows.map(function(row) {
                     return '<tr><td><span class="roll-badge">' + esc(row.ROLL) + '</span></td>' +
-                        '<td>' + esc(row.RACK) + '</td><td>' + esc(row.QTY) + '</td>' +
+                        '<td>' + esc(row.RACK) + '</td><td>' + esc(formatQty(row.KQTY)) + '</td>' +
+                        '<td>' + esc(formatQty(row.AQTY)) + '</td><td>' + esc(formatQty(row.RQTY)) + '</td>' +
                         '<td><button type="button" class="remove-roll-btn" data-remove-roll="' +
                         esc(row.ROLL) + '"><i class="fa-solid fa-trash"></i> Remove</button></td></tr>';
                 }).join('')
-                : '<tr class="empty-row"><td colspan="4">Select rolls from the Matching Rolls table above.</td></tr>';
+                : '<tr class="empty-row"><td colspan="6">Select rolls from the Matching Rolls table above.</td></tr>';
             document.getElementById('selectedRollsFoot').innerHTML =
-                '<tr><th colspan="2" class="total-label">Selected total QTY :</th>' +
-                '<th id="selectedQtyTotal" class="selected-total-value">' +
-                (total / 1000).toFixed(2) + ' KG</th>' +
+                '<tr><th colspan="2" class="total-label">Total QTY:</th>' +
+                '<th>' + formatQty(knittingTotal / 1000) + ' KG</th>' +
+                '<th>' + formatQty(availableTotal / 1000) + ' KG</th>' +
+                '<th id="selectedQtyTotal" class="selected-total-value">' + formatQty(total / 1000) + ' KG</th>' +
                 '<th></th></tr>';
 
             document.querySelectorAll('[data-remove-roll]').forEach(function(button) {
@@ -1174,7 +1365,11 @@ unset($_SESSION['dyeing_batch']['saved']);
                             return row && String(row.ROLL) === key;
                         });
                     if (matchingCheckbox) matchingCheckbox.checked = false;
-                    if (!targetQtyManuallySet) syncTargetQtyFromSelection();
+                    if (matchingCheckbox) {
+                        var requiredInput = matchingCheckbox.closest('tr').querySelector('.required-qty-input');
+                        if (requiredInput) requiredInput.disabled = true;
+                    }
+                    syncTargetQtyFromSelection();
                     updateCreateButton();
                 });
             });
@@ -1182,12 +1377,17 @@ unset($_SESSION['dyeing_batch']['saved']);
 
         function confirmCreate() {
             var selected = Array.from(selectedRolls.values());
+            var processes = getSelectedProcesses();
             if (!dyeingMcnoSelect.value) {
-                showMsg('Select a Dyeing MC No before creating the batch card. Dyeing Process selections are optional.', 'error');
+                showMsg('Select a Dyeing MC No before creating the batch card.', 'error');
+                return;
+            }
+            if (Object.keys(processes).length === 0) {
+                showMsg('Select at least one Dyeing Process before creating the batch card.', 'error');
                 return;
             }
             if (!selected.length || confirmCreateBtn.disabled) {
-                showMsg('Select rolls whose total is within 5 KG of the target QTY.', 'error');
+                showMsg('Select at least one roll and enter a valid Required QTY.', 'error');
                 return;
             }
 
@@ -1198,8 +1398,10 @@ unset($_SESSION['dyeing_batch']['saved']);
                 color: colorSelect.value,
                 target_qty: Number(targetQtyInput.value),
                 dymcno: dyeingMcnoSelect.value,
-                processes: getSelectedProcesses(),
-                rolls: selected.map(function(row) { return row.ROLL; })
+                processes: processes,
+                rolls: selected.map(function(row) {
+                    return {ROLL: row.ROLL, required_qty: Number(row.RQTY)};
+                })
             };
 
             apiPost('select_rolls', payload).then(function(response) {
@@ -1294,8 +1496,20 @@ unset($_SESSION['dyeing_batch']['saved']);
         });
 
         searchBtn.addEventListener('click', searchRolls);
+        processPanel.querySelectorAll('input[data-process-field]').forEach(function(checkbox) {
+            checkbox.addEventListener('change', function() {
+                if (this.dataset.processField === 'OTHERS') {
+                    var othersInput = document.getElementById('othersProcessInput');
+                    var enabled = this.checked;
+                    othersInput.disabled = !enabled;
+                    document.getElementById('othersDetail').classList.toggle('is-hidden', !enabled);
+                    if (!enabled) othersInput.value = '';
+                }
+                updateCreateButton();
+            });
+        });
+        document.getElementById('othersProcessInput').addEventListener('input', updateCreateButton);
         targetQtyInput.addEventListener('input', function() {
-            targetQtyManuallySet = targetQtyInput.value.trim() !== '';
             updateCreateButton();
             if (targetQtyTimer) clearTimeout(targetQtyTimer);
             targetQtyTimer = setTimeout(function() {
@@ -1304,7 +1518,6 @@ unset($_SESSION['dyeing_batch']['saved']);
             }, 250);
         });
         targetQtyInput.addEventListener('change', function() {
-            targetQtyManuallySet = targetQtyInput.value.trim() !== '';
             if (targetQtyTimer) {
                 clearTimeout(targetQtyTimer);
                 targetQtyTimer = null;

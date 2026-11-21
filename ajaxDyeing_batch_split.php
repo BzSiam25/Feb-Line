@@ -18,6 +18,7 @@ if (empty($_SESSION['batch_split_authorized'])) {
 }
 
 try {
+    ensureDyeingBatchQuantityColumns($db);
     ensureDyeingProcessColumns($db, 'dyeing_batch_card');
     ensureDyeingProcessColumns($db, 'dyeing_batch_delivery');
 } catch (Throwable $error) {
@@ -29,7 +30,9 @@ try {
 function insertSplitRow($db, $budat, $bcmtid, $rollNo, $row) {
     $vPO_NUMBER = isset($row['PO_NUMBER']) ? $row['PO_NUMBER'] : null;
     $vRACK = isset($row['RACK']) ? $row['RACK'] : null;
-    $vQTY = isset($row['QTY']) ? $row['QTY'] : null;
+    $vKQTY = isset($row['KQTY']) ? $row['KQTY'] : null;
+    $vAQTY = isset($row['AQTY']) ? $row['AQTY'] : null;
+    $vRQTY = isset($row['RQTY']) ? $row['RQTY'] : null;
     $vSONO = isset($row['SONO']) ? $row['SONO'] : null;
     $vSHIFT = isset($row['SHIFT']) ? $row['SHIFT'] : null;
     $vBUYER = isset($row['BUYER']) ? $row['BUYER'] : null;
@@ -52,19 +55,19 @@ function insertSplitRow($db, $budat, $bcmtid, $rollNo, $row) {
     $vTPOINT = isset($row['TPOINT']) ? $row['TPOINT'] : null;
     $uname = isset($_SESSION['username']) ? $_SESSION['username'] : '';
     $processValues = [];
-    foreach (dyeingProcessFieldNames() as $processField) {
+    foreach (dyeingBatchCardProcessFieldNames() as $processField) {
         $processValues[$processField] = isset($row[$processField]) ? $row[$processField] : '';
     }
 
     $stmt = $db->prepare(
         "INSERT INTO dyeing_batch_card
-         (BUDAT, BCARD, ROLL, PO_NUMBER, RACK, QTY, SONO, SHIFT, BUYER, STYLE, COLOR,
+         (BUDAT, BCARD, ROLL, PO_NUMBER, RACK, KQTY, AQTY, RQTY, SONO, SHIFT, BUYER, STYLE, COLOR,
           DYMCNO, MCDIA, CUSTOMER, O_T, SL, FTYPE, FGSM, FDIA, FEEDER_PLAN, LOT_NO,
           YTYPE, YCOUNT, YBRAND, CATEGORY, TPOINT, UNAME, SILICON, NONSILICON,
           NWASH, EWASH, ENZYME, NONENZYME, PEACH, BRUSH, AOP, SOFTENER,
-          NONSOFTENER, OTHERS)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+          NONSOFTENER, OTHERS, SHEARING, SINGEING, HEAT_SET)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
 
     if (!$stmt) {
@@ -72,13 +75,15 @@ function insertSplitRow($db, $budat, $bcmtid, $rollNo, $row) {
     }
 
     $stmt->bind_param(
-        str_repeat('s', 39),
+        str_repeat('s', 44),
         $budat,
         $bcmtid,
         $rollNo,
         $vPO_NUMBER,
         $vRACK,
-        $vQTY,
+        $vKQTY,
+        $vAQTY,
+        $vRQTY,
         $vSONO,
         $vSHIFT,
         $vBUYER,
@@ -111,7 +116,10 @@ function insertSplitRow($db, $budat, $bcmtid, $rollNo, $row) {
         $processValues['AOP'],
         $processValues['SOFTENER'],
         $processValues['NONSOFTENER'],
-        $processValues['OTHERS']
+        $processValues['OTHERS'],
+        $processValues['SHEARING'],
+        $processValues['SINGEING'],
+        $processValues['HEAT_SET']
     );
 
     if (!$stmt->execute()) {
@@ -276,7 +284,7 @@ switch ($action) {
         }
 
         // Load all rows of this card
-        $stmt = $db->prepare("SELECT * FROM dyeing_batch_card WHERE BCARD = ? ORDER BY DBCTID ASC");
+        $stmt = $db->prepare("SELECT *, RQTY AS QTY FROM dyeing_batch_card WHERE BCARD = ? ORDER BY DBCTID ASC");
         $stmt->bind_param('s', $card);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -314,8 +322,8 @@ switch ($action) {
 
         $selSum = 0;
         $remSum = 0;
-        foreach ($selRolls as $r) { $selSum += floatval($r['QTY']); }
-        foreach ($remRolls as $r) { $remSum += floatval($r['QTY']); }
+        foreach ($selRolls as $r) { $selSum += floatval($r['RQTY']); }
+        foreach ($remRolls as $r) { $remSum += floatval($r['RQTY']); }
         $selSum = round($selSum, 2);
         $remSum = round($remSum, 2);
 

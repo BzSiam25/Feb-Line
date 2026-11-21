@@ -19,6 +19,15 @@ if (!isset($_SESSION['username'])) {
     exit;
 }
 
+try {
+    ensureDyeingBatchQuantityColumns($db);
+    ensureDyeingProcessColumns($db, 'dyeing_batch_card');
+} catch (Throwable $error) {
+    error_log('Dyeing batch quantity initialization failed: ' . $error->getMessage());
+    http_response_code(500);
+    exit('Could not initialize dyeing batch quantities. Please contact the administrator.');
+}
+
 $reportTitle = $reportConfig['title'];
 $reportFrom = $reportConfig['from'];
 $reportMachine = $reportConfig['machine'];
@@ -31,7 +40,7 @@ $reportThemeStart = $reportConfig['theme_start'];
 $reportThemeEnd = $reportConfig['theme_end'];
 $reportTimeColumns = isset($reportConfig['time_columns']) ? $reportConfig['time_columns'] : [];
 $reportColumnCount = 23 + count($reportTimeColumns);
-$processFields = dyeingProcessFieldNames();
+$processFields = dyeingBatchCardProcessFieldNames();
 
 $processSelect = [];
 foreach ($processFields as $field) {
@@ -61,7 +70,7 @@ $sql = "SELECT
             t.ROLL,
             t.PO_NUMBER,
             t.COLOR,
-            t.QTY,
+            t.RQTY AS BATCH_QTY,
             {$reportMachine} AS MCNO,
             t.SONO,
             t.BUYER,
@@ -208,7 +217,7 @@ function dyeingReportEscape($value)
             ['ROLL', 'Roll'],
             ['PO_NUMBER', 'PO Number'],
             ['COLOR', 'Color'],
-            ['QTY', 'QTY'],
+            ['BATCH_QTY', 'Batch QTY'],
             ['MCNO', 'MCNO'],
             ['SONO', 'SONO'],
             ['BUYER', 'Buyer'],
@@ -231,6 +240,15 @@ function dyeingReportEscape($value)
             ['OP_ID', 'OP Id']
         ];
         var processFields = <?php echo json_encode($processFields); ?>;
+        var quantityFields = ['BATCH_QTY'];
+
+        function formatQty(value) {
+            if (value === null || value === undefined || String(value).trim() === '') return '';
+            var qty = Number(value);
+            return Number.isFinite(qty)
+                ? qty.toFixed(3).replace(/\.?0+$/, '')
+                : value;
+        }
 
         function setHeaders() {
             var header = document.getElementById('reportHeader');
@@ -317,7 +335,9 @@ function dyeingReportEscape($value)
                             return;
                         }
                         var value = row[column[0]];
-                        cell.textContent = value === null || value === undefined ? '' : value;
+                        cell.textContent = quantityFields.indexOf(column[0]) >= 0
+                            ? formatQty(value)
+                            : (value === null || value === undefined ? '' : value);
                     });
                 });
             });

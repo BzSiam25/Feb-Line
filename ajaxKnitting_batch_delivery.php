@@ -58,6 +58,7 @@ if (!isset($_SESSION['username'])) {
 }
 
 try {
+    ensureDyeingBatchQuantityColumns($db);
     if (!$db->query(
         "CREATE TABLE IF NOT EXISTS dyeing_batch_delivery (
             DBDTID INT(11) NOT NULL AUTO_INCREMENT,
@@ -246,7 +247,7 @@ try {
 
 function fetchDeliveryBatchRows($db, $cardNo, $forUpdate = false)
 {
-    $sql = "SELECT dbc.ROLL, dbc.PO_NUMBER, dbc.COLOR, dbc.QTY, dbc.DYMCNO, dbc.SONO, dbc.BUYER,
+    $sql = "SELECT dbc.ROLL, dbc.PO_NUMBER, dbc.COLOR, dbc.RQTY AS QTY, dbc.DYMCNO, dbc.SONO, dbc.BUYER,
                    dbc.STYLE, dbc.MCDIA, dbc.CUSTOMER, dbc.O_T, dbc.SL,
                    dbc.FTYPE, dbc.FGSM, dbc.FDIA, dbc.YTYPE, dbc.YCOUNT,
                    dbc.FEEDER_PLAN, dbc.LOT_NO, dbc.YBRAND, dbc.CATEGORY, dbc.BCARD,

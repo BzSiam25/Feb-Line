@@ -1,7 +1,18 @@
 <?php
 include 'config.php';
+require_once 'dyeing_process_fields.php';
 
 header('Content-Type: application/json');
+
+try {
+    ensureDyeingBatchQuantityColumns($db);
+    ensureDyeingProcessColumns($db, 'dyeing_batch_card');
+} catch (Throwable $error) {
+    http_response_code(500);
+    echo json_encode(['success' => false, 'error' => $error->getMessage()]);
+    mysqli_close($db);
+    exit;
+}
 
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 
@@ -26,10 +37,10 @@ if (count($conditions) > 0) {
     $where = 'WHERE ' . implode(' AND ', $conditions);
 }
 
-$query = "SELECT BCARD, BUDAT, RACK, ROLL, PO_NUMBER, QTY, SONO, SHIFT, BUYER, STYLE, COLOR,
+$query = "SELECT BCARD, BUDAT, RACK, ROLL, PO_NUMBER, RQTY AS BATCH_QTY, SONO, SHIFT, BUYER, STYLE, COLOR,
                  DYMCNO, MCDIA, CUSTOMER, YTYPE, YCOUNT, YBRAND, SILICON, NONSILICON,
                  NWASH, EWASH, ENZYME, NONENZYME, PEACH, BRUSH, AOP, SOFTENER,
-                 NONSOFTENER, OTHERS, O_T, SL, FTYPE, FGSM, FDIA, FEEDER_PLAN,
+                 NONSOFTENER, OTHERS, SHEARING, SINGEING, HEAT_SET, O_T, SL, FTYPE, FGSM, FDIA, FEEDER_PLAN,
                  LOT_NO, TPOINT, UNAME
           FROM dyeing_batch_card
           $where

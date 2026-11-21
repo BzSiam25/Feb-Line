@@ -2,6 +2,7 @@
 // ajaxDyeing_batch_card.php
 session_start();
 require_once 'config.php';
+require_once 'dyeing_process_fields.php';
 
 header('Content-Type: application/json');
 
@@ -15,6 +16,14 @@ if (!isset($_SESSION['dyeing_batch']) || !is_array($_SESSION['dyeing_batch'])) {
 }
 if (!isset($_SESSION['dyeing_batch']['rolls']) || !is_array($_SESSION['dyeing_batch']['rolls'])) {
     $_SESSION['dyeing_batch']['rolls'] = [];
+}
+
+try {
+    ensureDyeingBatchQuantityColumns($db);
+} catch (Throwable $error) {
+    http_response_code(500);
+    echo json_encode(['success' => false, 'message' => $error->getMessage()]);
+    exit;
 }
 
 function nextCardNoFromDb($db) {
@@ -126,13 +135,19 @@ switch ($action) {
         }
 
         $stmt = $db->prepare(
-            "SELECT ks.*
+            "SELECT ks.*, ks.QTY AS KQTY,
+                    GREATEST(CAST(ks.QTY AS DECIMAL(12,3)) - COALESCE((
+                        SELECT SUM(CAST(dbc.RQTY AS DECIMAL(12,3)))
+                        FROM dyeing_batch_card dbc
+                        WHERE TRIM(dbc.ROLL) = TRIM(ks.ROLL)
+                    ), 0), 0) AS AQTY
              FROM knitting_store ks
              WHERE TRIM(ks.PO_NUMBER) = ? AND TRIM(ks.COLOR) = ?
-               AND NOT EXISTS (
-                   SELECT 1 FROM dyeing_batch_card dbc
+               AND CAST(ks.QTY AS DECIMAL(12,3)) > COALESCE((
+                   SELECT SUM(CAST(dbc.RQTY AS DECIMAL(12,3)))
+                   FROM dyeing_batch_card dbc
                    WHERE TRIM(dbc.ROLL) = TRIM(ks.ROLL)
-               )
+               ), 0)
              ORDER BY ks.KSTID DESC
              LIMIT 500"
         );
@@ -167,28 +182,50 @@ switch ($action) {
         $color = isset($input['color']) ? trim((string)$input['color']) : '';
         $targetQty = isset($input['target_qty']) && is_numeric($input['target_qty']) ? (float)$input['target_qty'] : 0;
         $dyeingMcno = isset($input['dymcno']) ? trim((string)$input['dymcno']) : '';
-        $rolls = isset($input['rolls']) && is_array($input['rolls']) ? $input['rolls'] : [];
-        $allowedProcessFields = [
-            'SILICON', 'NONSILICON', 'NWASH', 'EWASH', 'ENZYME', 'NONENZYME',
-            'PEACH', 'BRUSH', 'AOP', 'SOFTENER', 'NONSOFTENER', 'OTHERS'
-        ];
+        $requestedRolls = isset($input['rolls']) && is_array($input['rolls']) ? $input['rolls'] : [];
+        $allowedProcessFields = dyeingBatchCardProcessFieldNames();
         $requestedProcesses = isset($input['processes']) && is_array($input['processes'])
             ? $input['processes']
             : [];
         $selectedProcesses = [];
-        foreach ($requestedProcesses as $processField) {
+        foreach ($requestedProcesses as $processField => $processValue) {
+            if (is_int($processField)) {
+                $processField = is_string($processValue) ? $processValue : '';
+                $processValue = $processField;
+            }
             if (!is_string($processField) || !in_array($processField, $allowedProcessFields, true)) {
                 echo json_encode(['success' => false, 'message' => 'Invalid Dyeing Process selection']);
                 exit;
             }
-            $selectedProcesses[$processField] = true;
+            if ($processField === 'OTHERS') {
+                $processValue = is_string($processValue) ? trim($processValue) : '';
+                $selectedProcesses[$processField] = $processValue !== '' ? $processValue : 'Others';
+            } else {
+                $selectedProcesses[$processField] = $processField;
+            }
+        }
+        if (count($selectedProcesses) === 0) {
+            echo json_encode(['success' => false, 'message' => 'Select at least one Dyeing Process']);
+            exit;
         }
 
-        $rolls = array_values(array_unique(array_filter(array_map(function ($roll) {
-            return is_scalar($roll) ? trim((string)$roll) : '';
-        }, $rolls), function ($roll) {
-            return $roll !== '';
-        })));
+        $requiredQtyByRoll = [];
+        foreach ($requestedRolls as $requestedRoll) {
+            if (!is_array($requestedRoll) || !isset($requestedRoll['ROLL']) ||
+                !isset($requestedRoll['required_qty']) || !is_numeric($requestedRoll['required_qty'])) {
+                echo json_encode(['success' => false, 'message' => 'Each selected roll must include a valid Required QTY']);
+                exit;
+            }
+            $roll = trim((string)$requestedRoll['ROLL']);
+            $requiredQty = round((float)$requestedRoll['required_qty'], 3);
+            if ($roll === '' || !is_finite($requiredQty) || $requiredQty <= 0 ||
+                isset($requiredQtyByRoll[$roll])) {
+                echo json_encode(['success' => false, 'message' => 'Selected rolls or Required QTY values are invalid']);
+                exit;
+            }
+            $requiredQtyByRoll[$roll] = $requiredQty;
+        }
+        $rolls = array_keys($requiredQtyByRoll);
 
         if ($poNumber === '' || $color === '' || $dyeingMcno === '' ||
             !is_finite($targetQty) || $targetQty <= 0 || count($rolls) === 0) {
@@ -222,14 +259,15 @@ switch ($action) {
 
         $placeholders = implode(',', array_fill(0, count($rolls), '?'));
         $stmt = $db->prepare(
-            "SELECT ks.*
+            "SELECT ks.*, ks.QTY AS KQTY,
+                    GREATEST(CAST(ks.QTY AS DECIMAL(12,3)) - COALESCE((
+                        SELECT SUM(CAST(dbc.RQTY AS DECIMAL(12,3)))
+                        FROM dyeing_batch_card dbc
+                        WHERE TRIM(dbc.ROLL) = TRIM(ks.ROLL)
+                    ), 0), 0) AS AQTY
              FROM knitting_store ks
              WHERE TRIM(ks.PO_NUMBER) = ? AND TRIM(ks.COLOR) = ?
                AND ks.ROLL IN ($placeholders)
-               AND NOT EXISTS (
-                   SELECT 1 FROM dyeing_batch_card dbc
-                   WHERE TRIM(dbc.ROLL) = TRIM(ks.ROLL)
-               )
              ORDER BY ks.KSTID DESC"
         );
         if (!$stmt) {
@@ -255,8 +293,15 @@ switch ($action) {
         $selectedQty = 0;
         while ($row = $result->fetch_assoc()) {
             $row['RACK'] = formatRackNumberFirst($row);
-            $selectedRolls[$row['ROLL']] = $row;
-            $selectedQty += is_numeric($row['QTY']) ? (float)$row['QTY'] : 0;
+            $roll = (string)$row['ROLL'];
+            $requiredQty = isset($requiredQtyByRoll[$roll]) ? $requiredQtyByRoll[$roll] : 0;
+            $availableQty = is_numeric($row['AQTY']) ? (float)$row['AQTY'] : 0;
+            if ($requiredQty <= 0 || $requiredQty - $availableQty > 0.000001) {
+                continue;
+            }
+            $row['RQTY'] = $requiredQty;
+            $selectedRolls[$roll] = $row;
+            $selectedQty += $requiredQty;
         }
         $stmt->close();
 
@@ -264,27 +309,12 @@ switch ($action) {
             $unavailableRolls = array_values(array_diff($rolls, array_keys($selectedRolls)));
             echo json_encode([
                 'success' => false,
-                'message' => 'These rolls no longer match the selected PO Number and Color or are already in a batch: ' .
+                'message' => 'These rolls are no longer available for the requested quantity: ' .
                     implode(', ', $unavailableRolls) . '. Search again and choose available rolls.'
             ]);
             exit;
         }
-        $minimumQty = max(0, $targetQty - 5);
-        $maximumQty = $targetQty + 5;
-        if ($selectedQty + 0.000001 < $minimumQty || $selectedQty - 0.000001 > $maximumQty) {
-            $rollQtyDetails = [];
-            foreach ($selectedRolls as $roll => $row) {
-                $rollQtyDetails[] = $roll . ' (' . (is_numeric($row['QTY']) ? number_format((float)$row['QTY'], 3) : 'invalid') . ' KG)';
-            }
-            echo json_encode([
-                'success' => false,
-                'message' => 'QTY does not match the target range. Target: ' . number_format($targetQty, 3) .
-                    ' KG; selected total: ' . number_format($selectedQty, 3) . ' KG; allowed: ' .
-                    number_format($minimumQty, 3) . '–' . number_format($maximumQty, 3) .
-                    ' KG. Selected rolls: ' . implode(', ', $rollQtyDetails)
-            ]);
-            exit;
-        }
+        $targetQty = round($selectedQty, 3);
 
         $_SESSION['dyeing_batch']['rolls'] = $selectedRolls;
         $_SESSION['dyeing_batch']['target_qty'] = $targetQty;
