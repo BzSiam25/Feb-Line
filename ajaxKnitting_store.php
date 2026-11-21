@@ -42,6 +42,12 @@ if ($action === 'search') {
 
 } elseif ($action === 'get_by_roll') {
     // Get data by ROLL (for QR scan)
+    if (isset($_GET['manual']) && $_GET['manual'] === '1' && empty($_SESSION['knitting_store_manual_entry_authorized'])) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'Unlock manual entry before searching for a roll.']);
+        exit;
+    }
+
     $roll = isset($_GET['roll']) ? trim($_GET['roll']) : '';
 
     if (empty($roll)) {

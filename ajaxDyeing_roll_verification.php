@@ -59,11 +59,18 @@ if ($action === 'authorize_manual_entry') {
     }
 
     unset($_SESSION['roll_manual_entry_attempts'], $_SESSION['roll_manual_entry_lock_until']);
-    if (isset($requestData['scope']) && $requestData['scope'] === 'knitting_batch_delivery') {
-        $_SESSION['knitting_delivery_manual_entry_authorized'] = true;
-    } else {
-        $_SESSION['roll_manual_entry_authorized'] = true;
-    }
+    $manualEntryScopes = [
+        'knitting_batch_delivery' => 'knitting_delivery_manual_entry_authorized',
+        'knitting_production' => 'knitting_production_manual_entry_authorized',
+        'knitting_inspection' => 'knitting_inspection_manual_entry_authorized',
+        'knitting_store' => 'knitting_store_manual_entry_authorized',
+        'knitting_roll_split' => 'knitting_roll_split_manual_entry_authorized'
+    ];
+    $scope = isset($requestData['scope']) ? (string) $requestData['scope'] : '';
+    $sessionKey = isset($manualEntryScopes[$scope])
+        ? $manualEntryScopes[$scope]
+        : 'roll_manual_entry_authorized';
+    $_SESSION[$sessionKey] = true;
     respond(['success' => true, 'message' => 'Manual roll entry unlocked.']);
 }
 

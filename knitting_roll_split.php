@@ -39,9 +39,19 @@ if ($isDyeingUser || $isFinishingUser) {
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
 
+if (!isset($_GET['action']) && !isset($_POST['action'])) {
+    unset($_SESSION['knitting_roll_split_manual_entry_authorized']);
+}
+
 // ================= AJAX: SEARCH ROLL IN STORE =================
 if (isset($_GET['action']) && $_GET['action'] === 'get_roll') {
     header('Content-Type: application/json');
+
+    if (isset($_GET['manual']) && $_GET['manual'] === '1' && empty($_SESSION['knitting_roll_split_manual_entry_authorized'])) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'Unlock manual entry before searching for a roll.']);
+        exit();
+    }
 
     $roll = isset($_GET['roll']) ? trim($_GET['roll']) : '';
     if ($roll === '') {
@@ -528,6 +538,41 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
             margin-bottom: 12px;
         }
 
+        .compact-lookup-panel {
+            width: min(100%, 900px);
+            margin: 12px auto 16px;
+        }
+
+        .compact-lookup-panel label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: #334155;
+        }
+
+        .compact-lookup-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .compact-lookup-controls .form-control {
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+
+        #searchStatus {
+            min-height: 0;
+            margin-top: 4px;
+            color: #475569;
+            font-size: 0.85rem;
+        }
+
+        #searchStatus:empty {
+            display: none;
+        }
+
         #qr-reader {
             width: 100%;
             height: 100%;
@@ -584,15 +629,67 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
         }
 
         .camera-controls {
-            display: flex;
-            justify-content: space-between;
+            display: grid;
+            grid-template-columns: minmax(170px, 1fr) auto minmax(140px, 1fr);
             align-items: center;
-            max-width: 520px;
-            margin: 12px auto 0;
+            gap: 20px;
+            width: 100%;
+            max-width: 720px;
+            margin: 16px auto 0;
             padding: 0 6px;
         }
 
+        .manual-unlock-controls,
+        .manual-password-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .manual-unlock-controls {
+            justify-self: center;
+        }
+
+        .manual-password-row input {
+            width: 190px;
+            min-width: 0;
+            min-height: 42px;
+            padding: 9px 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+        }
+
+        .camera-action-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            min-height: 42px;
+            padding: 8px 14px;
+            border: 1px solid #0b5c53;
+            border-radius: 8px;
+            background: #0f7a6f;
+            color: #fff;
+            font-weight: 700;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .camera-action-btn:hover {
+            background: #0b5c53;
+        }
+
+        #scanQrBtn {
+            justify-self: end;
+        }
+
+        #rollInput[readonly] {
+            background: #e2e8f0;
+            cursor: not-allowed;
+        }
+
         .status-badge {
+            min-width: 165px;
             background: #dcebe8;
             padding: 8px 18px;
             border-radius: 100px;
@@ -601,7 +698,9 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
             font-weight: 600;
             display: flex;
             align-items: center;
+            justify-content: center;
             gap: 8px;
+            white-space: nowrap;
             border: 1px solid #9fc8c1;
         }
 
@@ -673,6 +772,19 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
 
             .page-header .back-btn {
                 white-space: nowrap;
+            }
+
+            .camera-controls {
+                grid-template-columns: 1fr auto;
+            }
+
+            .manual-unlock-controls {
+                grid-column: 1 / -1;
+                grid-row: 2;
+            }
+
+            .manual-password-row input {
+                width: 170px;
             }
 
             .lookup-panel {
@@ -775,6 +887,34 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
             .scanner-container {
                 width: min(100%, 520px);
             }
+
+            .camera-controls {
+                grid-template-columns: minmax(0, 1fr) auto;
+                gap: 12px;
+            }
+
+            .compact-lookup-controls {
+                flex-wrap: wrap;
+            }
+
+            .compact-lookup-controls .form-control {
+                flex: 1 1 100%;
+            }
+
+            .compact-lookup-controls .btn {
+                flex: 1 1 0;
+            }
+
+            .manual-unlock-controls {
+                grid-column: 1 / -1;
+                grid-row: 2;
+            }
+
+            .status-badge {
+                min-width: 0;
+                white-space: normal;
+                text-align: center;
+            }
         }
     </style>
 </head>
@@ -804,25 +944,30 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
                     <i class="fas fa-video"></i>
                     <span id="qrScannerStatus" role="status" aria-live="polite">Starting camera...</span>
                 </div>
-                <button class="btn-icon" id="scanQrBtn" type="button" title="Restart / switch camera" aria-label="Restart camera">
-                    <i class="fas fa-sync-alt"></i>
+                <div class="manual-unlock-controls">
+                    <div class="manual-password-row">
+                        <input type="password" id="manualPassword" autocomplete="off" placeholder="Pass For Entry" aria-label="Password for manual entry">
+                        <button class="camera-action-btn" id="unlockManualButton" type="button">Unlock</button>
+                    </div>
+                </div>
+                <button class="camera-action-btn" id="scanQrBtn" type="button" title="Switch Front/Back camera" aria-label="Switch camera">
+                    <i class="fas fa-sync-alt"></i> Switch Camera
                 </button>
             </div>
         </div>
 
-        <div class="panel lookup-panel mb-3">
-            <label class="form-label fw-semibold" style="font-size:x-large; color: black;">
-                Search Roll Number <span class="small-muted">(from Knitting Store)</span>
-            </label>
-            <div class="lookup-controls">
-                <input type="text" id="rollInput" class="form-control" placeholder="Enter Roll No" autocomplete="off">
-                <button class="btn px-4" id="searchBtn" style="margin-top:8px;background:#2563eb;border:1px solid #2563eb;color:#fff;border-radius:8px;">
+        <div class="compact-lookup-panel">
+            <label for="rollInput">Roll Number (from Knitting Store)</label>
+            <div class="compact-lookup-controls">
+                <input type="text" id="rollInput" class="form-control" placeholder="Unlock to enter manually" autocomplete="off" readonly>
+                <button class="btn px-4" id="searchBtn" type="button" style="background:#2563eb;border:1px solid #2563eb;color:#fff;border-radius:8px;">
                     <i class="fa-solid fa-magnifying-glass me-1" style="margin-right:6px;"></i> Search
                 </button>
-                <button class="btn px-4" id="clearBtn" style="margin-top:8px;margin-left:8px;background:#6b7280;border:1px solid #6b7280;color:#fff;border-radius:8px;">
+                <button class="btn px-4" id="clearBtn" type="button" style="background:#6b7280;border:1px solid #6b7280;color:#fff;border-radius:8px;">
                     <i class="fa-solid fa-rotate-left me-1" style="margin-right:6px;"></i> Clear
                 </button>
             </div>
+            <div id="searchStatus" role="status" aria-live="polite"></div>
         </div>
         </div>
 
@@ -835,7 +980,14 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
         var currentRoll = null;
         var qrScanner = null;
         var qrScannerRunning = false;
+        var qrScannerStarting = false;
         var qrScanLocked = false;
+            var currentFacingMode = 'environment';
+            var cameraSwitching = false;
+            var manualEntryAuthorized = false;
+            var cameraStartFailed = false;
+            var resumeScannerAfterVisibility = false;
+            var pageIsLeaving = false;
 
         $('#backBtn').on('click', function() {
             history.back();
@@ -1031,26 +1183,36 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
             alert(message);
         }
 
-        function loadRoll(roll, restartScannerOnFailure) {
+        function loadRoll(roll, restartScannerOnFailure, isManualEntry) {
+            $('#searchStatus').text('Loading roll data...');
             $.ajax({
                     url: 'knitting_roll_split.php',
                     method: 'GET',
                     data: {
                         action: 'get_roll',
-                        roll: roll
+                        roll: roll,
+                        manual: isManualEntry ? '1' : '0'
                     },
                     dataType: 'json'
                 })
                 .done(function(resp) {
                     if (resp && resp.success) {
+                        $('#searchStatus').text('');
                         renderRoll(resp.data);
                     } else {
-                        showQrError('Wrong QR Code! Please scan a valid knitting Store Roll.');
+                        $('#searchStatus').text('');
+                        showQrError(isManualEntry
+                            ? (resp.error || 'Unable to load roll data.')
+                            : 'Wrong QR Code! Please scan a valid knitting Store Roll.');
                         if (restartScannerOnFailure) restartScanner();
                     }
                 })
-                .fail(function() {
-                    showQrError('Unable to load roll data. Please try again.');
+                .fail(function(xhr) {
+                    $('#searchStatus').text('');
+                    var message = xhr.responseJSON && xhr.responseJSON.error
+                        ? xhr.responseJSON.error
+                        : 'Unable to load roll data. Please try again.';
+                    showQrError(message);
                     if (restartScannerOnFailure) restartScanner();
                 });
         }
@@ -1076,13 +1238,86 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
                 .toggleClass('text-danger', Boolean(isError));
         }
 
+        function showManualEntryLocked() {
+            var message = 'Enter a valid password and select Unlock before entering a roll manually.';
+            if (typeof Swal !== 'undefined') {
+                if (Swal.isVisible()) return;
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Manual Entry Locked',
+                    text: message,
+                    confirmButtonText: 'OK'
+                });
+                return;
+            }
+            alert('Manual Entry Locked: ' + message);
+        }
+
+        function setManualEntryAuthorized(isAuthorized) {
+            manualEntryAuthorized = isAuthorized;
+            $('#rollInput')
+                .prop('readonly', !isAuthorized)
+                .attr('aria-disabled', isAuthorized ? 'false' : 'true')
+                .attr('placeholder', isAuthorized ? 'Enter Roll No' : 'Unlock to enter manually');
+        }
+
+        function unlockManualEntry() {
+            var password = $('#manualPassword').val();
+            if (!password) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Password Required',
+                    text: 'Enter the password to unlock manual entry.'
+                });
+                $('#manualPassword').trigger('focus');
+                return;
+            }
+
+            $('#unlockManualButton').prop('disabled', true);
+            fetch('ajaxDyeing_roll_verification.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'authorize_manual_entry',
+                    scope: 'knitting_roll_split',
+                    password: password
+                })
+            }).then(function(response) {
+                return response.json().then(function(data) {
+                    if (!response.ok || !data.success) {
+                        throw new Error(data.message || 'Could not unlock manual entry.');
+                    }
+                    return data;
+                });
+            }).then(function() {
+                $('#manualPassword').val('');
+                setManualEntryAuthorized(true);
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Manual Entry Unlocked',
+                    timer: 1600,
+                    showConfirmButton: false
+                });
+            }).catch(function(error) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Manual Entry Locked',
+                    text: error.message
+                });
+            }).finally(function() {
+                $('#unlockManualButton').prop('disabled', false);
+            });
+        }
+
         function stopQrScanner() {
             if (!qrScanner) return Promise.resolve(true);
 
             var scanner = qrScanner;
             var wasRunning = qrScannerRunning;
+            var wasStarting = qrScannerStarting;
             qrScanner = null;
             qrScannerRunning = false;
+            qrScannerStarting = wasStarting;
             $('#scanQrBtn').prop('disabled', false);
 
             var stopped;
@@ -1094,7 +1329,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
                 return Promise.resolve(false);
             }
             return stopped.then(function() {
-                scanner.clear();
+                if (!wasStarting) scanner.clear();
                 return true;
             }).catch(function(error) {
                 console.error('Unable to stop QR scanner:', error);
@@ -1104,18 +1339,29 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
         }
 
         function startQrScanner() {
+            if (pageIsLeaving) return;
+            if (document.hidden) {
+                resumeScannerAfterVisibility = true;
+                setQrScannerStatus('Camera paused while page is hidden');
+                $('#scanQrBtn').prop('disabled', false);
+                return;
+            }
+            if (qrScannerStarting || qrScannerRunning) return;
             $('#qrScannerPanel').show();
             if (typeof Html5Qrcode === 'undefined') {
+                cameraSwitching = false;
                 setQrScannerStatus('QR scanner could not be loaded. Use roll number search instead.', true);
                 return;
             }
 
             $('#scanQrBtn').prop('disabled', true);
             setQrScannerStatus('Starting camera...');
-            qrScanner = new Html5Qrcode('qr-reader');
+            var scanner = new Html5Qrcode('qr-reader');
+            qrScanner = scanner;
+            qrScannerStarting = true;
 
-            qrScanner.start(
-                { facingMode: 'environment' },
+            scanner.start(
+                { facingMode: currentFacingMode },
                 {
                     fps: 20,
                     qrbox: function(viewfinderWidth, viewfinderHeight) {
@@ -1141,9 +1387,9 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
                         });
                         return;
                     }
-
                     $('#rollInput').val(roll);
                     setQrScannerStatus('QR scanned. Loading store data...');
+                    $('#searchStatus').text('Loading roll data...');
                     stopQrScanner().then(function(stopped) {
                         if (!stopped) {
                             qrScanLocked = false;
@@ -1151,32 +1397,59 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
                         }
                         $('#qr-reader').empty();
                         $('#qrScannerPanel').show();
-                        $('#resultArea').html('<div class="panel"><div class="text-center small-muted">Loading...</div></div>');
-                        loadRoll(roll, true);
+                        loadRoll(roll, true, false);
                     });
                 },
                 function() {}
             ).then(function() {
+                qrScannerStarting = false;
+                if (pageIsLeaving || document.hidden || qrScanner !== scanner) {
+                    qrScannerRunning = false;
+                    cameraSwitching = false;
+                    Promise.resolve()
+                        .then(function() { return scanner.stop(); })
+                        .catch(function(error) {
+                            console.warn('Unable to stop inactive roll-split camera:', error);
+                        })
+                        .then(function() {
+                            try { scanner.clear(); } catch (error) {
+                                console.warn('Unable to clear inactive roll-split camera:', error);
+                            }
+                            if (qrScanner === scanner) qrScanner = null;
+                            resumeScannerIfVisible();
+                        });
+                    return;
+                }
                 qrScannerRunning = true;
+                cameraStartFailed = false;
                 $('#scanQrBtn').prop('disabled', false);
-                setQrScannerStatus('Scanning for a roll QR code...');
+                cameraSwitching = false;
+                setQrScannerStatus('Scanning (' + (currentFacingMode === 'environment' ? 'Rear' : 'Front') + ')');
             }).catch(function(error) {
                 console.error('Unable to start QR scanner:', error);
-                if (qrScanner) {
-                    try {
-                        qrScanner.clear();
-                    } catch (cleanupError) {
-                        console.error('Unable to clear failed QR scanner:', cleanupError);
-                    }
-                }
-                qrScanner = null;
+                var scannerIsCurrent = qrScanner === scanner;
+                qrScannerStarting = false;
+                if (scannerIsCurrent) qrScanner = null;
                 qrScannerRunning = false;
+                if (pageIsLeaving || document.hidden || !scannerIsCurrent) {
+                    try { scanner.clear(); } catch (cleanupError) {
+                        console.warn('Unable to clear inactive roll-split camera:', cleanupError);
+                    }
+                    cameraSwitching = false;
+                    resumeScannerIfVisible();
+                    return;
+                }
+                try { scanner.clear(); } catch (cleanupError) {
+                    console.error('Unable to clear failed QR scanner:', cleanupError);
+                }
+                cameraStartFailed = true;
+                cameraSwitching = false;
                 $('#scanQrBtn').prop('disabled', false);
                 setQrScannerStatus('Camera unavailable', true);
                 Swal.fire({
                     icon: 'error',
                     title: 'Camera unavailable',
-                    text: (error.message || error) + '. You can still search by roll number.',
+                    text: (error.message || error) + '. Close other camera apps or scanner tabs, then select Switch Camera to retry. You can still search by roll number.',
                     confirmButtonText: 'OK',
                     timer: 3000,
                     timerProgressBar: true
@@ -1184,7 +1457,19 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
             });
         }
 
+        function resumeScannerIfVisible() {
+            if (!resumeScannerAfterVisibility || document.hidden || pageIsLeaving || qrScannerStarting) return;
+            resumeScannerAfterVisibility = false;
+            if ($('#qrScannerPanel').is(':visible') && !qrScanLocked) {
+                setTimeout(startQrScanner, 500);
+            }
+        }
+
         function searchRoll() {
+            if (!manualEntryAuthorized) {
+                showManualEntryLocked();
+                return;
+            }
             var roll = $('#rollInput').val().trim();
             if (!roll) {
                 Swal.fire({
@@ -1197,8 +1482,33 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
             }
             stopQrScanner().then(function(stopped) {
                 if (stopped) $('#qrScannerPanel').hide();
-                $('#resultArea').html('<div class="panel"><div class="text-center small-muted">Loading...</div></div>');
-                loadRoll(roll);
+                $('#searchStatus').text('Searching...');
+                loadRoll(roll, false, true);
+            });
+        }
+
+        function switchCamera() {
+            if (cameraSwitching || qrScannerStarting || typeof Html5Qrcode === 'undefined') return;
+            cameraSwitching = true;
+            $('#scanQrBtn').prop('disabled', true);
+            stopQrScanner().then(function(stopped) {
+                if (!stopped) {
+                    cameraSwitching = false;
+                    $('#scanQrBtn').prop('disabled', false);
+                    return;
+                }
+                if (!cameraStartFailed) {
+                    currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+                }
+                cameraStartFailed = false;
+                qrScanLocked = false;
+                $('#qrScannerPanel').show();
+                $('#qr-reader').empty();
+                startQrScanner();
+            }).catch(function(error) {
+                cameraSwitching = false;
+                $('#scanQrBtn').prop('disabled', false);
+                showQrError('Could not switch camera: ' + (error.message || error));
             });
         }
 
@@ -1209,21 +1519,25 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
             startQrScanner();
         }
 
+        function stopScannerForPageLifecycle() {
+            return stopQrScanner();
+        }
+
         $(function() {
+            setManualEntryAuthorized(false);
             startQrScanner();
-            $('#searchBtn').on('click', searchRoll);
-            $('#scanQrBtn').on('click', function() {
-                $(this).prop('disabled', true);
-                stopQrScanner().then(function(stopped) {
-                    if (stopped) {
-                        $('#qrScannerPanel').show();
-                        $('#qr-reader').empty();
-                        startQrScanner();
-                    } else {
-                        $('#scanQrBtn').prop('disabled', false);
-                    }
-                });
+            $('#unlockManualButton').on('click', unlockManualEntry);
+            $('#manualPassword').on('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    unlockManualEntry();
+                }
             });
+            $('#rollInput').on('click', function() {
+                if (!manualEntryAuthorized) showManualEntryLocked();
+            });
+            $('#searchBtn').on('click', searchRoll);
+            $('#scanQrBtn').on('click', switchCamera);
             $('#clearBtn').on('click', function() {
                 stopQrScanner().then(function(stopped) {
                     $('#rollInput').val('');
@@ -1239,6 +1553,25 @@ if (isset($_POST['action']) && $_POST['action'] === 'split') {
             $('#rollInput').on('keyup', function(e) {
                 if (e.key === 'Enter') searchRoll();
             });
+        });
+
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) {
+                resumeScannerAfterVisibility = resumeScannerAfterVisibility || (qrScannerRunning || qrScannerStarting) && !qrScanLocked;
+                if (resumeScannerAfterVisibility) stopScannerForPageLifecycle();
+                return;
+            }
+
+            resumeScannerIfVisible();
+        });
+
+        window.addEventListener('pagehide', function() {
+            pageIsLeaving = true;
+            stopScannerForPageLifecycle();
+        });
+        window.addEventListener('beforeunload', function() {
+            pageIsLeaving = true;
+            stopScannerForPageLifecycle();
         });
     </script>
 

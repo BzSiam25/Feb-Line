@@ -1,3 +1,9 @@
+<?php
+if (session_status() === PHP_SESSION_NONE) {
+  session_start();
+}
+unset($_SESSION['knitting_store_manual_entry_authorized']);
+?>
 <!DOCTYPE html>
 <html lang="en">
 
@@ -45,7 +51,7 @@
     }
 
     .card {
-      max-width: none;
+      max-width: 1200px;
       width: 100%;
       margin: 0 auto;
       background: #eef5f3;
@@ -224,19 +230,54 @@
     }
 
     .camera-controls {
-      display: flex;
-      justify-content: space-between;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
       align-items: center;
+      gap: 8px;
       margin-top: 12px;
       padding: 0 6px;
     }
 
-    .camera-control-buttons {
+    .compact-entry-container {
+      width: min(100%, 720px);
+      margin: 12px auto 16px;
+    }
+
+    .compact-entry-container label {
+      display: block;
+      margin-bottom: 6px;
+      color: #0b4f47;
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+
+    .compact-entry-container .manual-entry {
+      margin-top: 0;
+    }
+
+    #toggle-camera-btn {
+      justify-self: end;
+    }
+
+    .manual-unlock-controls,
+    .manual-password-row {
       display: flex;
       align-items: center;
-      justify-content: flex-end;
-      gap: 8px;
-      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .manual-unlock-controls {
+      justify-self: center;
+    }
+
+    .manual-password-row input {
+      width: 190px;
+      min-width: 0;
+      min-height: 36px;
+      padding: 7px 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font: inherit;
     }
 
     .status-badge {
@@ -763,7 +804,7 @@
 
     @media (min-width: 768px) and (max-width: 1199.98px) {
       .card {
-        max-width: 1100px;
+        max-width: 1200px;
         border-radius: 30px;
         padding: 22px;
       }
@@ -840,6 +881,11 @@
       box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
     }
 
+    .manual-entry input[readonly] {
+      background: #e2e8f0;
+      cursor: not-allowed;
+    }
+
     .manual-entry button {
       background: linear-gradient(135deg, #2563eb, #1d4ed8);
       color: #ffffff;
@@ -857,7 +903,29 @@
       filter: brightness(1.1);
     }
 
+    .manual-entry button:disabled {
+      opacity: .6;
+      cursor: not-allowed;
+    }
+
+    .manual-entry button.manual-locked-button {
+      opacity: .7;
+    }
+
     @media(max-width:480px) {
+      .camera-controls {
+        grid-template-columns: 1fr auto;
+      }
+
+      .manual-unlock-controls {
+        grid-column: 1 / -1;
+        grid-row: 2;
+      }
+
+      .manual-password-row input {
+        width: 170px;
+      }
+
       body {
         padding: 6px;
       }
@@ -960,22 +1028,30 @@
         <i class="fas fa-video"></i>
         <span id="camera-status">Ready</span>
       </div>
-      <div class="camera-control-buttons">
-        <button type="button" class="camera-action-btn" id="toggle-camera-btn" title="Switch Front/Back camera">
-          <i class="fas fa-sync-alt"></i> Switch Camera
-        </button>
+      <div class="manual-unlock-controls">
+        <div class="manual-password-row">
+          <input type="password" id="manualPassword" autocomplete="off" placeholder="Pass For Entry" aria-label="Password for manual entry">
+          <button type="button" class="camera-action-btn" id="unlockManualButton">Unlock</button>
+        </div>
+      </div>
+      <button type="button" class="camera-action-btn" id="toggle-camera-btn" title="Switch Front/Back camera">
+        <i class="fas fa-sync-alt"></i> Switch Camera
+      </button>
+    </div>
+
+    <div class="compact-entry-container" id="manualEntryContainer">
+      <label for="manualRollInput">Roll Number</label>
+      <div class="manual-entry">
+        <input type="text" id="manualRollInput" placeholder="Unlock to enter manually" autocomplete="off" readonly>
+        <button type="button" id="manualRollBtn">Add Roll</button>
       </div>
     </div>
 
-    <div class="result-panel">
+    <div class="result-panel" id="resultPanel" style="display:none;">
       <div class="result-header">
         <i class="fas fa-qrcode"></i>
         <span>Scanned Roll Data</span>
         <span style="margin-left: auto; font-size: 0.7rem; background: #14b8a6; padding: 2px 12px; border-radius: 40px; color: #ffffff;">Ready</span>
-      </div>
-      <div class="manual-entry">
-        <input type="text" id="manualRollInput" placeholder="ROLL number (e.g. 3000000001)" autocomplete="off">
-        <button type="button" id="manualRollBtn">Add Roll</button>
       </div>
       <div id="result-content">
         <!-- Default content will be injected by JS -->
@@ -1040,6 +1116,7 @@
       "use strict";
 
       const resultContainer = document.getElementById('result-content');
+      const resultPanel = document.getElementById('resultPanel');
       const messageContainer = document.getElementById('message');
       const cameraStatus = document.getElementById('camera-status');
       const scannerContainer = document.getElementById('scannerContainer');
@@ -1052,7 +1129,11 @@
       const subRackOptionsGroup = document.getElementById('subRackOptionsGroup');
       const resetRackBtn = document.getElementById('resetRackBtn');
       const saveRackBtn = document.getElementById('saveRackBtn');
+      const manualPassword = document.getElementById('manualPassword');
+      const unlockManualButton = document.getElementById('unlockManualButton');
       let currentFacingMode = 'environment';
+      let manualEntryAuthorized = false;
+      let isCameraTransitioning = false;
 
       const PREVIEW_COLUMNS = [
         { key: 'BUDAT', label: 'Date' },
@@ -1094,11 +1175,19 @@
       let isScanning = false;
       let isSaving = false;
       let hasLoadedData = false;
+      let cameraStartFailed = false;
+      let resumeScannerAfterVisibility = false;
+      let pageIsLeaving = false;
+      if (document.hidden) {
+        cameraStatus.innerText = 'Camera paused while page is hidden';
+        resumeScannerAfterVisibility = true;
+      }
       let lastInvalidQr = '';
       let lastInvalidQrAt = 0;
 
       function renderDefaultData() {
         if (hasLoadedData) return;
+        resultPanel.style.display = 'none';
         hideRackSection();
         saveRackBtn.innerHTML = '<i class="fas fa-save"></i> Save Rack';
         resultContainer.innerHTML = `
@@ -1484,9 +1573,78 @@
         }, 150);
       });
 
-      function fetchDataByRoll(roll) {
+      function syncManualEntryControls() {
+        const manualRollInput = document.getElementById('manualRollInput');
+        const manualRollButton = document.getElementById('manualRollBtn');
+        if (manualRollInput) {
+          manualRollInput.disabled = isSaving;
+          manualRollInput.readOnly = !manualEntryAuthorized;
+          manualRollInput.placeholder = manualEntryAuthorized
+            ? 'ROLL number (e.g. 3000000001)'
+            : 'Unlock to enter manually';
+        }
+        if (manualRollButton) {
+          manualRollButton.disabled = isSaving;
+          manualRollButton.classList.toggle('manual-locked-button', !manualEntryAuthorized);
+        }
+      }
+
+      function showManualEntryLocked() {
+        const message = 'Enter a valid password and select Unlock before entering a roll manually.';
+        if (typeof Swal !== 'undefined') {
+          if (Swal.isVisible()) return;
+          Swal.fire({ icon: 'warning', title: 'Manual Entry Locked', text: message, confirmButtonText: 'OK' });
+        } else {
+          alert('Manual Entry Locked: ' + message);
+        }
+      }
+
+      function unlockManualEntry() {
+        const password = manualPassword.value;
+        if (!password) {
+          if (typeof Swal !== 'undefined') {
+            Swal.fire({ icon: 'warning', title: 'Password Required', text: 'Enter the password to unlock manual entry.' });
+          } else {
+            alert('Enter the password to unlock manual entry.');
+          }
+          manualPassword.focus();
+          return;
+        }
+
+        unlockManualButton.disabled = true;
+        fetch('ajaxDyeing_roll_verification.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'authorize_manual_entry',
+            scope: 'knitting_store',
+            password: password
+          })
+        }).then(function(response) {
+          return response.json().then(function(data) {
+            if (!response.ok || !data.success) {
+              throw new Error(data.message || 'Could not unlock manual entry.');
+            }
+            manualPassword.value = '';
+            manualEntryAuthorized = true;
+            syncManualEntryControls();
+            showMessage('Manual entry unlocked.', 'success');
+          });
+        }).catch(function(error) {
+          if (typeof Swal !== 'undefined') {
+            Swal.fire({ icon: 'error', title: 'Manual Entry Locked', text: error.message });
+          } else {
+            alert(error.message);
+          }
+        }).finally(function() {
+          unlockManualButton.disabled = false;
+        });
+      }
+
+      function fetchDataByRoll(roll, isManualEntry) {
         return new Promise(function(resolve, reject) {
-          fetch('ajaxKnitting_store.php?action=get_by_roll&roll=' + encodeURIComponent(roll))
+          const manualQuery = isManualEntry ? '&manual=1' : '';
+          fetch('ajaxKnitting_store.php?action=get_by_roll&roll=' + encodeURIComponent(roll) + manualQuery)
             .then(function(r) {
               return r.json();
             })
@@ -1539,13 +1697,17 @@
         const inp = document.getElementById('manualRollInput');
         const roll = inp ? String(inp.value).trim() : '';
 
+        if (!manualEntryAuthorized) {
+          showManualEntryLocked();
+          return;
+        }
         if (isSaving) return;
         if (!roll) {
           showMessage('Please enter a ROLL number first.', 'error');
           return;
         }
 
-        addRollToPreview(roll);
+        addRollToPreview(roll, true);
         inp.value = '';
       }
 
@@ -1563,10 +1725,11 @@
           return;
         }
 
-        addRollToPreview(roll);
+        addRollToPreview(roll, false);
       }
 
-      function addRollToPreview(roll) {
+      function addRollToPreview(roll, isManualEntry) {
+        if (isManualEntry && !manualEntryAuthorized) return;
         if (isSaving) return;
         const normalizedRoll = normalizeProductionRoll(roll);
         if (!normalizedRoll) {
@@ -1591,11 +1754,12 @@
         cameraStatus.innerText = 'Searching...';
         cameraStatus.style.color = '#fbbf24';
 
-        fetchDataByRoll(normalizedRoll)
+        fetchDataByRoll(normalizedRoll, isManualEntry)
           .then(function(row) {
             rollRetryAfter.delete(rollKey);
             rollDuplicateNoticeAfter.set(rollKey, Date.now() + MESSAGE_DURATION_MS);
             renderScannedData(row);
+            resultPanel.style.display = 'block';
             cameraStatus.innerText = 'Scanning (' + scannedRolls.length + ' loaded)';
             cameraStatus.style.color = '#4b4f51';
             showMessage('Roll ' + normalizedRoll + ' added to preview. Scan the next roll or store all ' + scannedRolls.length + ' rolls.', 'success');
@@ -1685,8 +1849,7 @@
 
             showMessage(msg, 'error');
             isSaving = false;
-            if (manualRollInput) manualRollInput.disabled = false;
-            if (manualRollBtn) manualRollBtn.disabled = false;
+            syncManualEntryControls();
             saveRackBtn.disabled = false;
             saveRackBtn.innerHTML = '<i class="fas fa-save"></i> Store All Rolls (' + scannedRolls.length + ')';
             if (wasScanningBeforeSave) restartScanner();
@@ -1705,8 +1868,7 @@
               console.error('Unable to pause scanner before saving rolls:', error);
               showMessage('Could not pause the camera. Please try storing again.', 'error');
               isSaving = false;
-              if (manualRollInput) manualRollInput.disabled = false;
-              if (manualRollBtn) manualRollBtn.disabled = false;
+              syncManualEntryControls();
               saveRackBtn.disabled = false;
               saveRackBtn.innerHTML = '<i class="fas fa-save"></i> Store All Rolls (' + scannedRolls.length + ')';
             });
@@ -1728,19 +1890,36 @@
         }
       }
 
-      function startNewScanner() {
-        if (html5QrCode) {
+      async function startNewScanner() {
+        if (pageIsLeaving) return;
+        if (document.hidden) {
+          resumeScannerAfterVisibility = true;
+          cameraStatus.innerText = 'Camera paused while page is hidden';
+          return;
+        }
+        if (isCameraTransitioning) return;
+        isCameraTransitioning = true;
+        const previousScanner = html5QrCode;
+        html5QrCode = null;
+        isScanning = false;
+        if (previousScanner) {
           try {
-            html5QrCode.stop();
-            html5QrCode.clear();
-          } catch (e) {}
-          html5QrCode = null;
+            await previousScanner.stop();
+          } catch (error) {
+            console.warn('Unable to stop the previous camera before switching:', error);
+          }
+          try {
+            previousScanner.clear();
+          } catch (error) {
+            console.warn('Unable to clear the previous camera scanner:', error);
+          }
         }
 
         const qrReaderElement = document.getElementById('qr-reader');
         qrReaderElement.innerHTML = '';
 
-        html5QrCode = new Html5Qrcode("qr-reader");
+        const scanner = new Html5Qrcode("qr-reader");
+        html5QrCode = scanner;
 
         const config = {
           fps: 30,
@@ -1754,35 +1933,67 @@
           aspectRatio: 1.0
         };
 
-        html5QrCode.start({
-            facingMode: currentFacingMode
-          },
-          config,
-          onScanSuccess,
-          function(err) {}
-        ).then(function() {
+        try {
+          await scanner.start({
+              facingMode: currentFacingMode
+            },
+            config,
+            onScanSuccess,
+            function(err) {}
+          );
+          if (pageIsLeaving || document.hidden || html5QrCode !== scanner) {
+            try { await scanner.stop(); } catch (error) {
+              console.warn('Unable to stop camera after scanner page became inactive:', error);
+            }
+            try { scanner.clear(); } catch (error) {
+              console.warn('Unable to clear camera after scanner page became inactive:', error);
+            }
+            if (html5QrCode === scanner) html5QrCode = null;
+            isScanning = false;
+            return;
+          }
+          cameraStartFailed = false;
           isScanning = true;
           cameraStatus.innerText = 'Scanning (' + (currentFacingMode === 'environment' ? 'Rear' : 'Front') + ')';
           cameraStatus.style.color = '#8bcbff';
           scannerContainer.style.display = 'block';
-          cameraControls.style.display = 'flex';
+          cameraControls.style.display = 'grid';
           applyCameraZoom();
-        }).catch(function(err) {
+        } catch (err) {
           isScanning = false;
+          cameraStartFailed = true;
+          try {
+            if (scanner.isScanning === true) await scanner.stop();
+          } catch (cleanupError) {
+            console.warn('Unable to stop the failed store camera:', cleanupError);
+          }
+          try { scanner.clear(); } catch (cleanupError) {
+            console.warn('Unable to clear the failed store camera:', cleanupError);
+          }
+          if (html5QrCode === scanner) html5QrCode = null;
           console.error("Camera start error:", err);
           const errorMessage = err && err.message ? err.message : String(err || 'Unknown camera error');
-          cameraStatus.innerText = 'Camera error';
+          cameraStatus.innerText = 'Camera busy or unavailable';
           cameraStatus.style.color = '#f7a1a1';
-          showMessage('Camera unavailable: ' + errorMessage + '. You can add rolls manually or retry the camera.', 'error');
+          showMessage('Camera is in use or unavailable (' + errorMessage + '). Close other camera apps or scanner tabs, then retry. You can still add rolls manually.', 'error');
           const retryCameraBtn = document.createElement('button');
           retryCameraBtn.className = 'rescan-btn';
           retryCameraBtn.type = 'button';
           retryCameraBtn.textContent = 'Retry Camera';
           retryCameraBtn.addEventListener('click', function() {
+            cameraStartFailed = false;
             restartScanner();
           });
           messageContainer.appendChild(retryCameraBtn);
-        });
+        } finally {
+          isCameraTransitioning = false;
+          if (resumeScannerAfterVisibility && !document.hidden && !pageIsLeaving) {
+            resumeScannerAfterVisibility = false;
+            if (!isScanning && scannerContainer.style.display !== 'none') {
+              setTimeout(startNewScanner, 500);
+            }
+          }
+        }
       }
 
       function applyCameraZoom() {
@@ -1810,33 +2021,13 @@
         processScannedData(decodedText);
       }
 
-      function restartScanner() {
+      async function restartScanner() {
+        if (isCameraTransitioning) return;
         scannerContainer.style.display = 'block';
-        cameraControls.style.display = 'flex';
+        cameraControls.style.display = 'grid';
         cameraStatus.innerText = 'Restarting...';
         cameraStatus.style.color = '#fbbf24';
-
-        var proceed = function() {
-          startNewScanner();
-        };
-
-        if (html5QrCode && isScanning) {
-          try {
-            html5QrCode.stop().then(function() {
-              try { html5QrCode.clear(); } catch (e) {}
-              proceed();
-            }).catch(function() {
-              proceed();
-            });
-          } catch (e) {
-            proceed();
-          }
-        } else {
-          if (html5QrCode) {
-            try { html5QrCode.clear(); } catch (e) {}
-          }
-          proceed();
-        }
+        await startNewScanner();
       }
 
       document.getElementById('pageRefreshBtn').addEventListener('click', function() {
@@ -1845,16 +2036,32 @@
 
       document.getElementById('toggle-camera-btn').addEventListener('click', function(e) {
         e.preventDefault();
-        currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+        if (isCameraTransitioning) return;
+        if (!cameraStartFailed) {
+          currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+        }
+        cameraStartFailed = false;
         restartScanner();
       });
 
       document.addEventListener('DOMContentLoaded', function() {
         renderDefaultData();
+        syncManualEntryControls();
+
+        unlockManualButton.addEventListener('click', unlockManualEntry);
+        manualPassword.addEventListener('keydown', function(e) {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            unlockManualEntry();
+          }
+        });
 
         const mRollInput = document.getElementById('manualRollInput');
         const mRollBtn = document.getElementById('manualRollBtn');
         if (mRollBtn) mRollBtn.addEventListener('click', submitManualRoll);
+        if (mRollInput) mRollInput.addEventListener('click', function() {
+          if (!manualEntryAuthorized) showManualEntryLocked();
+        });
         if (mRollInput) mRollInput.addEventListener('keydown', function(e) {
           if (e.key === 'Enter') {
             e.preventDefault();
@@ -1867,13 +2074,52 @@
         }, 500);
       });
 
-      window.addEventListener('beforeunload', function() {
-        if (html5QrCode) {
-          try {
-            html5QrCode.stop();
-            html5QrCode.clear();
-          } catch (e) {}
+      function stopScannerForPageLifecycle() {
+        const scanner = html5QrCode;
+        if (!scanner || isCameraTransitioning) return Promise.resolve();
+        const wasScanning = isScanning || scanner.isScanning === true;
+        html5QrCode = null;
+        isScanning = false;
+        if (!wasScanning) {
+          try { scanner.clear(); } catch (error) {
+            console.warn('Unable to clear camera after leaving the page:', error);
+          }
+          return Promise.resolve();
         }
+        return Promise.resolve()
+          .then(function() { return scanner.stop(); })
+          .catch(function(error) {
+            console.warn('Unable to stop camera after leaving the page:', error);
+          })
+          .then(function() {
+            try { scanner.clear(); } catch (error) {
+              console.warn('Unable to clear camera after leaving the page:', error);
+            }
+          });
+      }
+
+      document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+          resumeScannerAfterVisibility = resumeScannerAfterVisibility || isScanning || isCameraTransitioning;
+          if (isScanning) stopScannerForPageLifecycle();
+          return;
+        }
+
+        if (!resumeScannerAfterVisibility) return;
+        if (isCameraTransitioning) return;
+        resumeScannerAfterVisibility = false;
+        if (scannerContainer.style.display !== 'none' && cameraControls.style.display !== 'none' && !isSaving) {
+          setTimeout(startNewScanner, 500);
+        }
+      });
+
+      window.addEventListener('pagehide', function() {
+        pageIsLeaving = true;
+        stopScannerForPageLifecycle();
+      });
+      window.addEventListener('beforeunload', function() {
+        pageIsLeaving = true;
+        stopScannerForPageLifecycle();
       });
 
     })();

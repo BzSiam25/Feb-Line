@@ -1,8 +1,21 @@
 <?php
+if (session_status() === PHP_SESSION_NONE) {
+  session_start();
+}
+if (!isset($_GET['action'])) {
+  unset($_SESSION['knitting_production_manual_entry_authorized']);
+}
+
 if (isset($_GET['action']) && $_GET['action'] === 'get_roll') {
   require_once 'config.php';
   header('Content-Type: application/json');
   header('X-Content-Type-Options: nosniff');
+
+  if (isset($_GET['manual']) && $_GET['manual'] === '1' && empty($_SESSION['knitting_production_manual_entry_authorized'])) {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'error' => 'Unlock manual entry before searching for a knit card.']);
+    exit();
+  }
 
   $KNITCARD = isset($_GET['knitcard']) ? trim($_GET['knitcard']) :
     (isset($_GET['roll']) ? trim($_GET['roll']) : '');
@@ -52,6 +65,12 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
   require_once 'config.php';
   header('Content-Type: application/json');
   header('X-Content-Type-Options: nosniff');
+
+  if (isset($_GET['manual']) && $_GET['manual'] === '1' && empty($_SESSION['knitting_production_manual_entry_authorized'])) {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'error' => 'Unlock manual entry before searching for an operator.']);
+    exit();
+  }
 
   $op = isset($_GET['operator_id']) ? trim($_GET['operator_id']) : '';
   if ($op === '') {
@@ -224,9 +243,10 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
     }
 
     .camera-controls {
-      display: flex;
-      justify-content: space-between;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
       align-items: center;
+      gap: 8px;
       margin-top: 12px;
       padding: 0 6px;
     }
@@ -280,6 +300,64 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
       justify-content: flex-end;
       gap: 8px;
       flex-wrap: wrap;
+    }
+
+    .manual-unlock-controls,
+    .manual-password-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .manual-unlock-controls {
+      justify-self: center;
+    }
+
+    #toggle-camera-btn {
+      justify-self: end;
+    }
+
+    .manual-password-row input {
+      width: 190px;
+      min-width: 0;
+      min-height: 36px;
+      padding: 7px 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font: inherit;
+    }
+
+    .manual-password-row button {
+      min-height: 36px;
+    }
+
+    .manual-entry input[readonly] {
+      background: #e2e8f0;
+      cursor: not-allowed;
+    }
+
+    .manual-entry button:disabled {
+      opacity: .6;
+      cursor: not-allowed;
+    }
+
+    .manual-entry .manual-locked-button {
+      opacity: .7;
+    }
+
+    @media (max-width: 480px) {
+      .camera-controls {
+        grid-template-columns: 1fr auto;
+      }
+
+      .manual-unlock-controls {
+        grid-column: 1 / -1;
+        grid-row: 2;
+      }
+
+      .manual-password-row input {
+        width: 170px;
+      }
     }
 
     .result-panel {
@@ -656,6 +734,23 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
       margin-top: 10px;
     }
 
+    .compact-entry-container {
+      width: min(100%, 720px);
+      margin: 12px auto 16px;
+    }
+
+    .compact-entry-container label {
+      display: block;
+      margin-bottom: 6px;
+      color: #475569;
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+
+    .compact-entry-container .manual-entry {
+      margin-top: 0;
+    }
+
     .manual-entry input {
       flex: 1;
       min-width: 0;
@@ -891,14 +986,20 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
         <i class="fas fa-video"></i>
         <span id="camera-status">Ready</span>
       </div>
-      <div class="camera-control-buttons">
-        <button type="button" class="camera-action-btn" id="toggle-camera-btn" title="Switch Front/Back camera">
-          <i class="fas fa-sync-alt"></i> Switch Camera
-        </button>
+      <div class="manual-unlock-controls">
+        <div class="manual-password-row">
+          <input type="password" id="manualPassword" autocomplete="off" placeholder="Pass For Entry" aria-label="Password for manual entry">
+          <button type="button" class="camera-action-btn" id="unlockManualButton">Unlock</button>
+        </div>
       </div>
+      <button type="button" class="camera-action-btn" id="toggle-camera-btn" title="Switch Front/Back camera">
+        <i class="fas fa-sync-alt"></i> Switch Camera
+      </button>
     </div>
 
-    <div class="result-panel">
+    <div class="compact-entry-container" id="manualEntryContainer"></div>
+
+    <div class="result-panel" id="resultPanel" style="display:none;">
       <div class="result-header">
         <i class="fas fa-qrcode"></i>
         <span>Scanned Data</span>
@@ -1035,9 +1136,13 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
 
       const resultContainer = document.getElementById('result-content');
       const actionContainer = document.getElementById('action-content');
+      const manualEntryContainer = document.getElementById('manualEntryContainer');
+      const resultPanel = document.getElementById('resultPanel');
       const cameraStatus = document.getElementById('camera-status');
       const scannerContainer = document.getElementById('scannerContainer');
       const cameraControls = document.getElementById('cameraControls');
+      const manualPassword = document.getElementById('manualPassword');
+      const unlockManualButton = document.getElementById('unlockManualButton');
 
       const QR_FIELDS = [
         'KNITCARD', 'BOOKING', 'SONO', 'BUYER', 'MCNO', 'MC_DIA', 'STYLE',
@@ -1079,13 +1184,22 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
       let scannedInfo = null;
       let html5QrCode = null;
       let isScanning = false;
+      let cameraStartFailed = false;
       let scanCount = 0;
       let operatorScanned = false;
       let operatorRequiredPromptOpen = false;
       let verifying = false;
       let processingRoll = false;
+      let isStartingCamera = false;
+      let resumeScannerAfterVisibility = false;
+      let pageIsLeaving = false;
+      if (document.hidden && cameraStatus) {
+        cameraStatus.innerText = 'Camera paused while page is hidden';
+        resumeScannerAfterVisibility = true;
+      }
       let operatorInfo = null;
       let currentFacingMode = 'environment';
+      let manualEntryAuthorized = false;
       let errorAlertOpen = false;
       let lastRejectedOperatorId = '';
       let lastRejectedRollCode = '';
@@ -1099,32 +1213,115 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
         value: 'Scan/ Enter Production Knit Card QR'
       }];
 
+      function syncManualEntryControls() {
+        const operatorInput = document.getElementById('manualOperatorInput');
+        const operatorButton = document.getElementById('manualOperatorBtn');
+        const rollInput = document.getElementById('manualRollInput');
+        const rollButton = document.getElementById('manualRollBtn');
+
+        [operatorInput, rollInput].forEach(input => {
+          if (!input) return;
+          input.readOnly = !manualEntryAuthorized;
+          input.placeholder = manualEntryAuthorized
+            ? input.id === 'manualOperatorInput' ? 'Operator ID (e.g. OP01)' : 'Knit Card No (e.g. 200000001) / Card ID'
+            : 'Unlock to enter manually';
+        });
+        [operatorButton, rollButton].forEach(button => {
+          if (!button) return;
+          button.disabled = false;
+          button.classList.toggle('manual-locked-button', !manualEntryAuthorized);
+        });
+      }
+
+      function showManualEntryLocked() {
+        const message = 'Enter a valid password and select Unlock before entering a roll manually.';
+        if (typeof Swal !== 'undefined') {
+          if (Swal.isVisible()) return;
+          Swal.fire({ icon: 'warning', title: 'Manual Entry Locked', text: message, confirmButtonText: 'OK' });
+        } else {
+          alert('Manual Entry Locked: ' + message);
+        }
+      }
+
+      function unlockManualEntry() {
+        const password = manualPassword.value;
+        if (!password) {
+          if (typeof Swal !== 'undefined') {
+            Swal.fire({ icon: 'warning', title: 'Password Required', text: 'Enter the password to unlock manual entry.' });
+          } else {
+            alert('Enter the password to unlock manual entry.');
+          }
+          manualPassword.focus();
+          return;
+        }
+
+        unlockManualButton.disabled = true;
+        fetch('ajaxDyeing_roll_verification.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'authorize_manual_entry',
+            scope: 'knitting_production',
+            password: password
+          })
+        }).then(response => response.json().then(data => {
+          if (!response.ok || !data.success) {
+            throw new Error(data.message || 'Could not unlock manual entry.');
+          }
+          manualPassword.value = '';
+          manualEntryAuthorized = true;
+          syncManualEntryControls();
+          if (typeof Swal !== 'undefined') {
+            Swal.fire({ icon: 'success', title: 'Manual Entry Unlocked', timer: 1600, showConfirmButton: false });
+          }
+        })).catch(error => {
+          if (typeof Swal !== 'undefined') {
+            Swal.fire({ icon: 'error', title: 'Manual Entry Locked', text: error.message });
+          } else {
+            alert(error.message);
+          }
+        }).finally(() => {
+          unlockManualButton.disabled = false;
+        });
+      }
+
       function renderDefaultData() {
         scannedInfo = null;
         hideActionContent();
 
-        let html = `
+        manualEntryContainer.innerHTML = `
+          <label for="manualOperatorInput">Operator ID</label>
           <div class="manual-entry">
-            <input type="text" id="manualOperatorInput" placeholder="Operator ID (e.g. OP01)" autocomplete="off">
+            <input type="text" id="manualOperatorInput" placeholder="Unlock to enter manually" autocomplete="off" readonly>
             <button type="button" id="manualOperatorBtn">Load</button>
           </div>
           <div id="operatorInputStatus"></div>
         `;
+        resultPanel.style.display = 'none';
+        let html = '';
         html += `<div class="data-row header-row"><span class="label">Default Information</span><span class="value"></span></div>`;
         DEFAULT_DATA.forEach(f => {
           html += `<div class="data-row default-row"><span class="label">${f.label}</span><span class="value">${f.value}</span></div>`;
         });
         resultContainer.innerHTML = html;
+        syncManualEntryControls();
 
         const opInput = document.getElementById('manualOperatorInput');
         const opBtn = document.getElementById('manualOperatorBtn');
         if (opBtn) opBtn.addEventListener('click', submitManualOperator);
+        if (opInput) opInput.addEventListener('click', function() {
+          if (!manualEntryAuthorized) showManualEntryLocked();
+        });
         if (opInput) opInput.addEventListener('keydown', e => {
           if (e.key === 'Enter') { e.preventDefault(); submitManualOperator(); }
         });
       }
 
       function submitManualOperator() {
+        if (!manualEntryAuthorized) {
+          showManualEntryLocked();
+          return;
+        }
         if (verifying || operatorScanned) return;
         const inp = document.getElementById('manualOperatorInput');
         const val = inp ? String(inp.value).trim() : '';
@@ -1138,7 +1335,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
         if (statusEl) statusEl.innerHTML = '';
         lastRejectedOperatorId = '';
         verifying = true;
-        verifyOperatorScan(val);
+        verifyOperatorScan(val, true);
       }
 
       function parseQrText(qrText) {
@@ -1290,6 +1487,8 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
       }
 
       function renderRollData(row, qrText) {
+        manualEntryContainer.innerHTML = '';
+        resultPanel.style.display = 'block';
         const m = (v) => (v === null || v === undefined) ? '' : String(v);
 
         scannedInfo = {
@@ -1430,14 +1629,15 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
         setupScaleQtyInput();
       }
 
-      function verifyOperatorScan(qrText) {
+      function verifyOperatorScan(qrText, isManualEntry) {
         const val = String(qrText).trim();
 
         if (typeof Swal !== 'undefined' && Swal.isVisible()) {
           Swal.close();
         }
 
-        fetch('knitting_production.php?action=get_operator&operator_id=' + encodeURIComponent(val))
+        const manualQuery = isManualEntry ? '&manual=1' : '';
+        fetch('knitting_production.php?action=get_operator&operator_id=' + encodeURIComponent(val) + manualQuery)
           .then(r => r.text())
           .then(txt => {
             verifying = false;
@@ -1477,12 +1677,16 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
       }
 
       function renderOperatorVerified() {
-        resultContainer.innerHTML = `
+        manualEntryContainer.innerHTML = `
+          <label for="manualRollInput">Knit Card Number</label>
           <div class="manual-entry">
-            <input type="text" id="manualRollInput" placeholder="Knit Card No (e.g. 200000001) / Card ID" autocomplete="off">
+            <input type="text" id="manualRollInput" placeholder="Unlock to enter manually" autocomplete="off" readonly>
             <button type="button" id="manualRollBtn">Load Data</button>
           </div>
           <div id="rollInputStatus"></div>
+        `;
+        resultPanel.style.display = 'none';
+        resultContainer.innerHTML = `
           <div class="data-row header-row" style="border-left-color:#10b981;">
             <span class="label">Operator Verified <span class="scanned-badge" style="background:#10b981;">OPERATOR</span></span>
             <span class="value">${new Date().toLocaleTimeString()}</span>
@@ -1495,6 +1699,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
             <span class="value" style="color:#92400e; font-weight:600;">Now Scan / Enter Knit Card No (e.g. 200000001)</span>
           </div>
         `;
+        syncManualEntryControls();
         hideActionContent();
         if (typeof cameraStatus !== 'undefined' && cameraStatus) {
           cameraStatus.innerText = 'Operator verified - scan production roll';
@@ -1503,6 +1708,9 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
         const rollInput = document.getElementById('manualRollInput');
         const rollBtn = document.getElementById('manualRollBtn');
         if (rollBtn) rollBtn.addEventListener('click', submitManualRoll);
+        if (rollInput) rollInput.addEventListener('click', function() {
+          if (!manualEntryAuthorized) showManualEntryLocked();
+        });
         if (rollInput) rollInput.addEventListener('keydown', e => {
           if (e.key === 'Enter') { e.preventDefault(); submitManualRoll(); }
         });
@@ -1511,6 +1719,10 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
       }
 
       function submitManualRoll() {
+        if (!manualEntryAuthorized) {
+          showManualEntryLocked();
+          return;
+        }
         if (!operatorScanned) {
           promptOperatorRequired();
           return;
@@ -1529,7 +1741,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
         }
         lastRejectedRollCode = '';
         processingRoll = true;
-        processScannedKnitCard(val);
+        processScannedKnitCard(val, true);
       }
 
       function notFoundNoticeHtml(msg) {
@@ -1583,7 +1795,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
         }
       }
 
-      function renderScannedData(qrText) {
+      function renderScannedData(qrText, isManualEntry) {
         if (typeof Swal !== 'undefined' && Swal.isVisible()) {
           Swal.close();
         }
@@ -1594,7 +1806,8 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
         }
 
         const text = String(qrText).trim();
-        fetch('knitting_production.php?action=get_roll&knitcard=' + encodeURIComponent(text))
+        const manualQuery = isManualEntry ? '&manual=1' : '';
+        fetch('knitting_production.php?action=get_roll&knitcard=' + encodeURIComponent(text) + manualQuery)
           .then(r => r.json())
           .then(res => {
             if (res && res.success && res.data) {
@@ -2091,24 +2304,37 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
       }
 
       function startScanner() {
-        startNewScanner();
+        return startNewScanner();
       }
 
       async function startNewScanner() {
+        if (pageIsLeaving) return;
+        if (document.hidden) {
+          resumeScannerAfterVisibility = true;
+          if (cameraStatus) cameraStatus.innerText = 'Camera paused while page is hidden';
+          return;
+        }
+        if (isStartingCamera) return;
+        isStartingCamera = true;
         const previousScanner = html5QrCode;
         html5QrCode = null;
 
         if (previousScanner) {
           try {
             await previousScanner.stop();
-            previousScanner.clear();
-          } catch (e) {}
+          } catch (error) {
+            console.warn('Unable to stop the previous camera before restarting:', error);
+          }
+          try { previousScanner.clear(); } catch (error) {
+            console.warn('Unable to clear the previous camera scanner:', error);
+          }
         }
 
         const qrReaderElement = document.getElementById('qr-reader');
         qrReaderElement.innerHTML = '';
 
-        html5QrCode = new Html5Qrcode("qr-reader");
+        const scanner = new Html5Qrcode("qr-reader");
+        html5QrCode = scanner;
 
         const config = {
           fps: 30,
@@ -2123,31 +2349,63 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
           facingMode: currentFacingMode
         };
 
-        html5QrCode.start(
-          cameraConstraints,
-          config,
-          onScanSuccess,
-          onScanError
-        ).then(() => {
+        try {
+          await scanner.start(
+            cameraConstraints,
+            config,
+            onScanSuccess,
+            onScanError
+          );
+          if (pageIsLeaving || document.hidden || html5QrCode !== scanner) {
+            try { await scanner.stop(); } catch (error) {
+              console.warn('Unable to stop camera after scanner page became inactive:', error);
+            }
+            try { scanner.clear(); } catch (error) {
+              console.warn('Unable to clear camera after scanner page became inactive:', error);
+            }
+            if (html5QrCode === scanner) html5QrCode = null;
+            isScanning = false;
+            return;
+          }
+          cameraStartFailed = false;
           isScanning = true;
           cameraStatus.innerText = 'Scanning (' + (currentFacingMode === 'environment' ? 'Rear' : 'Front') + ')';
           cameraStatus.style.color = '#8bcbff';
           scannerContainer.style.display = 'block';
-          cameraControls.style.display = 'flex';
+          cameraControls.style.display = 'grid';
           if (resultContainer.children.length === 0) {
             renderDefaultData();
           }
-        }).catch(err => {
+        } catch (err) {
           console.warn("Camera start error:", err);
+          cameraStartFailed = true;
+          isScanning = false;
+          try {
+            if (scanner.isScanning === true) await scanner.stop();
+          } catch (cleanupError) {
+            console.warn('Unable to stop the failed production camera:', cleanupError);
+          }
+          try { scanner.clear(); } catch (cleanupError) {
+            console.warn('Unable to clear the failed production camera:', cleanupError);
+          }
+          if (html5QrCode === scanner) html5QrCode = null;
           if (cameraStatus) {
-            cameraStatus.innerText = 'Camera unavailable (Use manual input below)';
+            cameraStatus.innerText = 'Camera busy or unavailable';
             cameraStatus.style.color = '#f59e0b';
           }
           // Ensure manual input controls remain fully available and are not overwritten
           if (!operatorScanned) {   
             renderDefaultData();
           }
-        });
+        } finally {
+          isStartingCamera = false;
+          if (resumeScannerAfterVisibility && !document.hidden && !pageIsLeaving) {
+            resumeScannerAfterVisibility = false;
+            if (!isScanning && scannerContainer.style.display !== 'none') {
+              setTimeout(startScanner, 500);
+            }
+          }
+        }
       }
 
       function isRollCode(text) {
@@ -2156,8 +2414,8 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
                (val.startsWith('{') && val.endsWith('}'));
       }
 
-      function processScannedKnitCard(text) {
-        renderScannedData(text);
+      function processScannedKnitCard(text, isManualEntry) {
+        renderScannedData(text, isManualEntry);
       }
 
       function onScanSuccess(decodedText, decodedResult) {
@@ -2228,11 +2486,12 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
         }
       }
 
-      function restartScanner() {
+      async function restartScanner() {
+        if (isStartingCamera) return;
         scannerContainer.style.display = 'block';
-        cameraControls.style.display = 'flex';
+        cameraControls.style.display = 'grid';
         cameraStatus.innerText = 'Restarting...';
-        startNewScanner();
+        await startNewScanner();
       }
 
       // Expose restart function globally
@@ -2252,19 +2511,68 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
         });
       }
 
+      unlockManualButton.addEventListener('click', unlockManualEntry);
+      manualPassword.addEventListener('keydown', function(event) {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          unlockManualEntry();
+        }
+      });
+
       document.getElementById('toggle-camera-btn').addEventListener('click', function(e) {
         e.preventDefault();
-        currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+        if (isStartingCamera) return;
+        if (!cameraStartFailed) {
+          currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+        }
+        cameraStartFailed = false;
         restartScanner();
       });
 
-      window.addEventListener('pagehide', function() {
-        if (html5QrCode) {
-          try {
-            html5QrCode.stop();
-            html5QrCode.clear();
-          } catch (e) {}
+      function stopScannerForPageLifecycle() {
+        const scanner = html5QrCode;
+        if (!scanner || isStartingCamera) return Promise.resolve();
+        const wasScanning = isScanning || scanner.isScanning === true;
+        html5QrCode = null;
+        isScanning = false;
+        if (!wasScanning) {
+          try { scanner.clear(); } catch (error) {
+            console.warn('Unable to clear camera after leaving the page:', error);
+          }
+          return Promise.resolve();
         }
+        return Promise.resolve()
+          .then(() => scanner.stop())
+          .catch(error => console.warn('Unable to stop camera after leaving the page:', error))
+          .then(() => {
+            try { scanner.clear(); } catch (error) {
+              console.warn('Unable to clear camera after leaving the page:', error);
+            }
+          });
+      }
+
+      document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+          resumeScannerAfterVisibility = resumeScannerAfterVisibility || isScanning || isStartingCamera;
+          if (isScanning) stopScannerForPageLifecycle();
+          return;
+        }
+
+        if (!resumeScannerAfterVisibility) return;
+        if (isStartingCamera) return;
+        resumeScannerAfterVisibility = false;
+        if (scannerContainer.style.display !== 'none' && cameraControls.style.display !== 'none' && !processingRoll) {
+          setTimeout(startScanner, 500);
+        }
+      });
+
+      window.addEventListener('pagehide', function() {
+        pageIsLeaving = true;
+        stopScannerForPageLifecycle();
+      });
+      window.addEventListener('beforeunload', function() {
+        pageIsLeaving = true;
+        stopScannerForPageLifecycle();
       });
 
     })();

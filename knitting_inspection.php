@@ -35,6 +35,7 @@ if (!isset($_SESSION['username'])) {
 // Start every new page visit with operator authentication.
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET' && !isset($_GET['action'])) {
   unset($_SESSION['active_operator']);
+  unset($_SESSION['knitting_inspection_manual_entry_authorized']);
 }
 
 // ── ACTION: VERIFY QC OPERATOR QR CODE / ID ──
@@ -42,6 +43,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET' && !isset($_GET['action'])) 
 // to conduct fabric inspection. Standard operators from knitting_operator are rejected.
 if (isset($_GET['action']) && ($_GET['action'] === 'verify_operator' || $_GET['action'] === 'verify_qc')) {
     header('Content-Type: application/json');
+    try {
+    if (isset($_GET['manual']) && $_GET['manual'] === '1' && empty($_SESSION['knitting_inspection_manual_entry_authorized'])) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'Unlock manual entry before authenticating a QC operator.']);
+        exit();
+    }
+
     $qc_input = trim($_GET['operator_id'] ?? $_GET['qc_id'] ?? $_GET['query'] ?? '');
 
     if (empty($qc_input)) {
@@ -64,14 +72,23 @@ if (isset($_GET['action']) && ($_GET['action'] === 'verify_operator' || $_GET['a
 
     $qc_stmt->bind_param("ss", $qc_input, $qc_input);
     if (!$qc_stmt->execute()) {
-        error_log('QC verification failed: ' . $qc_stmt->error);
+        $db_error = $qc_stmt->error;
+        error_log('QC verification failed: ' . $db_error);
         $qc_stmt->close();
-        echo json_encode(['success' => false, 'error' => 'QC verification database error']);
+        echo json_encode(['success' => false, 'error' => 'Unable to verify QC Operator: ' . $db_error]);
         exit();
     }
 
     $qc_res = $qc_stmt->get_result();
-    if ($qc_res && $qc_row = $qc_res->fetch_assoc()) {
+    if (!$qc_res) {
+        $db_error = $qc_stmt->error ?: $db->error;
+        error_log('QC verification result failed: ' . $db_error);
+        $qc_stmt->close();
+        echo json_encode(['success' => false, 'error' => 'Unable to verify QC Operator: ' . $db_error]);
+        exit();
+    }
+
+    if ($qc_row = $qc_res->fetch_assoc()) {
         $_SESSION['active_operator'] = [
             'id'         => $qc_row['KNITTING_QC_ID'],
             'name'       => $qc_row['KNITTING_QC_NAME'],
@@ -107,27 +124,51 @@ if (isset($_GET['action']) && ($_GET['action'] === 'verify_operator' || $_GET['a
            OR LOWER(TRIM(OPERATOR_NAME)) = LOWER(TRIM(?))
         LIMIT 1
     ");
-    if ($op_stmt) {
-        $op_stmt->bind_param("ss", $qc_input, $qc_input);
-        $op_stmt->execute();
-        $op_res = $op_stmt->get_result();
-        if ($op_res && $op_row = $op_res->fetch_assoc()) {
-            $op_stmt->close();
-            echo json_encode([
-                'success' => false,
-                'error'   => 'Not Found QC Operator'
-            ]);
-            exit();
-        }
-        $op_stmt->close();
+    if (!$op_stmt) {
+        error_log('Knitting operator lookup prepare failed: ' . $db->error);
+        echo json_encode(['success' => false, 'error' => 'Unable to verify QC Operator: ' . $db->error]);
+        exit();
     }
+
+    $op_stmt->bind_param("ss", $qc_input, $qc_input);
+    if (!$op_stmt->execute()) {
+        $db_error = $op_stmt->error;
+        error_log('Knitting operator lookup failed: ' . $db_error);
+        $op_stmt->close();
+        echo json_encode(['success' => false, 'error' => 'Unable to verify QC Operator: ' . $db_error]);
+        exit();
+    }
+
+    $op_res = $op_stmt->get_result();
+    if (!$op_res) {
+        $db_error = $op_stmt->error ?: $db->error;
+        error_log('Knitting operator lookup result failed: ' . $db_error);
+        $op_stmt->close();
+        echo json_encode(['success' => false, 'error' => 'Unable to verify QC Operator: ' . $db_error]);
+        exit();
+    }
+    if ($op_res->fetch_assoc()) {
+        $op_stmt->close();
+        echo json_encode([
+            'success' => false,
+            'error'   => 'This is a production operator ID, not a QC operator ID.'
+        ]);
+        exit();
+    }
+    $op_stmt->close();
 
     // ── 3) Neither QC nor Operator: Invalid ID ──
     echo json_encode([
         'success' => false,
-        'error'   => 'Not Found QC Operator'
+        'error'   => 'QC Operator not found. Please check the ID and try again.'
     ]);
     exit();
+    } catch (mysqli_sql_exception $e) {
+        error_log('QC operator verification failed: ' . $e->getMessage());
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => 'Unable to verify QC Operator: ' . $e->getMessage()]);
+        exit();
+    }
 }
 
 // ── ACTION: SWITCH / LOGOUT QC OPERATOR ──
@@ -141,6 +182,13 @@ if (isset($_GET['action']) && ($_GET['action'] === 'logout_operator' || $_GET['a
 // ── ACTION: FETCH PRODUCTION ROLL DETAILS ──
 if (isset($_GET['action']) && $_GET['action'] === 'search_card') {
     header('Content-Type: application/json');
+    try {
+
+    if (isset($_GET['manual']) && $_GET['manual'] === '1' && empty($_SESSION['knitting_inspection_manual_entry_authorized'])) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => 'Unlock manual entry before searching for a roll.']);
+        exit();
+    }
 
     if ($category_schema_error !== '') {
         echo json_encode(['success' => false, 'error' => $category_schema_error]);
@@ -177,30 +225,63 @@ if (isset($_GET['action']) && $_GET['action'] === 'search_card') {
       exit();
     }
     $stmt->bind_param("s", $query);
-    $stmt->execute();
+    if (!$stmt->execute()) {
+        $db_error = $stmt->error;
+        error_log('Production roll lookup failed: ' . $db_error);
+        $stmt->close();
+        echo json_encode(['success' => false, 'error' => 'Unable to search production rolls: ' . $db_error]);
+        exit();
+    }
     $res = $stmt->get_result();
+    if (!$res) {
+        $db_error = $stmt->error ?: $db->error;
+        error_log('Production roll lookup result failed: ' . $db_error);
+        $stmt->close();
+        echo json_encode(['success' => false, 'error' => 'Unable to search production rolls: ' . $db_error]);
+        exit();
+    }
     
-    if ($res && $row = $res->fetch_assoc()) {
+    if ($row = $res->fetch_assoc()) {
         // ── DUPLICATE ROLL GUARD: one roll can be inspected only once ──
         $roll_val = trim($row['ROLL']);
         $clean_base = preg_replace('/-(R|P)$/i', '', $roll_val);
         $dup_stmt = $db->prepare("SELECT KITID, BUDAT, UNAME, ROLL FROM knitting_inspection WHERE TRIM(ROLL) = ? OR TRIM(ROLL) = CONCAT(?, '-P') OR TRIM(ROLL) = CONCAT(?, '-R') LIMIT 1");
-        if ($dup_stmt) {
-            $dup_stmt->bind_param("sss", $roll_val, $clean_base, $clean_base);
-            $dup_stmt->execute();
-            $dup_res = $dup_stmt->get_result();
-            if ($dup_res && $dup_row = $dup_res->fetch_assoc()) {
-                echo json_encode([
-                    'success' => false,
-                    'error'   => 'This Roll Already Inspected',
-                    'duplicate' => true
-                ]);
-                $dup_stmt->close();
-                $stmt->close();
-                exit();
-            }
-            $dup_stmt->close();
+        if (!$dup_stmt) {
+            $db_error = $db->error;
+            error_log('Inspection duplicate check prepare failed: ' . $db_error);
+            $stmt->close();
+            echo json_encode(['success' => false, 'error' => 'Unable to check whether the roll was already inspected: ' . $db_error]);
+            exit();
         }
+        $dup_stmt->bind_param("sss", $roll_val, $clean_base, $clean_base);
+        if (!$dup_stmt->execute()) {
+            $db_error = $dup_stmt->error;
+            $dup_stmt->close();
+            $stmt->close();
+            error_log('Inspection duplicate check failed: ' . $db_error);
+            echo json_encode(['success' => false, 'error' => 'Unable to check whether the roll was already inspected: ' . $db_error]);
+            exit();
+        }
+        $dup_res = $dup_stmt->get_result();
+        if (!$dup_res) {
+            $db_error = $dup_stmt->error ?: $db->error;
+            $dup_stmt->close();
+            $stmt->close();
+            error_log('Inspection duplicate check result failed: ' . $db_error);
+            echo json_encode(['success' => false, 'error' => 'Unable to check whether the roll was already inspected: ' . $db_error]);
+            exit();
+        }
+        if ($dup_res->fetch_assoc()) {
+            echo json_encode([
+                'success' => false,
+                'error'   => 'This Roll Already Inspected',
+                'duplicate' => true
+            ]);
+            $dup_stmt->close();
+            $stmt->close();
+            exit();
+        }
+        $dup_stmt->close();
 
         echo json_encode([
             'success'          => true,
@@ -233,10 +314,16 @@ if (isset($_GET['action']) && $_GET['action'] === 'search_card') {
             ]
         ]);
     } else {
-        echo json_encode(['success' => false, 'error' => 'Not Found This Roll']);
+        echo json_encode(['success' => false, 'error' => 'Roll not found in knitting production. Please check the roll number and try again.']);
     }
     $stmt->close();
     exit();
+    } catch (mysqli_sql_exception $e) {
+        error_log('Production roll lookup failed: ' . $e->getMessage());
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => 'Unable to search production rolls: ' . $e->getMessage()]);
+        exit();
+    }
 }
 
 $error = '';
@@ -248,8 +335,6 @@ $saved_inspection_data = null;
 // reloading the page does not resubmit the inspection POST.
 if (isset($_SESSION['inspection_flash'])) {
     $msg = $_SESSION['inspection_flash']['msg'] ?? '';
-    $saved_inspection_data = $_SESSION['inspection_flash']['saved'] ?? null;
-    $saved_rejection_data = $_SESSION['inspection_flash']['saved_rejection'] ?? null;
     unset($_SESSION['inspection_flash']);
 }
 
@@ -337,6 +422,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && isset($_POST['save_inspe
             $error = "Roll Number is required.";
         } elseif ($main_qty <= 0) {
             $error = "Main Quantity must be greater than 0.";
+        } elseif ($reject_qty > $main_qty) {
+            $error = "Reject Quantity cannot exceed Main Quantity (" . number_format($main_qty, 2) . " KG).";
         } else {
             // ── DUPLICATE ROLL GUARD (server-side safety net) ──
             $clean_base = preg_replace('/-(R|P)$/i', '', $roll_no);
@@ -620,9 +707,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && isset($_POST['save_inspe
         // re-loads the page instead of resubmitting the inspection POST.
         if ($error === '' && $saved_inspection_data !== null) {
             $_SESSION['inspection_flash'] = [
-                'msg'             => $msg,
-                'saved'           => $saved_inspection_data,
-                'saved_rejection' => $saved_rejection_data,
+                'msg' => $msg,
             ];
             header('Location: knitting_inspection.php');
             exit;
@@ -710,13 +795,13 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
       min-height: 100vh;
       display: flex;
       justify-content: center;
-      align-items: center;
-      padding: 10px;
+      align-items: flex-start;
+      padding: 16px;
       margin: 0;
     }
 
     .card {
-      max-width: 520px;
+      max-width: 1200px;
       width: 100%;
       background: #ffffff;
       border-radius: 18px;
@@ -877,12 +962,22 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
 
     .scanner-container {
       position: relative;
+      width: 100%;
+      max-width: min(100%, 54vh, 560px);
+      max-height: 54vh;
       background: #eef2f7;
       border-radius: 14px;
       overflow: hidden;
       box-shadow: inset 0 0 0 1px #d7e0ea, 0 4px 12px rgba(30, 60, 120, 0.1);
-      margin-bottom: 10px;
+      margin: 0 auto 10px;
       aspect-ratio: 1 / 1;
+    }
+
+    @supports (height: 100dvh) {
+      .scanner-container {
+        max-width: min(100%, 54dvh, 560px);
+        max-height: 54dvh;
+      }
     }
 
     #qr-reader {
@@ -932,11 +1027,16 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
     }
 
     .camera-controls {
-      display: flex;
-      justify-content: space-between;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
       align-items: center;
+      gap: 8px;
       margin-top: 6px;
       padding: 0 2px;
+    }
+
+    #toggle-camera-btn {
+      justify-self: end;
     }
 
     .status-badge {
@@ -1042,6 +1142,73 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
       gap: 6px;
       margin-top: 6px;
       margin-bottom: 8px;
+    }
+
+    .compact-entry-container {
+      width: min(100%, 720px);
+      margin: 12px auto 16px;
+    }
+
+    .compact-entry-container label {
+      display: block;
+      margin-bottom: 6px;
+      color: #475569;
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+
+    .compact-entry-container .manual-entry {
+      margin-top: 0;
+    }
+
+    .manual-unlock-controls,
+    .manual-password-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .manual-unlock-controls {
+      justify-self: center;
+    }
+
+    .manual-password-row input {
+      width: 190px;
+      min-width: 0;
+      min-height: 36px;
+      padding: 7px 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font: inherit;
+    }
+
+    .manual-entry input[readonly] {
+      background: #e2e8f0;
+      cursor: not-allowed;
+    }
+
+    .manual-entry button:disabled {
+      opacity: .6;
+      cursor: not-allowed;
+    }
+
+    .manual-entry .manual-locked-button {
+      opacity: .7;
+    }
+
+    @media (max-width: 576px) {
+      .camera-controls {
+        grid-template-columns: 1fr auto;
+      }
+
+      .manual-unlock-controls {
+        grid-column: 1 / -1;
+        grid-row: 2;
+      }
+
+      .manual-password-row input {
+        width: 170px;
+      }
     }
 
     .manual-entry input {
@@ -1161,6 +1328,11 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
       background: linear-gradient(135deg, #475569, #334155);
     }
 
+    .btn-action:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
     .btn-action.production {
       background: linear-gradient(135deg, #10b981, #0f766e);
     }
@@ -1180,6 +1352,31 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
       <button type="button" class="page-refresh-btn" id="pageRefreshBtn" title="Refresh page"><i class="fa-solid fa-rotate-right"></i>Refresh</button>
     </div>
 
+    <?php if (!empty($msg)): ?>
+      <script>
+        document.addEventListener('DOMContentLoaded', function() {
+          if (typeof Swal !== 'undefined') {
+            Swal.fire({
+              icon: 'success',
+              title: 'Inspection Saved Successfully!',
+              text: <?php echo json_encode($msg); ?>,
+              timer: 3000,
+              timerProgressBar: true,
+              showConfirmButton: false,
+              allowOutsideClick: false,
+              allowEscapeKey: false
+            }).then(function() {
+              window.location.reload();
+            });
+            return;
+          }
+
+          window.alert(<?php echo json_encode($msg); ?>);
+          window.location.reload();
+        });
+      </script>
+    <?php endif; ?>
+
     <!-- SCANNER CONTAINER (LIVE QR CAMERA) -->
     <div class="scanner-container" id="scannerContainer">
       <div id="qr-reader"></div>
@@ -1192,15 +1389,21 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
         <i class="fas fa-video"></i>
         <span id="camera-status">Ready</span>
       </div>
-      <div style="display: flex; gap: 8px;">
-        <button type="button" class="page-refresh-btn" id="toggle-camera-btn" title="Switch Front/Back camera">
-          <i class="fas fa-sync-alt"></i>Switch Camera
-        </button>
+      <div class="manual-unlock-controls">
+        <div class="manual-password-row">
+          <input type="password" id="manualPassword" autocomplete="off" placeholder="Pass For Entry" aria-label="Password for manual entry">
+          <button type="button" class="page-refresh-btn" id="unlockManualButton">Unlock</button>
+        </div>
       </div>
+      <button type="button" class="page-refresh-btn" id="toggle-camera-btn" title="Switch Front/Back camera">
+        <i class="fas fa-sync-alt"></i>Switch Camera
+      </button>
     </div>
 
+    <div class="compact-entry-container" id="manualEntryContainer"></div>
+
     <!-- RESULT & WORKFLOW PANEL -->
-    <div class="result-panel">
+    <div class="result-panel" id="resultPanel" style="<?php echo !empty($saved_inspection_data) ? '' : 'display:none;'; ?>">
       <div class="result-header">
         <i class="fas fa-qrcode"></i>
         <span id="step-title-text"><?php echo $active_operator ? 'Step 2: Scan Roll QR' : 'QC Operator ID'; ?></span>
@@ -1760,25 +1963,6 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
             if (m) m.style.display = 'none';
           }
         </script>
-      <?php elseif (!empty($msg)): ?>
-        <script>
-          document.addEventListener('DOMContentLoaded', function() {
-            if (typeof Swal !== 'undefined') {
-              Swal.fire({
-                icon: 'success',
-                title: 'Inspection Completed Successfully!',
-                text: <?php echo json_encode($msg); ?>,
-                confirmButtonColor: '#10b981',
-                confirmButtonText: '<i class="fa-solid fa-check me-1"></i> OK / Next Scan',
-                timer: 5000,
-                timerProgressBar: true
-              });
-            }
-          });
-        </script>
-        <div style="background:#142f1f; border:1px solid #166534; color:#c7f6d1; padding:10px 14px; border-radius:12px; margin-bottom:12px; font-weight:600; font-size:0.88rem;">
-          <i class="fa-solid fa-circle-check me-1"></i> <?php echo htmlspecialchars($msg); ?>
-        </div>
       <?php endif; ?>
 
       <?php if (!empty($error)): ?>
@@ -1828,16 +2012,23 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
 
       const resultContainer = document.getElementById('result-content');
       const actionContainer = document.getElementById('action-content');
+      const manualEntryContainer = document.getElementById('manualEntryContainer');
+      const resultPanel = document.getElementById('resultPanel');
+      const hasSavedInspectionResult = <?php echo !empty($saved_inspection_data) ? 'true' : 'false'; ?>;
       const cameraStatus    = document.getElementById('camera-status');
       const toggleCameraBtn = document.getElementById('toggle-camera-btn');
+      const manualPassword = document.getElementById('manualPassword');
+      const unlockManualButton = document.getElementById('unlockManualButton');
       
       let isOperatorActive = <?php echo $active_operator ? 'true' : 'false'; ?>;
       let activeOperatorInfo = <?php echo json_encode($active_operator); ?>;
+      let manualEntryAuthorized = false;
       
       let html5QrCode = null;
       let isScanning    = false;
       let verifying     = false;
       let rollData      = null;
+      let cameraStartFailed = false;
       let selectedFaults = {};
 
       const FAULTS = [
@@ -1858,6 +2049,69 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
         { id: 'SETUP', name: 'Wrong Setup', weight: 4 },
         { id: 'CMARK', name: 'Crease Mark', weight: 4 }
       ];
+
+      function syncManualEntryControls() {
+        const operatorInput = document.getElementById('opInput');
+        const operatorButton = document.getElementById('opBtn');
+        const rollInput = document.getElementById('rollInput');
+        const rollButton = document.getElementById('rollBtn');
+
+        [operatorInput, rollInput].forEach(input => {
+          if (!input) return;
+          input.readOnly = !manualEntryAuthorized;
+          input.placeholder = manualEntryAuthorized
+            ? input.id === 'opInput' ? 'Enter / Scan QC Operator ID' : 'Roll QR / Barcode (e.g. 300099903)'
+            : 'Unlock to enter manually';
+        });
+        [operatorButton, rollButton].forEach(button => {
+          if (!button) return;
+          button.disabled = false;
+          button.classList.toggle('manual-locked-button', !manualEntryAuthorized);
+        });
+      }
+
+      function showManualEntryLocked() {
+        const message = 'Enter a valid password and select Unlock before entering a roll manually.';
+        if (typeof Swal !== 'undefined') {
+          if (Swal.isVisible()) return;
+          Swal.fire({ icon: 'warning', title: 'Manual Entry Locked', text: message, confirmButtonText: 'OK' });
+        } else {
+          alert('Manual Entry Locked: ' + message);
+        }
+      }
+
+      function unlockManualEntry() {
+        const password = manualPassword.value;
+        if (!password) {
+          showInspectionError('Enter the password to unlock manual entry.', 'manualPassword');
+          return;
+        }
+
+        unlockManualButton.disabled = true;
+        fetch('ajaxDyeing_roll_verification.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'authorize_manual_entry',
+            scope: 'knitting_inspection',
+            password: password
+          })
+        }).then(response => response.json().then(data => {
+          if (!response.ok || !data.success) {
+            throw new Error(data.message || 'Could not unlock manual entry.');
+          }
+          manualPassword.value = '';
+          manualEntryAuthorized = true;
+          syncManualEntryControls();
+          if (typeof Swal !== 'undefined') {
+            Swal.fire({ icon: 'success', title: 'Manual Entry Unlocked', timer: 1600, showConfirmButton: false });
+          }
+        })).catch(error => {
+          showInspectionError(error.message, 'manualPassword');
+        }).finally(() => {
+          unlockManualButton.disabled = false;
+        });
+      }
 
       function releaseCameraHardware() {
         try {
@@ -1935,7 +2189,7 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
         const cc = document.getElementById('cameraControls');
         const mc = document.getElementById('mainCard');
         if (sc) sc.style.display = 'block';
-        if (cc) cc.style.display = 'flex';
+        if (cc) cc.style.display = 'grid';
         if (mc) mc.classList.remove('card-wide');
         if (!isScanning && !isStartingScanner) {
           startCameraScanner();
@@ -1954,27 +2208,26 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
       function renderStep1Operator() {
         showCameraScanner();
         actionContainer.innerHTML = '';
-        let html = `
-          <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px; padding:10px; margin-bottom:10px; text-align:center; color:#1e3a8a;">
-            <div style="font-size:1.5rem; margin-bottom:2px; color:#2563eb;"><i class="fa-solid fa-user-shield"></i></div>
-            <div style="font-weight:800; font-size:0.95rem; margin-bottom:2px;">QC Operator ID</div>
-          </div>
+        manualEntryContainer.innerHTML = `
+          <label for="opInput">QC Operator ID</label>
           <div class="manual-entry">
-            <input type="text" id="opInput" placeholder="Enter / Scan QC Operator ID" autocomplete="off">
+            <input type="text" id="opInput" placeholder="Unlock to enter manually" autocomplete="off" readonly>
             <button type="button" id="opBtn">Authenticate</button>
           </div>
-          <div class="data-row header-row"><span class="label">Workflow Progress</span><span class="value">Step 1 of 2</span></div>
-          <div class="data-row"><span class="label">Current Action:</span><span class="value" style="color:#2563eb; font-weight:700;">Scan QC Operator QR Code</span></div>
-          <div class="data-row"><span class="label">Next Action:</span><span class="value">Scan Roll QR</span></div>
           <div id="opStatusMsg" style="margin-top:8px;"></div>
         `;
-        resultContainer.innerHTML = html;
+        resultPanel.style.display = hasSavedInspectionResult ? 'block' : 'none';
+        resultContainer.innerHTML = '';
+        syncManualEntryControls();
 
         const inp = document.getElementById('opInput');
         const btn = document.getElementById('opBtn');
-        if (btn) btn.addEventListener('click', () => submitOperator(inp.value));
+        if (btn) btn.addEventListener('click', () => submitOperator(inp.value, true));
+        if (inp) inp.addEventListener('click', () => {
+          if (!manualEntryAuthorized) showManualEntryLocked();
+        });
         if (inp) inp.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter') { e.preventDefault(); submitOperator(inp.value); }
+          if (e.key === 'Enter') { e.preventDefault(); submitOperator(inp.value, true); }
         });
         if (inp) inp.focus({ preventScroll: true });
       }
@@ -2010,30 +2263,35 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
         }
       }
 
-      function submitOperator(val) {
+      function submitOperator(val, isManualEntry) {
+        if (isManualEntry && !manualEntryAuthorized) {
+          showManualEntryLocked();
+          return;
+        }
         val = String(val || '').trim();
-        if (!val) { alert('Please enter or scan QC Operator ID!'); return; }
+        if (!val) {
+          showInspectionError('Please enter or scan QC Operator ID!', 'opInput');
+          return;
+        }
 
         const msgDiv = document.getElementById('opStatusMsg');
         if (msgDiv) msgDiv.innerHTML = '<div style="color:#2563eb; font-weight:700; font-size:0.85rem;"><i class="fas fa-spinner fa-spin"></i> Verifying QC Operator ID...</div>';
 
-        fetch('knitting_inspection.php?action=verify_operator&operator_id=' + encodeURIComponent(val), {
+        const manualQuery = isManualEntry ? '&manual=1' : '';
+        fetch('knitting_inspection.php?action=verify_operator&operator_id=' + encodeURIComponent(val) + manualQuery, {
             headers: { 'X-Requested-With': 'XMLHttpRequest' },
             credentials: 'same-origin'
           })
-          .then(r => {
-            if (!r.ok) throw new Error('HTTP ' + r.status + ': ' + r.statusText);
-            return r.text();
-          })
-          .then(text => {
+          .then(r => r.text().then(text => {
             let res;
             try {
               res = JSON.parse(text.replace(/^\uFEFF/, '').trim());
             } catch (e) {
-              throw new Error('Invalid JSON response: ' + text.substring(0, 100));
+              throw new Error('Invalid server response (HTTP ' + r.status + '): ' + text.substring(0, 100));
             }
+            if (!r.ok && !res.error) throw new Error('HTTP ' + r.status + ': ' + r.statusText);
             return res;
-          })
+          }))
           .then(res => {
             if (res.success && res.data) {
               verifying = false;
@@ -2059,7 +2317,7 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
             } else {
               verifying = false;
               if (msgDiv) msgDiv.innerHTML = '';
-              showInspectionError(res.error || 'Not Found QC Operator', 'opInput');
+              showInspectionError(res.error || 'QC Operator not found. Please check the ID and try again.', 'opInput');
             }
           })
           .catch(err => {
@@ -2094,40 +2352,60 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
       // STEP 2: ROLL SCAN & INSPECTION FORM
       function renderStep2RollScan() {
         showCameraScanner();
-        let html = `
+        manualEntryContainer.innerHTML = `
+          <label for="rollInput">Roll Number</label>
           <div class="manual-entry">
-            <input type="text" id="rollInput" placeholder="Roll QR / Barcode (e.g. 300099903)" autocomplete="off">
+            <input type="text" id="rollInput" placeholder="Unlock to enter manually" autocomplete="off" readonly>
             <button type="button" id="rollBtn">Load</button>
           </div>
-          <div class="data-row header-row"><span class="label">Step 2: Roll Selection</span><span class="value"></span></div>
-          <div class="data-row"><span class="label">QC Operator:</span><span class="value" style="color:#10b981; font-weight:700;"><i class="fa-solid fa-user-shield me-1"></i> ${activeOperatorInfo.name} (${activeOperatorInfo.id})</span></div>
-          <div class="data-row"><span class="label">Action:</span><span class="value">Scan Roll QR Code</span></div>
           <div id="rollStatusMsg" style="margin-top:8px;"></div>
         `;
-        resultContainer.innerHTML = html;
+        resultPanel.style.display = hasSavedInspectionResult ? 'block' : 'none';
+        resultContainer.innerHTML = '';
+        syncManualEntryControls();
 
         const inp = document.getElementById('rollInput');
         const btn = document.getElementById('rollBtn');
-        if (btn) btn.addEventListener('click', () => submitRollScan(inp.value));
+        if (btn) btn.addEventListener('click', () => submitRollScan(inp.value, true));
+        if (inp) inp.addEventListener('click', () => {
+          if (!manualEntryAuthorized) showManualEntryLocked();
+        });
         if (inp) inp.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter') { e.preventDefault(); submitRollScan(inp.value); }
+          if (e.key === 'Enter') { e.preventDefault(); submitRollScan(inp.value, true); }
         });
         if (inp) inp.focus({ preventScroll: true });
       }
 
       let fetchingRoll = false;
 
-      function submitRollScan(val) {
+      function submitRollScan(val, isManualEntry) {
+        if (isManualEntry && !manualEntryAuthorized) {
+          showManualEntryLocked();
+          return;
+        }
         val = String(val || '').trim();
-        if (!val) { alert('Please enter or scan Roll QR!'); return; }
+        if (!val) {
+          showInspectionError('Please enter or scan Roll QR!', 'rollInput');
+          return;
+        }
         if (fetchingRoll) return;
         fetchingRoll = true;
 
         const msgDiv = document.getElementById('rollStatusMsg');
         if (msgDiv) msgDiv.innerHTML = '<div style="color:#2563eb; font-weight:700; font-size:0.85rem;"><i class="fas fa-spinner fa-spin"></i> Fetching Roll Data...</div>';
 
-        fetch('knitting_inspection.php?action=search_card&query=' + encodeURIComponent(val))
-          .then(r => r.json())
+        const manualQuery = isManualEntry ? '&manual=1' : '';
+        fetch('knitting_inspection.php?action=search_card&query=' + encodeURIComponent(val) + manualQuery)
+          .then(r => r.text().then(text => {
+            let res;
+            try {
+              res = JSON.parse(text.replace(/^\uFEFF/, '').trim());
+            } catch (e) {
+              throw new Error('Invalid server response (HTTP ' + r.status + '): ' + text.substring(0, 100));
+            }
+            if (!r.ok && !res.error) throw new Error('HTTP ' + r.status + ': ' + r.statusText);
+            return res;
+          }))
           .then(res => {
             fetchingRoll = false;
             if (res.success && res.data) {
@@ -2135,13 +2413,13 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
               renderInspectionForm(res.data);
             } else {
               if (msgDiv) msgDiv.innerHTML = '';
-              showInspectionError(res.error || (res.duplicate ? 'This Roll Already Inspected' : 'Not Found This Roll'), 'rollInput');
+              showInspectionError(res.error || (res.duplicate ? 'This Roll Already Inspected' : 'Roll not found in knitting production.'), 'rollInput');
             }
           })
           .catch(err => {
             fetchingRoll = false;
             if (msgDiv) msgDiv.innerHTML = '';
-            showInspectionError('Network error loading roll: ' + err.message, 'rollInput');
+            showInspectionError('Roll lookup error: ' + err.message, 'rollInput');
             console.error('Roll lookup failed:', err);
           });
       }
@@ -2150,6 +2428,8 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
       function renderInspectionForm(d) {
         selectedFaults = {};
         preLycraRejectQty = null;
+        manualEntryContainer.innerHTML = '';
+        resultPanel.style.display = 'block';
         hideCameraScanner();
         
         let html = `
@@ -2239,6 +2519,7 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
                 value="0" placeholder="0.00"
                 style="font-weight:700; font-size:0.95rem; text-align:center; border-color:#fca5a5;"
                 oninput="window.calcUpdateQty()">
+              <div id="rejectQtyError" role="alert" style="display:none; margin-top:5px; color:#b91c1c; font-size:0.75rem; font-weight:700;"></div>
             </div>
             <div>
               <div style="font-weight:800; font-size:0.78rem; color:#166534; margin-bottom:4px;">
@@ -2361,19 +2642,22 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
 
       // ── Dynamic Action Buttons (Split vs Single Roll) ──
       window.updateActionButtons = function() {
+        const mainInput = document.getElementById('mainQtyInput');
         const rejInput  = document.getElementById('rejectQtyInput');
         const updateEl  = document.getElementById('updateQtyInput');
 
+        const mainQty = parseFloat(mainInput?.value) || 0;
         const rejectQty = parseFloat(rejInput?.value) || 0;
         const updateQty = parseFloat(updateEl?.value) || 0;
+        const rejectExceedsMain = rejectQty > mainQty;
 
         if (rejectQty > 0 && updateQty > 0) {
           actionContainer.innerHTML = `
             <div class="action-card">
-              <button class="btn-action production" id="saveBtn" onclick="window.saveInspectionRecord(false)">
+              <button class="btn-action production inspection-save-btn" id="saveBtn" onclick="window.saveInspectionRecord(false)">
                 <i class="fa-solid fa-floppy-disk me-1"></i> Save (Single Roll)
               </button>
-              <button class="btn-action" style="background:linear-gradient(135deg, #ea580c, #c2410c); color:#ffffff; font-weight:800;" onclick="window.saveInspectionRecord(true)">
+              <button class="btn-action inspection-save-btn" style="background:linear-gradient(135deg, #ea580c, #c2410c); color:#ffffff; font-weight:800;" onclick="window.saveInspectionRecord(true)">
                 <i class="fa-solid fa-scissors me-1"></i> Split Roll (-P / -R)
               </button>
               <button class="btn-action cancel" onclick="window.location.reload()">
@@ -2384,7 +2668,7 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
         } else {
           actionContainer.innerHTML = `
             <div class="action-card">
-              <button class="btn-action production" id="saveBtn" onclick="window.saveInspectionRecord(false)">
+              <button class="btn-action production inspection-save-btn" id="saveBtn" onclick="window.saveInspectionRecord(false)">
                 <i class="fa-solid fa-floppy-disk me-1"></i> Save Inspection Record
               </button>
               <button class="btn-action cancel" onclick="window.location.reload()">
@@ -2393,6 +2677,10 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
             </div>
           `;
         }
+
+        actionContainer.querySelectorAll('.inspection-save-btn').forEach(button => {
+          button.disabled = rejectExceedsMain;
+        });
       };
 
       // ── Real-time UPDATE QTY calculator ──
@@ -2409,6 +2697,19 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
         }
 
         const rejectQty = parseFloat(rejInput?.value) || 0;
+        const rejectExceedsMain = rejectQty > mainQty;
+        const rejectQtyError = document.getElementById('rejectQtyError');
+        if (rejInput) {
+          rejInput.max = mainQty.toFixed(2);
+          rejInput.setAttribute('aria-invalid', rejectExceedsMain ? 'true' : 'false');
+        }
+        if (rejectQtyError) {
+          rejectQtyError.textContent = rejectExceedsMain
+            ? `Main QTY is ${mainQty.toFixed(2)} KG. Reject QTY cannot exceed Main QTY.`
+            : '';
+          rejectQtyError.style.display = rejectExceedsMain ? 'block' : 'none';
+        }
+
         const updateQty = Math.max(0, mainQty - rejectQty);
         if (updateEl) updateEl.value = updateQty.toFixed(2);
 
@@ -2427,7 +2728,7 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
           return;
         }
         if (rejectQty > mainQty) {
-          alert('Reject QTY cannot exceed Main QTY.');
+          showInspectionError(`Main QTY is ${mainQty.toFixed(2)} KG. Reject QTY cannot exceed Main QTY.`, 'rejectQtyInput');
           document.getElementById('rejectQtyInput')?.focus();
           return;
         }
@@ -2500,16 +2801,34 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
       let currentFacingMode = "environment";
 
       let isStartingScanner = false;
+      let resumeScannerAfterVisibility = false;
+      let pageIsLeaving = false;
 
       function startCameraScanner() {
+        if (pageIsLeaving) return;
+        if (document.hidden) {
+          resumeScannerAfterVisibility = true;
+          if (cameraStatus) cameraStatus.textContent = 'Camera paused while page is hidden';
+          return;
+        }
         if (isStartingScanner) return;
         isStartingScanner = true;
 
         if (cameraStatus) cameraStatus.textContent = 'Starting camera...';
 
         stopCameraScannerPromise().then(() => {
+          if (pageIsLeaving || document.hidden) {
+            isStartingScanner = false;
+            resumeScannerIfVisible();
+            return;
+          }
           initScannerObject();
         }).catch(() => {
+          if (pageIsLeaving || document.hidden) {
+            isStartingScanner = false;
+            resumeScannerIfVisible();
+            return;
+          }
           initScannerObject();
         });
       }
@@ -2519,8 +2838,9 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
         if (qrContainer) qrContainer.innerHTML = '';
 
         try {
-          html5QrCode = new Html5Qrcode("qr-reader");
-          html5QrCode.start(
+          const scanner = new Html5Qrcode("qr-reader");
+          html5QrCode = scanner;
+          scanner.start(
             { facingMode: currentFacingMode },
             {
               fps: 30,
@@ -2533,14 +2853,40 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
             onScanSuccess,
             onScanFailure
           ).then(() => {
+            if (pageIsLeaving || document.hidden || html5QrCode !== scanner) {
+              isScanning = false;
+              isStartingScanner = false;
+              Promise.resolve()
+                .then(() => scanner.stop())
+                .catch(error => console.warn('Unable to stop inactive inspection camera:', error))
+                .then(() => {
+                  try { scanner.clear(); } catch (error) {
+                    console.warn('Unable to clear inactive inspection camera:', error);
+                  }
+                  if (html5QrCode === scanner) html5QrCode = null;
+                  resumeScannerIfVisible();
+                });
+              return;
+            }
             isScanning = true;
+            cameraStartFailed = false;
             isStartingScanner = false;
+            resumeScannerAfterVisibility = false;
             if (cameraStatus) cameraStatus.textContent = 'Scanning (' + (currentFacingMode === 'environment' ? 'Rear' : 'Front') + ')';
           }).catch(err => {
             console.warn("Camera start failed:", err);
             isScanning = false;
+            cameraStartFailed = true;
             isStartingScanner = false;
-            if (cameraStatus) cameraStatus.textContent = 'Camera Unavailable';
+            if (pageIsLeaving || document.hidden) {
+              try { scanner.clear(); } catch (error) {
+                console.warn('Unable to clear inactive inspection camera:', error);
+              }
+              if (html5QrCode === scanner) html5QrCode = null;
+              resumeScannerIfVisible();
+              return;
+            }
+            if (cameraStatus) cameraStatus.textContent = 'Camera busy or unavailable';
           });
         } catch (e) {
           console.warn("Html5Qrcode init error:", e);
@@ -2550,12 +2896,13 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
         }
       }
 
-      function isRollCode(text) {
-        const val = String(text).trim();
-        return /^\d+$/.test(val) ||
-               /^ROLL:\s*\d+$/i.test(val) ||
-               val.indexOf('|') !== -1 ||
-               (val.startsWith('{') && val.endsWith('}'));
+      function resumeScannerIfVisible() {
+        if (!resumeScannerAfterVisibility || document.hidden || pageIsLeaving || isStartingScanner) return;
+        resumeScannerAfterVisibility = false;
+        const scannerContainer = document.getElementById('scannerContainer');
+        if (scannerContainer && scannerContainer.style.display !== 'none') {
+          setTimeout(startCameraScanner, 500);
+        }
       }
 
       let lastScannedText = '';
@@ -2572,10 +2919,6 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
         lastScanTime = now;
 
         if (!isOperatorActive) {
-          if (isRollCode(text)) {
-            alert('Please scan QC Operator ID first!\nProduction roll cannot be scanned before operator authentication.');
-            return;
-          }
           if (verifying) return;
           verifying = true;
           submitOperator(text);
@@ -2598,16 +2941,44 @@ if ($active_operator && ($active_operator['role'] ?? '') !== 'qc') {
         });
       }
 
+      unlockManualButton.addEventListener('click', unlockManualEntry);
+      manualPassword.addEventListener('keydown', function(event) {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          unlockManualEntry();
+        }
+      });
+
       if (toggleCameraBtn) {
         toggleCameraBtn.addEventListener('click', () => {
-          currentFacingMode = (currentFacingMode === "environment") ? "user" : "environment";
+          if (isStartingScanner) return;
+          if (!cameraStartFailed) {
+            currentFacingMode = (currentFacingMode === "environment") ? "user" : "environment";
+          }
+          cameraStartFailed = false;
           startCameraScanner();
         });
       }
 
       // Turn off camera tracks when leaving or closing page
-      window.addEventListener('pagehide', stopCameraScanner);
-      window.addEventListener('beforeunload', stopCameraScanner);
+      document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+          resumeScannerAfterVisibility = resumeScannerAfterVisibility || isScanning || isStartingScanner;
+          if (isScanning && !isStartingScanner) stopCameraScannerPromise();
+          return;
+        }
+
+        resumeScannerIfVisible();
+      });
+
+      window.addEventListener('pagehide', function() {
+        pageIsLeaving = true;
+        if (!isStartingScanner) stopCameraScanner();
+      });
+      window.addEventListener('beforeunload', function() {
+        pageIsLeaving = true;
+        if (!isStartingScanner) stopCameraScanner();
+      });
 
       // Initialize (initView triggers showCameraScanner -> startCameraScanner once)
       initView();

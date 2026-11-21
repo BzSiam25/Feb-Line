@@ -116,7 +116,7 @@ unset($_SESSION['knitting_delivery_manual_entry_authorized']);
         .manual-scan { width: 100%; margin-top: 12px; }
         .scan-help { margin: 0 0 12px; color: #475569; }
         .manual-unlock, .manual-password-row { display: flex; align-items: center; gap: 6px; }
-        .manual-password-row input { width: 135px; min-width: 0; min-height: 42px; padding: 9px 10px; }
+        .manual-password-row input { width: 190px; min-width: 0; min-height: 42px; padding: 9px 10px; }
         #unlockManualButton { flex: 0 0 auto; padding: 9px 12px; }
         .manual-entry-locked { opacity: .7; }
         .manual-entry-locked input, .manual-entry-locked button[type="submit"] { cursor: not-allowed; }
