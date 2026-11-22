@@ -18,6 +18,160 @@ function dyeingBatchCardProcessFieldNames()
     return array_merge(dyeingProcessFieldNames(), dyeingBatchCardExtraProcessFieldNames());
 }
 
+function ensureDyeingBatchCreatorColumns($db)
+{
+    ensureDyeingProcessColumns($db, 'dyeing_batch_card');
+    $result = $db->query('SHOW COLUMNS FROM `dyeing_batch_card`');
+    if (!$result) {
+        throw new RuntimeException('Could not inspect dyeing_batch_card creator columns: ' . $db->error);
+    }
+
+    $columns = [];
+    while ($column = $result->fetch_assoc()) {
+        $columns[strtoupper($column['Field'])] = $column;
+    }
+    $result->free();
+
+    if (!isset($columns['CREATED_DATE'])) {
+        if (!$db->query(
+            'ALTER TABLE `dyeing_batch_card` ADD COLUMN `CREATED_DATE` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER `HEAT_SET`'
+        )) {
+            throw new RuntimeException('Could not add dyeing_batch_card CREATED_DATE: ' . $db->error);
+        }
+    }
+
+    if (!isset($columns['DID']) && !$db->query(
+        'ALTER TABLE `dyeing_batch_card` ADD COLUMN `DID` VARCHAR(100) DEFAULT NULL AFTER `CREATED_DATE`'
+    )) {
+        throw new RuntimeException('Could not add dyeing_batch_card DID: ' . $db->error);
+    }
+    if (!isset($columns['DNAME']) && !$db->query(
+        'ALTER TABLE `dyeing_batch_card` ADD COLUMN `DNAME` VARCHAR(100) DEFAULT NULL AFTER `DID`'
+    )) {
+        throw new RuntimeException('Could not add dyeing_batch_card DNAME: ' . $db->error);
+    }
+
+    if (isset($columns['UNAME'])) {
+        if (!$db->query(
+            "UPDATE `dyeing_batch_card` AS `batch`
+             LEFT JOIN `users` AS `user` ON TRIM(`user`.`USER_ID`) = TRIM(`batch`.`UNAME`)
+             LEFT JOIN `dyeing_operator` AS `operator`
+                 ON TRIM(`operator`.`DY_OP_ID`) = TRIM(`batch`.`UNAME`)
+             SET `batch`.`DID` = COALESCE(NULLIF(`batch`.`DID`, ''), `user`.`USER_ID`, `operator`.`DY_OP_ID`, `batch`.`UNAME`),
+                 `batch`.`DNAME` = COALESCE(NULLIF(`batch`.`DNAME`, ''), `user`.`USER_NAME`, `operator`.`DY_OP_NAME`, `user`.`USER_ID`, `operator`.`DY_OP_ID`)
+             WHERE `batch`.`DID` IS NULL OR `batch`.`DID` = ''
+                OR `batch`.`DNAME` IS NULL OR `batch`.`DNAME` = ''"
+        )) {
+            throw new RuntimeException('Could not migrate dyeing batch creator details: ' . $db->error);
+        }
+        if (!$db->query('ALTER TABLE `dyeing_batch_card` DROP COLUMN `UNAME`')) {
+            throw new RuntimeException('Could not remove legacy dyeing_batch_card UNAME: ' . $db->error);
+        }
+    }
+
+    $orderResult = $db->query('SHOW COLUMNS FROM `dyeing_batch_card`');
+    if (!$orderResult) {
+        throw new RuntimeException('Could not verify dyeing_batch_card creator column order: ' . $db->error);
+    }
+    $order = [];
+    while ($column = $orderResult->fetch_assoc()) {
+        $order[] = strtoupper($column['Field']);
+    }
+    $orderResult->free();
+
+    $createdIndex = array_search('CREATED_DATE', $order, true);
+    $didIndex = array_search('DID', $order, true);
+    $dnameIndex = array_search('DNAME', $order, true);
+    if ($createdIndex !== array_search('HEAT_SET', $order, true) + 1 &&
+        !$db->query(
+            'ALTER TABLE `dyeing_batch_card` MODIFY COLUMN `CREATED_DATE` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER `HEAT_SET`'
+        )) {
+        throw new RuntimeException('Could not position dyeing_batch_card CREATED_DATE: ' . $db->error);
+    }
+
+    $orderResult = $db->query('SHOW COLUMNS FROM `dyeing_batch_card`');
+    if (!$orderResult) {
+        throw new RuntimeException('Could not verify dyeing_batch_card creator column order: ' . $db->error);
+    }
+    $order = [];
+    while ($column = $orderResult->fetch_assoc()) {
+        $order[] = strtoupper($column['Field']);
+    }
+    $orderResult->free();
+    $createdIndex = array_search('CREATED_DATE', $order, true);
+    $didIndex = array_search('DID', $order, true);
+    if ($didIndex !== $createdIndex + 1 &&
+        !$db->query('ALTER TABLE `dyeing_batch_card` MODIFY COLUMN `DID` VARCHAR(100) DEFAULT NULL AFTER `CREATED_DATE`')) {
+        throw new RuntimeException('Could not position dyeing_batch_card DID: ' . $db->error);
+    }
+
+    $orderResult = $db->query('SHOW COLUMNS FROM `dyeing_batch_card`');
+    if (!$orderResult) {
+        throw new RuntimeException('Could not verify dyeing_batch_card creator column order: ' . $db->error);
+    }
+    $order = [];
+    while ($column = $orderResult->fetch_assoc()) {
+        $order[] = strtoupper($column['Field']);
+    }
+    $orderResult->free();
+    $didIndex = array_search('DID', $order, true);
+    $dnameIndex = array_search('DNAME', $order, true);
+    if ($dnameIndex !== $didIndex + 1 &&
+        !$db->query('ALTER TABLE `dyeing_batch_card` MODIFY COLUMN `DNAME` VARCHAR(100) DEFAULT NULL AFTER `DID`')) {
+        throw new RuntimeException('Could not position dyeing_batch_card DNAME: ' . $db->error);
+    }
+}
+
+function dyeingBatchCardCreatorDetails($db, $username, $userType)
+{
+    $loginId = trim((string)$username);
+    if ($loginId === '') {
+        throw new RuntimeException('Could not determine the logged-in user ID.');
+    }
+
+    if ($userType === 'dyeing_operator') {
+        $stmt = $db->prepare(
+            'SELECT DY_OP_ID AS DID, DY_OP_NAME AS DNAME
+             FROM dyeing_operator
+             WHERE DY_OP_ID = ?
+             LIMIT 1'
+        );
+    } else {
+        $stmt = $db->prepare(
+            'SELECT USER_ID AS DID, USER_NAME AS DNAME
+             FROM users
+             WHERE USER_ID = ?
+             LIMIT 1'
+        );
+    }
+    if (!$stmt) {
+        throw new RuntimeException('Could not prepare batch creator lookup: ' . $db->error);
+    }
+
+    $stmt->bind_param('s', $loginId);
+    if (!$stmt->execute()) {
+        $error = $stmt->error;
+        $stmt->close();
+        throw new RuntimeException('Could not look up batch creator: ' . $error);
+    }
+    $result = $stmt->get_result();
+    $creator = $result ? $result->fetch_assoc() : null;
+    if ($result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    if (!$creator || trim((string)$creator['DID']) === '') {
+        throw new RuntimeException('The logged-in ID was not found in its user table.');
+    }
+    $creator['DID'] = trim((string)$creator['DID']);
+    $creator['DNAME'] = trim((string)$creator['DNAME']);
+    if ($creator['DNAME'] === '') {
+        $creator['DNAME'] = $creator['DID'];
+    }
+    return $creator;
+}
+
 function ensureDyeingBatchQuantityColumns($db)
 {
     $result = $db->query('SHOW COLUMNS FROM `dyeing_batch_card`');

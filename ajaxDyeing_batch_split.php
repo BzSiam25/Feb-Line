@@ -21,6 +21,7 @@ try {
     ensureDyeingBatchQuantityColumns($db);
     ensureDyeingProcessColumns($db, 'dyeing_batch_card');
     ensureDyeingProcessColumns($db, 'dyeing_batch_delivery');
+    ensureDyeingBatchCreatorColumns($db);
 } catch (Throwable $error) {
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Could not initialize Batch Split process fields: ' . $error->getMessage()]);
@@ -53,7 +54,8 @@ function insertSplitRow($db, $budat, $bcmtid, $rollNo, $row) {
     $vFEEDER_PLAN = isset($row['FEEDER_PLAN']) ? $row['FEEDER_PLAN'] : null;
     $vLOT_NO = isset($row['LOT_NO']) ? $row['LOT_NO'] : null;
     $vTPOINT = isset($row['TPOINT']) ? $row['TPOINT'] : null;
-    $uname = isset($_SESSION['username']) ? $_SESSION['username'] : '';
+    $vDID = isset($row['DID']) ? $row['DID'] : null;
+    $vDNAME = isset($row['DNAME']) ? $row['DNAME'] : null;
     $processValues = [];
     foreach (dyeingBatchCardProcessFieldNames() as $processField) {
         $processValues[$processField] = isset($row[$processField]) ? $row[$processField] : '';
@@ -63,11 +65,10 @@ function insertSplitRow($db, $budat, $bcmtid, $rollNo, $row) {
         "INSERT INTO dyeing_batch_card
          (BUDAT, BCARD, ROLL, PO_NUMBER, RACK, KQTY, AQTY, RQTY, SONO, SHIFT, BUYER, STYLE, COLOR,
           DYMCNO, MCDIA, CUSTOMER, O_T, SL, FTYPE, FGSM, FDIA, FEEDER_PLAN, LOT_NO,
-          YTYPE, YCOUNT, YBRAND, CATEGORY, TPOINT, UNAME, SILICON, NONSILICON,
+          YTYPE, YCOUNT, YBRAND, CATEGORY, TPOINT, SILICON, NONSILICON,
           NWASH, EWASH, ENZYME, NONENZYME, PEACH, BRUSH, AOP, SOFTENER,
-          NONSOFTENER, OTHERS, SHEARING, SINGEING, HEAT_SET)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+          NONSOFTENER, OTHERS, SHEARING, SINGEING, HEAT_SET, DID, DNAME)
+         VALUES (" . implode(',', array_fill(0, 45, '?')) . ")"
     );
 
     if (!$stmt) {
@@ -75,7 +76,7 @@ function insertSplitRow($db, $budat, $bcmtid, $rollNo, $row) {
     }
 
     $stmt->bind_param(
-        str_repeat('s', 44),
+        str_repeat('s', 45),
         $budat,
         $bcmtid,
         $rollNo,
@@ -104,7 +105,6 @@ function insertSplitRow($db, $budat, $bcmtid, $rollNo, $row) {
         $vYBRAND,
         $vCATEGORY,
         $vTPOINT,
-        $uname,
         $processValues['SILICON'],
         $processValues['NONSILICON'],
         $processValues['NWASH'],
@@ -119,7 +119,9 @@ function insertSplitRow($db, $budat, $bcmtid, $rollNo, $row) {
         $processValues['OTHERS'],
         $processValues['SHEARING'],
         $processValues['SINGEING'],
-        $processValues['HEAT_SET']
+        $processValues['HEAT_SET'],
+        $vDID,
+        $vDNAME
     );
 
     if (!$stmt->execute()) {

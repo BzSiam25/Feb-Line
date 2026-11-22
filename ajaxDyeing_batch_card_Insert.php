@@ -21,6 +21,7 @@ if (!isset($_SESSION['dyeing_batch']['rolls']) || !is_array($_SESSION['dyeing_ba
 try {
     ensureDyeingBatchQuantityColumns($db);
     ensureDyeingProcessColumns($db, 'dyeing_batch_card');
+    ensureDyeingBatchCreatorColumns($db);
 } catch (Throwable $error) {
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => $error->getMessage()]);
@@ -36,6 +37,17 @@ $selectedProcesses = isset($_SESSION['dyeing_batch']['processes']) &&
     ? $_SESSION['dyeing_batch']['processes']
     : [];
 $processFields = dyeingBatchCardProcessFieldNames();
+try {
+    $creator = dyeingBatchCardCreatorDetails(
+        $db,
+        isset($_SESSION['username']) ? $_SESSION['username'] : '',
+        isset($_SESSION['user_type']) ? $_SESSION['user_type'] : ''
+    );
+} catch (Throwable $error) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'message' => $error->getMessage()]);
+    exit;
+}
 
 if (count($rolls) === 0 || $dyeingMcno === '') {
     echo json_encode(['success' => false, 'message' => 'Select at least one roll and a Dyeing MC No to create a batch card']);
@@ -99,7 +111,6 @@ if (!$rowX || !isset($rowX['nxt'])) {
 $seq = (int)$rowX['nxt'];
 $cardNo = (string)$seq;
 
-$uname = $_SESSION['username'];
 $budat = date('Y-m-d');
 
 $inserted = 0;
@@ -173,11 +184,10 @@ foreach ($rolls as $row) {
         "INSERT INTO dyeing_batch_card
          (BUDAT, BCARD, ROLL, PO_NUMBER, RACK, KQTY, AQTY, RQTY, SONO, SHIFT, BUYER, STYLE, COLOR,
           DYMCNO, MCDIA, CUSTOMER, O_T, SL, FTYPE, FGSM, FDIA, FEEDER_PLAN, LOT_NO,
-          YTYPE, YCOUNT, YBRAND, CATEGORY, TPOINT, UNAME, SILICON, NONSILICON, NWASH,
+          YTYPE, YCOUNT, YBRAND, CATEGORY, TPOINT, SILICON, NONSILICON, NWASH,
           EWASH, ENZYME, NONENZYME, PEACH, BRUSH, AOP, SOFTENER, NONSOFTENER, OTHERS,
-          SHEARING, SINGEING, HEAT_SET)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+          SHEARING, SINGEING, HEAT_SET, DID, DNAME)
+         VALUES (" . implode(',', array_fill(0, 45, '?')) . ")"
     );
 
     if (!$stmt) {
@@ -218,7 +228,7 @@ foreach ($rolls as $row) {
     }
 
     $stmt->bind_param(
-        str_repeat('s', 44),
+        str_repeat('s', 45),
         $budat,
         $cardNo,
         $vROLL,
@@ -247,7 +257,6 @@ foreach ($rolls as $row) {
         $vYBRAND,
         $vCATEGORY,
         $vTPOINT,
-        $uname,
         $processValues['SILICON'],
         $processValues['NONSILICON'],
         $processValues['NWASH'],
@@ -262,7 +271,9 @@ foreach ($rolls as $row) {
         $processValues['OTHERS'],
         $processValues['SHEARING'],
         $processValues['SINGEING'],
-        $processValues['HEAT_SET']
+        $processValues['HEAT_SET'],
+        $creator['DID'],
+        $creator['DNAME']
     );
 
     if (!$stmt->execute()) {

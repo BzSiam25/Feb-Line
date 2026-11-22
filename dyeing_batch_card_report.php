@@ -3,8 +3,8 @@ $reportConfig = [
     'title' => 'Dyeing Batch Card Report',
     'from' => 'dyeing_batch_card t',
     'machine' => "COALESCE(t.DYMCNO, '')",
-    'operator' => "''",
-    'operator_id' => "''",
+    'operator' => "COALESCE(t.DNAME, '')",
+    'operator_id' => "COALESCE(t.DID, '')",
     'process_alias' => 't',
     'order' => 't.BCARD, t.DBCTID',
     'theme_start' => '#1e3a8a',
@@ -22,6 +22,7 @@ if (!isset($_SESSION['username'])) {
 try {
     ensureDyeingBatchQuantityColumns($db);
     ensureDyeingProcessColumns($db, 'dyeing_batch_card');
+    ensureDyeingBatchCreatorColumns($db);
 } catch (Throwable $error) {
     error_log('Dyeing batch quantity initialization failed: ' . $error->getMessage());
     http_response_code(500);
@@ -39,7 +40,7 @@ $reportWhere = isset($reportConfig['where']) ? $reportConfig['where'] : '';
 $reportThemeStart = $reportConfig['theme_start'];
 $reportThemeEnd = $reportConfig['theme_end'];
 $reportTimeColumns = isset($reportConfig['time_columns']) ? $reportConfig['time_columns'] : [];
-$reportColumnCount = 23 + count($reportTimeColumns);
+$reportColumnCount = 19 + count($reportTimeColumns);
 $processFields = dyeingBatchCardProcessFieldNames();
 
 $processSelect = [];
@@ -67,6 +68,7 @@ $timeSelectSql = $timeSelect
 
 $sql = "SELECT
             t.BCARD,
+            t.BUDAT,
             t.ROLL,
             t.PO_NUMBER,
             t.COLOR,
@@ -76,17 +78,15 @@ $sql = "SELECT
             t.BUYER,
             t.STYLE,
             t.MCDIA,
-            t.CUSTOMER,
-            t.O_T,
             t.SL,
             t.FTYPE,
             t.FGSM,
             t.FDIA,
-            t.YTYPE,
             t.YCOUNT,
-            t.YBRAND,
-            {$timeSelectSql}{$reportOperator} AS OPERATOR,
-            {$reportOperatorId} AS OP_ID,
+            t.LOT_NO,
+            t.CREATED_DATE,
+            {$timeSelectSql}{$reportOperator} AS DNAME,
+            {$reportOperatorId} AS DID,
             " . implode(",\n            ", $processSelect) . "
         FROM {$reportFrom}";
 if ($reportWhere !== '') {
@@ -134,6 +134,7 @@ function dyeingReportEscape($value)
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo dyeingReportEscape($reportTitle); ?></title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
         * { box-sizing: border-box; }
         body { margin: 0; padding: 16px; background: #f1f5f9; color: #1e293b; font-family: 'Segoe UI', Roboto, system-ui, sans-serif; }
@@ -160,6 +161,36 @@ function dyeingReportEscape($value)
         .process-chip { padding: 3px 7px; border: 1px solid #99d5c9; border-radius: 6px; background: #e6f8f3; color: #075e54; font-size: .78rem; font-weight: 700; }
         .empty-row td, .error-row td { padding: 28px; color: #64748b; text-align: center; font-weight: 700; }
         .error-row td { color: #b91c1c; }
+        .batch-print-report { display: none; }
+        .print-page { width: 190mm; min-height: 277mm; margin: 0 auto; padding: 5mm; color: #111; background: #fff; font: 9pt Arial, sans-serif; }
+        .print-page + .print-page { break-before: page; page-break-before: always; }
+        .print-page table { width: 100%; min-width: 0; border-collapse: collapse; table-layout: fixed; font-size: 8pt; }
+        .print-page th, .print-page td { padding: 3px 4px; border: 1px solid #222; text-align: center; vertical-align: middle; overflow-wrap: anywhere; }
+        .print-header td { height: 36mm; }
+        .print-brand { width: 25%; color: #a51f79; font: italic 19pt Georgia, serif; }
+        .print-title { font-size: 15pt; font-weight: 700; }
+        .print-qr-cell { width: 25%; }
+        .print-qr-cell img, .print-qr-cell canvas { width: 30mm !important; height: 30mm !important; }
+        .print-meta { margin-top: 2mm; }
+        .print-meta .meta-label { width: 12%; font-weight: 700; overflow-wrap: anywhere; word-break: break-word; }
+        .print-batch-layout { margin-top: 2mm; }
+        .print-batch-layout > tbody > tr > td { padding: 2px; }
+        .print-section-title { width: 8%; font-size: 10pt; font-weight: 700; }
+        .print-fabric-table th { font-size: 7pt; }
+        .print-fabric-table td { height: 8mm; overflow-wrap: anywhere; word-break: break-word; }
+        .print-process-cell { width: 29%; vertical-align: top !important; }
+        .print-process-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 8px; text-align: left; }
+        .print-process-item { font-size: 7pt; line-height: 1.15; white-space: normal; overflow-wrap: anywhere; }
+        .print-grand-total { font-weight: 700; text-align: right !important; }
+        .print-comment { height: 13mm; text-align: left !important; vertical-align: top !important; }
+        .print-static-section { height: 22mm; }
+        .print-signatures { margin-top: 12mm; }
+        .print-signatures td { padding-top: 12mm; border: 0; border-top: 1px solid #222; }
+        .print-roll-table { height: 245mm; }
+        .print-roll-table th { height: 9mm; }
+        .print-roll-table td { height: 6mm; }
+        .print-roll-totals { margin-top: 3mm; }
+        .print-roll-totals td { height: 8mm; }
         @media (max-width: 700px) {
             body { padding: 10px; }
             .report-header { flex-wrap: wrap; gap: 8px; }
@@ -169,16 +200,13 @@ function dyeingReportEscape($value)
             .search-row input { flex-basis: 100%; }
         }
         @media print {
-            @page { size: landscape; margin: 10mm; }
+            @page { size: A4 portrait; margin: 10mm; }
             body { padding: 0; background: #fff; }
             .no-print { display: none !important; }
-            .table-card, .table-scroll { overflow: visible !important; max-height: none !important; }
-            table { width: 100%; min-width: 0; font-size: 8pt; }
-            thead th { position: static; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            tbody td { padding: 5px; white-space: normal; }
-            .process-list { display: flex; flex-wrap: wrap; }
-            .report-table tbody tr:not(.print-target) { display: none !important; }
-            .report-table .action-column { display: none !important; }
+            main > .table-card { display: none !important; }
+            .batch-print-report { display: block !important; }
+            .print-page { margin: 0; padding: 0; min-height: 277mm; break-inside: avoid; }
+            .print-page + .print-page { break-before: page; page-break-before: always; }
         }
     </style>
 </head>
@@ -208,6 +236,7 @@ function dyeingReportEscape($value)
                 </table>
             </div>
         </div>
+        <section class="batch-print-report" id="batchPrintReport" aria-hidden="true"></section>
     </main>
     <script>
         var reportRows = <?php echo json_encode($rows, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_INVALID_UTF8_SUBSTITUTE); ?>;
@@ -223,21 +252,17 @@ function dyeingReportEscape($value)
             ['BUYER', 'Buyer'],
             ['STYLE', 'Style'],
             ['MCDIA', 'MC Dia'],
-            ['CUSTOMER', 'Customer'],
-            ['O_T', 'O / T'],
             ['SL', 'SL/VQ'],
             ['FTYPE', 'Fabrics Type'],
             ['FGSM', 'Finish GSM'],
             ['FDIA', 'Finish Dia'],
-            ['YTYPE', 'Yarn Type'],
             ['YCOUNT', 'Yarn Count'],
-            ['YBRAND', 'Yarn Brand'],
             ['PROCESS', 'Process'],
             <?php foreach ($reportTimeColumns as $timeColumn): ?>
             [<?php echo json_encode($timeColumn); ?>, <?php echo json_encode($timeColumnLabels[$timeColumn]); ?>],
             <?php endforeach; ?>
-            ['OPERATOR', 'Operator'],
-            ['OP_ID', 'OP Id']
+            ['DNAME', 'Batch Created'],
+            ['DID', 'Op ID']
         ];
         var processFields = <?php echo json_encode($processFields); ?>;
         var quantityFields = ['BATCH_QTY'];
@@ -276,11 +301,167 @@ function dyeingReportEscape($value)
             return list;
         }
 
-        function printBatch(batch) {
-            document.querySelectorAll('.report-table tbody tr').forEach(function(row) {
-                row.classList.toggle('print-target', row.dataset.batch === batch);
+        function escapeHtml(value) {
+            return String(value === null || value === undefined ? '' : value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function hasProcess(row, field) {
+            return String(row[field] || '').trim() !== '';
+        }
+
+        function renderPrintReport(batch, rows) {
+            if (!rows.length) throw new Error('No database records were found for batch card ' + batch + '.');
+
+            var first = rows[0];
+            var totalQty = rows.reduce(function(total, row) {
+                var qty = Number(row.BATCH_QTY);
+                return total + (Number.isFinite(qty) ? qty : 0);
+            }, 0);
+            var fabricGroups = new Map();
+            rows.forEach(function(row) {
+                var fabric = String(row.FTYPE || '').trim();
+                var gsm = String(row.FGSM || '').trim();
+                var category = String(row.CATEGORY || '').trim();
+                var key = category + '\u0000' + fabric + '\u0000' + gsm;
+                if (!fabricGroups.has(key)) {
+                    fabricGroups.set(key, {category: category, fabric: fabric, gsm: gsm, qty: 0, rolls: 0});
+                }
+                var group = fabricGroups.get(key);
+                var qty = Number(row.BATCH_QTY);
+                group.qty += Number.isFinite(qty) ? qty : 0;
+                group.rolls++;
             });
-            window.print();
+
+            var processLabels = {
+                SILICON: 'Silicon',
+                NONSILICON: 'Non-Silicon',
+                NWASH: 'Normal Wash (YD)',
+                EWASH: 'Enzyme Wash (YD)',
+                ENZYME: 'Enzyme',
+                NONENZYME: 'Non-Enzyme',
+                PEACH: 'Peach',
+                BRUSH: 'Brush',
+                AOP: 'AOP',
+                SOFTENER: 'Softener',
+                NONSOFTENER: 'Non-Softener',
+                OTHERS: 'Others',
+                SHEARING: 'Shearing',
+                SINGEING: 'Singeing',
+                HEAT_SET: 'Heat Set'
+            };
+            var processHtml = processFields.map(function(field) {
+                var selected = hasProcess(first, field);
+                var label = field === 'OTHERS' && selected
+                    ? first[field]
+                    : (processLabels[field] || field);
+                return '<div class="print-process-item">' + (selected ? '&#9745;' : '&#9744;') +
+                    ' ' + escapeHtml(label) + '</div>';
+            }).join('');
+            var fabricRows = Array.from(fabricGroups.values()).map(function(group) {
+                return '<tr><td>' + escapeHtml(group.category) + '</td><td>' +
+                    escapeHtml(group.fabric) + '</td><td>' +
+                    escapeHtml(first.MCDIA || '') + '</td><td>' + escapeHtml(first.FDIA || '') +
+                    '</td><td>' + escapeHtml(group.gsm) + '</td><td>' + formatQty(group.qty) +
+                    '</td><td>' + group.rolls + '</td><td></td></tr>';
+            }).join('');
+            if (!fabricRows) {
+                fabricRows = '<tr><td colspan="8">&nbsp;</td></tr>';
+            }
+
+            var dateValue = String(first.BUDAT || '').trim();
+            if (dateValue && /^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+                var dateParts = dateValue.split('-');
+                dateValue = dateParts[2] + '-' + dateParts[1] + '-' + dateParts[0];
+            }
+
+            var pageOne = '<article class="print-page">' +
+                '<table class="print-header"><tr><td class="print-brand">PURBANI</td>' +
+                '<td class="print-title">PURBANI FABRICS LTD.<br><span style="font-size:10pt">Process Route Card</span>' +
+                '<div style="margin-top:5px;font-size:9pt;font-weight:400">Batch Card: ' + escapeHtml(batch) +
+                '<br>Batch Created: ' + escapeHtml(first.DNAME) + '</div></td>' +
+                '<td class="print-qr-cell"><div class="batch-qr" data-batch="' + escapeHtml(batch) + '"></div>' +
+                '<strong>Date: ' + escapeHtml(dateValue) + '</strong></td></tr></table>' +
+                '<table class="print-meta"><tr><td class="meta-label">Dyeing Batch No.</td><td>' + escapeHtml(batch) +
+                '</td><td class="meta-label">Style No.</td><td>' + escapeHtml(first.STYLE) +
+                '</td><td class="meta-label">M/C No.</td><td>' + escapeHtml(first.MCNO) +
+                '</td><td class="meta-label">PO Number</td><td>' + escapeHtml(first.PO_NUMBER) + '</td></tr>' +
+                '<tr><td class="meta-label">Buyer</td><td>' + escapeHtml(first.BUYER) +
+                '</td><td class="meta-label">Grey GSM/SL</td><td>' + escapeHtml(first.SL) +
+                '</td><td class="meta-label">Order</td><td>' + escapeHtml(first.SONO) +
+                '</td><td class="meta-label">Yarn Count</td><td>' + escapeHtml(first.YCOUNT) + '</td></tr>' +
+                '<tr><td class="meta-label">Color</td><td>' + escapeHtml(first.COLOR) +
+                '</td><td class="meta-label">Finish GSM</td><td>' + escapeHtml(first.FGSM) +
+                '</td><td class="meta-label">SO Number</td><td>' + escapeHtml(first.SONO) +
+                '</td><td class="meta-label">Yarn Lot</td><td>' + escapeHtml(first.LOT_NO) + '</td></tr></table>' +
+                '<table class="print-batch-layout"><tr><td class="print-section-title" rowspan="2">Batch</td>' +
+                '<td><table class="print-fabric-table"><thead><tr><th>F/T</th><th>Fabrication</th>' +
+                '<th>M/C DIA X Gauge</th><th>F/DIA</th><th>GSM</th><th>Qty (kg)</th><th>Roll</th><th>Remark</th></tr></thead>' +
+                '<tbody>' + fabricRows + '<tr><td colspan="5" class="print-grand-total">Total Wt (kg)/Total Roll</td>' +
+                '<td>' + formatQty(totalQty) + '</td><td>' + rows.length + '</td><td></td></tr></tbody></table></td>' +
+                '<td class="print-process-cell"><strong>Process</strong><div class="print-process-grid">' + processHtml +
+                '</div></td></tr><tr><td colspan="2" class="print-comment">Comments:</td></tr></table>' +
+                '<table class="print-batch-layout"><tr><td class="print-section-title">Dyeing</td>' +
+                '<td class="print-static-section">Shade / Sign / Proposed Parameter / Color Fastness</td></tr>' +
+                '<tr><td class="print-comment" colspan="2">Comments:</td></tr>' +
+                '<tr><td class="print-section-title">Heat Set Parameter</td><td class="print-static-section">R. Dia / Set Dia / A. Dia / R. GSM / A. GSM / Speed / Temp. / Over Feed% / Blower / Remark</td></tr>' +
+                '<tr><td class="print-section-title">Finishing</td><td class="print-static-section">Shade Roll Parameter (Stenter) / Shade Roll Parameter (Compactor)</td></tr>' +
+                '<tr><td class="print-comment" colspan="2">Comments:</td></tr></table>' +
+                '<table class="print-signatures"><tr><td>Batch Shift Incharge</td><td>Batch Supervisor</td>' +
+                '<td>Batch Incharge</td><td>Batch Manager</td></tr></table></article>';
+
+            var rollRows = rows.map(function(row) {
+                return '<tr><td>' + escapeHtml(row.ROLL) + '</td><td>' +
+                    formatQty(row.BATCH_QTY) + '</td><td></td><td></td><td></td><td></td>' +
+                    '<td></td><td></td><td></td></tr>';
+            });
+            while (rollRows.length < 36) {
+                rollRows.push('<tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>');
+            }
+            var pageTwo = '<article class="print-page"><table class="print-roll-table">' +
+                '<thead><tr><th colspan="2">Grey</th><th colspan="2">Finish</th><th colspan="2">Finish</th><th>Remarks</th></tr>' +
+                '<tr><th>Roll No.</th><th>Grey Wt</th><th>Roll No.</th><th>Fin. Wt</th>' +
+                '<th>Roll No.</th><th>Fin. Wt</th><th></th></tr></thead><tbody>' + rollRows.join('') +
+                '</tbody></table><table class="print-roll-totals"><tr><td>Total Grey Weight (kg)</td>' +
+                '<td>' + formatQty(totalQty) + '</td><td>Total Finish Weight (kg)</td><td></td></tr>' +
+                '<tr><td>Grand Total (kg)</td><td><strong>' + formatQty(totalQty) +
+                '</strong></td><td>Batch Card No.</td><td>' + escapeHtml(batch) + '</td></tr>' +
+                '<tr><td>Process Loss%</td><td></td><td>Process Loss%</td><td></td></tr></table></article>';
+
+            var printReport = document.getElementById('batchPrintReport');
+            printReport.innerHTML = pageOne + pageTwo;
+            printReport.setAttribute('aria-hidden', 'false');
+            if (typeof QRCode === 'undefined') {
+                throw new Error('QR-code library could not be loaded. Check the internet connection and retry printing.');
+            }
+            var qrContainer = printReport.querySelector('.batch-qr');
+            new QRCode(qrContainer, {
+                text: String(batch),
+                width: 120,
+                height: 120,
+                correctLevel: QRCode.CorrectLevel.M
+            });
+        }
+
+        function printBatch(batch) {
+            fetch('ajaxDyeing_batch_card_Report.php?batch=' + encodeURIComponent(batch), {
+                headers: {'Accept': 'application/json'}
+            }).then(function(response) {
+                if (!response.ok) throw new Error('Could not load batch card details for printing.');
+                return response.json();
+            }).then(function(response) {
+                if (!response.success) {
+                    throw new Error(response.error || 'Could not load batch card details for printing.');
+                }
+                renderPrintReport(batch, response.data || []);
+                window.print();
+            }).catch(function(error) {
+                window.alert(error.message);
+            });
         }
 
         function renderReport(rows) {
@@ -362,9 +543,9 @@ function dyeingReportEscape($value)
             if (event.key === 'Enter') applySearch();
         });
         window.addEventListener('afterprint', function() {
-            document.querySelectorAll('.print-target').forEach(function(row) {
-                row.classList.remove('print-target');
-            });
+            var printReport = document.getElementById('batchPrintReport');
+            printReport.replaceChildren();
+            printReport.setAttribute('aria-hidden', 'true');
         });
 
         setHeaders();

@@ -20,6 +20,7 @@ if (!isset($_SESSION['dyeing_batch']['rolls']) || !is_array($_SESSION['dyeing_ba
 
 try {
     ensureDyeingBatchQuantityColumns($db);
+    ensureDyeingBatchCreatorColumns($db);
 } catch (Throwable $error) {
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => $error->getMessage()]);
@@ -493,7 +494,8 @@ if ($row = $result->fetch_assoc()) {
                 $cards[$bc] = [
                     'card_no' => $bc,
                     'created_at' => $row['CREATED_DATE'],
-                    'uname' => $row['UNAME'],
+                    'did' => $row['DID'],
+                    'dname' => $row['DNAME'],
                     'rolls' => []
                 ];
             }
