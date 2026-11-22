@@ -12,6 +12,16 @@ function respond($payload, $statusCode = 200)
     exit;
 }
 
+function formatDeliveryQuantity($value)
+{
+    if (!is_numeric($value) || !is_finite((float)$value)) {
+        throw new InvalidArgumentException('A delivery roll has an invalid quantity.');
+    }
+
+    $formatted = rtrim(rtrim(number_format((float)$value, 3, '.', ''), '0'), '.');
+    return $formatted === '' || $formatted === '-0' ? '0' : $formatted;
+}
+
 function ensureDeliveryColumnAfter($db, &$columns, $name, $definition, $after)
 {
     $name = strtoupper($name);
@@ -596,6 +606,7 @@ try {
                 foreach (dyeingProcessFieldNames() as $processField) {
                     $processValues[$processField] = isset($row[$processField]) ? $row[$processField] : '';
                 }
+                $quantity = formatDeliveryQuantity($row['QTY']);
                 $deliveryValues = [
                     $deliveryDate,
                     $kChallan,
@@ -603,7 +614,7 @@ try {
                     $validatedBatch['card_no'],
                     $row['ROLL'],
                     $row['PO_NUMBER'],
-                    $row['QTY'],
+                    $quantity,
                     $row['SONO'],
                     $row['BUYER'],
                     $row['STYLE'],

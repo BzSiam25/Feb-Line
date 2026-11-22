@@ -11,6 +11,72 @@ function respond($payload, $statusCode = 200)
     exit;
 }
 
+function dyeingBatchVerificationState($db, $card, $dcount)
+{
+    $passVotes = "(COALESCE(UPPER(TRIM(verification.SINCHARGE)) = 'PASS', 0) +
+        COALESCE(UPPER(TRIM(verification.SUPERVISOR)) = 'PASS', 0) +
+        COALESCE(UPPER(TRIM(verification.BINCHARGE)) = 'PASS', 0) +
+        COALESCE(UPPER(TRIM(verification.BMANAGER)) = 'PASS', 0))";
+    $failVotes = "(COALESCE(UPPER(TRIM(verification.SINCHARGE)) = 'FAIL', 0) +
+        COALESCE(UPPER(TRIM(verification.SUPERVISOR)) = 'FAIL', 0) +
+        COALESCE(UPPER(TRIM(verification.BINCHARGE)) = 'FAIL', 0) +
+        COALESCE(UPPER(TRIM(verification.BMANAGER)) = 'FAIL', 0))";
+    $stmt = $db->prepare(
+        'SELECT COUNT(*) AS RECORD_COUNT,
+                SUM(CASE WHEN ' . $passVotes . ' >= 2 AND ' . $passVotes . ' > ' . $failVotes . ' THEN 1 ELSE 0 END) AS PASSED_ROWS,
+                SUM(CASE WHEN ' . $failVotes . ' >= 2 AND ' . $failVotes . ' > ' . $passVotes . ' THEN 1 ELSE 0 END) AS FAILED_ROWS
+         FROM dyeing_batch_verification verification
+         WHERE TRIM(verification.BCARD) = ? AND verification.DCOUNT = ?'
+    );
+    if (!$stmt) {
+        throw new RuntimeException('Could not prepare Batch Verification status lookup: ' . $db->error);
+    }
+    $stmt->bind_param('si', $card, $dcount);
+    if (!$stmt->execute()) {
+        $error = $stmt->error;
+        $stmt->close();
+        throw new RuntimeException('Could not check Batch Verification status: ' . $error);
+    }
+    $result = $stmt->get_result();
+    $status = $result ? $result->fetch_assoc() : null;
+    if ($result) {
+        $result->free();
+    }
+    $stmt->close();
+
+    $recordCount = $status ? (int)$status['RECORD_COUNT'] : 0;
+    if ($recordCount > 0 && (int)$status['PASSED_ROWS'] === $recordCount) {
+        return 'pass';
+    }
+    if ($recordCount > 0 && (int)$status['FAILED_ROWS'] === $recordCount) {
+        return 'fail';
+    }
+    return 'pending';
+}
+
+function requirePassedBatchVerification($db, $card, $dcount)
+{
+    try {
+        $state = dyeingBatchVerificationState($db, $card, $dcount);
+    } catch (Throwable $error) {
+        respond(['success' => false, 'message' => $error->getMessage()], 500);
+    }
+
+    if ($state === 'pass') {
+        return;
+    }
+    if ($state === 'fail') {
+        respond([
+            'success' => false,
+            'message' => 'Batch ' . $card . ' failed Batch Verification and cannot proceed to Roll Verification.'
+        ], 409);
+    }
+    respond([
+        'success' => false,
+        'message' => 'Complete Batch Verification with PASS for Batch ' . $card . ' before Roll Verification.'
+    ], 409);
+}
+
 if (!isset($_SESSION['username'])) {
     respond(['success' => false, 'message' => 'Unauthorized. Please login.'], 401);
 }
@@ -113,6 +179,7 @@ if ($action === 'save_verified_rolls') {
     if ($dcount < 1) {
         respond(['success' => false, 'message' => 'Batch ' . $card . ' has not completed Batch Verification.'], 409);
     }
+    requirePassedBatchVerification($db, $card, $dcount);
 
     $sourceStmt = $db->prepare(
         'SELECT BCARD, ROLL, DCOUNT, PO_NUMBER, QTY, SONO, BUYER, STYLE, COLOR, DYMCNO, MCDIA,
@@ -271,7 +338,7 @@ if ($roll === '' || strlen($roll) > 50) {
 $currentCard = isset($_GET['current_batch']) ? trim((string) $_GET['current_batch']) : '';
 
 $batchStmt = $db->prepare(
-    'SELECT v.BCARD
+    'SELECT v.BCARD, v.DCOUNT
      FROM dyeing_batch_verification v
      WHERE TRIM(v.ROLL) = ? AND v.BCARD IS NOT NULL AND TRIM(v.BCARD) <> \'\'
        AND v.DCOUNT = (
@@ -300,6 +367,8 @@ $batchStmt->close();
 if ($card === '') {
     respond(['success' => false, 'message' => 'Roll ' . $roll . ' was not found in the current Batch Verification cycle.'], 404);
 }
+requirePassedBatchVerification($db, $card, (int)$batchRow['DCOUNT']);
+
 $rowsStmt = $db->prepare(
     'SELECT DBVTID, BCARD, ROLL, DCOUNT, PO_NUMBER, COLOR, QTY, DYMCNO, SONO, BUYER, STYLE,
             MCDIA, CUSTOMER, O_T, SL, FTYPE, FGSM, FDIA, YTYPE, YCOUNT, YBRAND,

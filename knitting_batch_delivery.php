@@ -175,6 +175,7 @@ unset($_SESSION['knitting_delivery_manual_entry_authorized']);
             font-weight: 750;
         }
         tfoot th { padding: 12px 9px; border: 1px solid #94a3b8; background: #ecfdf5; color: #065f46; text-align: right; white-space: nowrap; }
+        tfoot th.scanned-total-qty { text-align: left; }
         .actions { display: flex; justify-content: flex-start; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
         .roll-badge { display: inline-block; padding: 4px 9px; border-radius: 20px; color: #065f46; background: #ccfbf1; font-weight: 800; }
         .remove-roll-button {
@@ -261,8 +262,8 @@ unset($_SESSION['knitting_delivery_manual_entry_authorized']);
             <div class="message" id="message" role="status" aria-live="polite"></div>
             <div class="batch-summary">
                 <div class="summary-item">Rolls scanned: <span id="scannedCount">0</span> / <span id="expectedCount">0</span></div>
-                <div class="summary-item">Scanned QTY: <span id="scannedQty">0.000</span> KG</div>
-                <div class="summary-item">Batch Total QTY: <span id="expectedQty">0.000</span> KG</div>
+                <div class="summary-item">Scanned QTY: <span id="scannedQty">0</span> KG</div>
+                <div class="summary-item">Batch Total QTY: <span id="expectedQty">0</span> KG</div>
             </div>
             <div class="camera-layout">
                 <div class="batch-selection is-hidden" id="batchSelectionPanel">
@@ -413,7 +414,7 @@ unset($_SESSION['knitting_delivery_manual_entry_authorized']);
 
             function formatQty(value) {
                 var qty = Number(value);
-                return Number.isFinite(qty) ? qty.toFixed(3) : '0.000';
+                return Number.isFinite(qty) ? qty.toFixed(3).replace(/\.?0+$/, '') : '0';
             }
 
             function uppercaseInputValue(input) {
@@ -534,7 +535,7 @@ unset($_SESSION['knitting_delivery_manual_entry_authorized']);
                 document.getElementById('scannedQty').textContent = formatQty(totalQty);
                 document.getElementById('expectedQty').textContent = formatQty(targetQty);
                 document.getElementById('scannedFooter').innerHTML = groups.length
-                    ? '<tr><th colspan="4">Total Batch Qty</th><th>' + formatQty(totalQty) + ' KG</th><th></th></tr>'
+                    ? '<tr><th colspan="4">Total Batch Qty</th><th class="scanned-total-qty">' + formatQty(totalQty) + ' KG</th><th></th></tr>'
                     : '';
 
                 deliveryPanel.classList.toggle('is-hidden', delivered);

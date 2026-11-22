@@ -48,7 +48,7 @@ $query = "SELECT DBCTID, BCARD, BUDAT, RACK, ROLL, PO_NUMBER, KQTY, AQTY, RQTY A
                  LOT_NO, TPOINT, DID, DNAME, CREATED_DATE, CATEGORY
           FROM dyeing_batch_card
           $where
-          ORDER BY BCARD DESC, DBCTID ASC
+          ORDER BY CAST(BCARD AS UNSIGNED) DESC, DBCTID ASC
           " . ($batchCard === '' ? 'LIMIT 500' : '');
 
 $stmt = mysqli_prepare($db, $query);
