@@ -212,14 +212,24 @@ if ($res) {
             }
 
             .qr-print-area {
-                display: flex !important;
-                align-items: flex-start;
-                justify-content: flex-start;
-                padding: 20px;
+                display: block !important;
+                padding: 14px;
             }
 
-            .qr-print-area .qr-box {
-                text-align: center;
+            .print-qr-label {
+                margin: 0 0 4px;
+                color: #000;
+                font-family: sans-serif;
+                font-size: 13px;
+                font-weight: 800;
+                line-height: 1.2;
+            }
+
+            .qr-print-area #qrPrintBox img,
+            .qr-print-area #qrPrintBox canvas {
+                display: block;
+                width: 1in !important;
+                height: 1in !important;
             }
         }
     </style>
@@ -265,6 +275,7 @@ if ($res) {
 
     <script>
         var allUsers = <?php echo json_encode($users); ?>;
+        var visibleUsers = allUsers.slice();
 
         function esc(v) {
             return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;')
@@ -272,6 +283,7 @@ if ($res) {
         }
 
         function renderTable(rows) {
+            visibleUsers = rows.slice();
             var body = document.getElementById('userBody');
             var html = '';
             rows.forEach(function(u, i) {
@@ -318,20 +330,24 @@ if ($res) {
         document.getElementById('userBody').addEventListener('click', function(e) {
             var btn = e.target.closest('.print-btn');
             if (!btn) return;
-            var u = allUsers[parseInt(btn.getAttribute('data-idx'), 10)];
+            var u = visibleUsers[parseInt(btn.getAttribute('data-idx'), 10)];
             if (!u) return;
-            printUserIdQr(u.USER_ID);
+            printUserIdQr(u.USER_ID, u.USER_NAME);
         });
 
-        function printUserIdQr(userId) {
+        function printUserIdQr(userId, userName) {
             var box = document.getElementById('qrPrintBox');
             box.innerHTML = '';
+            var label = document.createElement('div');
+            label.className = 'print-qr-label';
+            label.textContent = userName || '';
             var qr = document.createElement('div');
+            box.appendChild(label);
             box.appendChild(qr);
             new QRCode(qr, {
                 text: String(userId || ''),
-                width: 220,
-                height: 220,
+                width: 96,
+                height: 96,
                 correctLevel: QRCode.CorrectLevel.M
             });
             setTimeout(function() {
@@ -343,7 +359,7 @@ if ($res) {
     </script>
 
     <div class="qr-print-area">
-        <div class="qr-box" id="qrPrintBox"></div>
+        <div id="qrPrintBox"></div>
     </div>
 
 </body>

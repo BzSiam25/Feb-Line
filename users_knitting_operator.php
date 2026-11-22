@@ -423,13 +423,15 @@ if ($res2) {
         });
 
         function showOperatorBadge(idx, type) {
-            var u, idVal;
+            var u, idVal, name;
             if (type === 'qc') {
                 u = viewQcs[idx];
                 idVal = u.KNITTING_QC_ID;
+                name = u.KNITTING_QC_NAME;
             } else {
                 u = viewUsers[idx];
                 idVal = u.OPERATOR_ID;
+                name = u.OPERATOR_NAME;
             }
             if (!u) return;
 
@@ -439,7 +441,7 @@ if ($res2) {
             var wrap = document.createElement('div');
             var label = document.createElement('div');
             label.className = 'print-qr-label';
-            label.textContent = idVal || '';
+            label.textContent = name || '';
             var qrHolder = document.createElement('div');
             qrHolder.id = 'printQrInner';
             wrap.appendChild(label);

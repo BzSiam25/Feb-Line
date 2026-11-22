@@ -306,7 +306,7 @@ while ($row = mysqli_fetch_assoc($res)) {
             printBox.innerHTML = '';
             var label = document.createElement('div');
             label.className = 'print-qr-label';
-            label.textContent = operator.DY_OP_ID || '';
+            label.textContent = operator.DY_OP_NAME || '';
             var qrHolder = document.createElement('div');
             printBox.appendChild(label);
             printBox.appendChild(qrHolder);
