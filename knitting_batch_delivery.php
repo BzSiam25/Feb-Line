@@ -243,7 +243,7 @@ unset($_SESSION['knitting_delivery_manual_entry_authorized']);
         </header>
 
         <section class="panel" id="deliveryPanel">
-            <h2 class="panel-title">Scan the rolls you want to deliver from one or more batches.</h2>
+            <h2 class="panel-title">Scan a Batch Card QR first, then scan rolls from that batch. Scan another Batch Card QR to switch batches.</h2>
             <div class="message" id="message" role="status" aria-live="polite"></div>
             <div class="batch-summary">
                 <div class="summary-item">Batch: <span id="summaryCardNo">-</span></div>
@@ -266,9 +266,9 @@ unset($_SESSION['knitting_delivery_manual_entry_authorized']);
                     <div class="manual-scan manual-entry-locked">
                         <form class="scan-form" id="rollForm">
                             <div class="field">
-                                <label for="rollInput">Roll Number</label>
+                                <label for="rollInput">Batch Card / Roll Number</label>
                                 <div class="roll-input-group">
-                                    <input type="text" id="rollInput" autocomplete="off" placeholder="Unlock to enter roll number manually" readonly aria-disabled="true">
+                                <input type="text" id="rollInput" autocomplete="off" placeholder="Scan Batch Card QR first" readonly aria-disabled="true">
                                     <button type="submit" id="addRollBtn" disabled>Add</button>
                                 </div>
                             </div>
@@ -298,11 +298,11 @@ unset($_SESSION['knitting_delivery_manual_entry_authorized']);
                 <table>
                     <thead>
                         <tr>
-                            <th>Action</th><th>Batch</th><th>Roll</th><th>Fabrics Type</th><th>Qnty. (kg)</th><th>Remarks</th>
+                            <th>Action</th><th>Batch</th><th>Roll</th><th>Fabrics Type</th><th>Batch Qty (kg)</th><th>Remarks</th>
                         </tr>
                     </thead>
                     <tbody id="scannedRows">
-                        <tr><td colspan="6">Scan rolls after loading a batch card.</td></tr>
+                        <tr><td colspan="6">Scan a Batch Card QR first, then scan its rolls.</td></tr>
                     </tbody>
                     <tfoot id="scannedFooter"></tfoot>
                 </table>
@@ -360,7 +360,7 @@ unset($_SESSION['knitting_delivery_manual_entry_authorized']);
                 if (typeof Swal !== 'undefined') {
                     Swal.fire({
                         icon: icon || 'warning',
-                        title: title || 'Quantity / Roll Mismatch',
+                        title: title || 'Batch / Roll Mismatch',
                         text: text,
                         timer: duration || 3000,
                         timerProgressBar: true,
@@ -411,18 +411,24 @@ unset($_SESSION['knitting_delivery_manual_entry_authorized']);
                 }
             }
 
-            function extractRollValue(value) {
+            function extractScanCode(value) {
                 var text = String(value || '').trim();
-                if (!text) return '';
+                if (!text) return {type: '', value: ''};
 
                 if (text.indexOf('|') !== -1) {
                     text = text.split('|')[0].trim();
                 }
 
-                var match = text.match(/ROLL\s*:\s*([^\r\n]+)/i);
-                if (match && match[1]) return match[1].trim();
+                var match = text.match(/^(BCARD|BATCH_CARD|BATCH|ROLL)\s*[:=]\s*([^\r\n]+)$/i);
+                if (match && match[2]) {
+                    var type = match[1].toUpperCase();
+                    return {
+                        type: type === 'ROLL' ? 'roll' : 'batch',
+                        value: match[2].trim()
+                    };
+                }
 
-                return text;
+                return {type: '', value: text};
             }
 
             function api(action, payload, queryParams) {
@@ -511,7 +517,7 @@ unset($_SESSION['knitting_delivery_manual_entry_authorized']);
                 document.getElementById('scannedQty').textContent = formatQty(totalQty);
                 document.getElementById('expectedQty').textContent = formatQty(targetQty);
                 document.getElementById('scannedFooter').innerHTML = groups.length
-                    ? '<tr><th colspan="4">Total Qnty.</th><th>' + formatQty(totalQty) + ' KG</th><th></th></tr>'
+                    ? '<tr><th colspan="4">Total Batch Qty</th><th>' + formatQty(totalQty) + ' KG</th><th></th></tr>'
                     : '';
 
                 deliveryPanel.classList.toggle('is-hidden', delivered);
@@ -576,7 +582,7 @@ unset($_SESSION['knitting_delivery_manual_entry_authorized']);
                 });
 
                 document.getElementById('scannedRows').innerHTML = rowsHtml ||
-                    '<tr><td colspan="6">Scan rolls after loading a batch card.</td></tr>';
+                    '<tr><td colspan="6">Scan a Batch Card QR first, then scan its rolls.</td></tr>';
                 sizeBatchRemarkInputs();
                 updateSummary();
             }
@@ -625,26 +631,16 @@ unset($_SESSION['knitting_delivery_manual_entry_authorized']);
                 rollInput.focus();
             }
 
-            function loadBatchForRoll(roll, isManualEntry) {
-                return api('load_batch_by_roll', null, {
-                    roll: roll,
-                    manual: isManualEntry ? '1' : '0'
-                }).then(function(response) {
+            function loadBatchByCard(cardNo) {
+                return api('load_batch', null, {card_no: cardNo}).then(function(response) {
                     var sameBatch = batch && String(batch.card_no) === String(response.card_no);
-                    if (batch && !sameBatch) {
-                        if (scannedRolls.size && !batchAlreadyDelivered) {
-                            saveCurrentBatch();
-                        } else {
-                            batch = null;
-                            scannedRolls.clear();
-                            expectedByRoll.clear();
-                            alreadyDeliveredRolls.clear();
-                            batchAlreadyDelivered = false;
-                            alreadyDeliveredMessage = '';
-                        }
+                    if (sameBatch) {
+                        showMessage('Batch Card ' + response.card_no + ' is selected. Scan one of its rolls.', 'info');
+                        return batch;
                     }
-                    if (sameBatch) return batch;
-
+                    if (batch && scannedRolls.size && !batchAlreadyDelivered) {
+                        saveCurrentBatch();
+                    }
                     batch = response;
                     scannedRolls.clear();
                     expectedByRoll.clear();
@@ -683,13 +679,13 @@ unset($_SESSION['knitting_delivery_manual_entry_authorized']);
                         );
                     }
                     scannedPanel.classList.remove('is-hidden');
-                    updateSummary();
+                    renderScannedRows();
                     return response;
                 });
             }
 
             function addScannedRoll(rawRoll, isManualEntry) {
-                var roll = extractRollValue(rawRoll);
+                var roll = String(rawRoll || '').trim();
                 if (!roll || processingRoll || scanPopupActive) return;
                 if (isManualEntry && !manualEntryAuthorized) {
                     showScanPopup(
@@ -707,12 +703,12 @@ unset($_SESSION['knitting_delivery_manual_entry_authorized']);
                 rollInput.disabled = true;
                 addRollBtn.disabled = true;
 
-                var resolveBatch = batch && expectedByRoll.has(roll)
-                    ? Promise.resolve(batch)
-                    : loadBatchForRoll(roll, isManualEntry);
-
-                resolveBatch.then(function() {
+                Promise.resolve().then(function() {
                     if (delivered) return;
+                    if (!batch) {
+                        showScanPopup('Scan the Batch Card QR before scanning its roll.', 'Batch Card Required', 'warning');
+                        return;
+                    }
                     if (batchAlreadyDelivered) {
                         showScanPopup(alreadyDeliveredMessage, 'Batch Already Delivered', 'error');
                         return;
@@ -763,6 +759,43 @@ unset($_SESSION['knitting_delivery_manual_entry_authorized']);
                 });
             }
 
+            function handleScannedCode(rawValue, isManualEntry) {
+                var scannedCode = extractScanCode(rawValue);
+                if (!scannedCode.value || processingRoll || scanPopupActive) return;
+                if (isManualEntry && !manualEntryAuthorized) {
+                    showScanPopup(
+                        'Enter a valid password and select Unlock before entering a batch or roll manually.',
+                        'Manual Entry Locked',
+                        'warning'
+                    );
+                    return;
+                }
+
+                var isBatchCode = scannedCode.type === 'batch' ||
+                    (!scannedCode.type && (!batch || !expectedByRoll.has(scannedCode.value)));
+                if (!isBatchCode) {
+                    addScannedRoll(scannedCode.value, isManualEntry);
+                    return;
+                }
+
+                if (delivered) {
+                    showScanPopup(alreadyDeliveredMessage, 'Batch Already Delivered', 'error');
+                    return;
+                }
+                processingRoll = true;
+                rollInput.disabled = true;
+                addRollBtn.disabled = true;
+                loadBatchByCard(scannedCode.value).catch(function(error) {
+                    var errorMessage = error.message;
+                    if (errorMessage.indexOf('Batch Card') === 0 && errorMessage.indexOf('was not found') !== -1) {
+                        errorMessage += ' Scan a valid Batch Card QR before scanning its rolls.';
+                    }
+                    showScanPopup(errorMessage);
+                }).then(function() {
+                    finishScan();
+                });
+            }
+
             function finishScan() {
                 processingRoll = false;
                 rollInput.value = '';
@@ -782,7 +815,7 @@ unset($_SESSION['knitting_delivery_manual_entry_authorized']);
 
             function startCamera() {
                 if (typeof Html5Qrcode === 'undefined') {
-                    showScanPopup('Camera scanner library did not load. Use the roll number input instead.', 'Camera Error', 'error');
+                    showScanPopup('Camera scanner library did not load. Use the manual Batch Card / Roll Number field instead.', 'Camera Error', 'error');
                     return;
                 }
                 if (qrScanner && qrScanner.isScanning) return;
@@ -790,12 +823,12 @@ unset($_SESSION['knitting_delivery_manual_entry_authorized']);
                 qrScanner.start(
                     {facingMode: cameraFacingMode},
                     {fps: 12, qrbox: {width: 250, height: 180}},
-                    function(decodedText) { addScannedRoll(decodedText, false); },
+                    function(decodedText) { handleScannedCode(decodedText, false); },
                     function() {}
                 ).then(function() {
-                    showMessage('Camera scanner is ready. First scan a roll to find its batch.', 'info');
+                    showMessage('Camera scanner is ready. First scan a Batch Card QR, then scan rolls from that batch.', 'info');
                 }).catch(function(error) {
-                    showScanPopup('Camera unavailable: ' + error + '. You can enter roll numbers manually.', 'Camera Unavailable', 'error');
+                    showScanPopup('Camera unavailable: ' + error + '. You can enter a batch card or roll number manually.', 'Camera Unavailable', 'error');
                 });
             }
 
@@ -917,7 +950,7 @@ unset($_SESSION['knitting_delivery_manual_entry_authorized']);
                     '<table><colgroup><col style="width:18%"><col style="width:18%"><col style="width:26%">' +
                     '<col style="width:10%"><col style="width:13%"><col style="width:15%"></colgroup>' +
                     '<thead><tr><th>Batch No.</th><th>Roll No.</th><th>Fabrics Type</th>' +
-                    '<th>Roll</th><th>Qty</th><th>Remarks</th></tr></thead><tbody>' +
+                    '<th>Roll</th><th>Batch Qty</th><th>Remarks</th></tr></thead><tbody>' +
                     rowsHtml + '</tbody><tfoot><tr><th colspan="4">TOTAL</th><th>' +
                     escapeHtml(formatQty(totalQty)) + '</th><th></th></tr></tfoot></table>' +
                     '<div class="challan-quantity-lines">' +
@@ -969,17 +1002,17 @@ unset($_SESSION['knitting_delivery_manual_entry_authorized']);
 
             rollForm.addEventListener('submit', function(event) {
                 event.preventDefault();
-                addScannedRoll(rollInput.value, true);
+                handleScannedCode(rollInput.value, true);
             });
             rollInput.addEventListener('keydown', function(event) {
                 if (event.key !== 'Enter') return;
                 event.preventDefault();
-                addScannedRoll(rollInput.value, true);
+                handleScannedCode(rollInput.value, true);
             });
             rollInput.addEventListener('click', function() {
                 if (!manualEntryAuthorized) {
                     showScanPopup(
-                        'Enter a valid password and select Unlock before entering a roll manually.',
+                        'Enter a valid password and select Unlock before entering a batch card or roll manually.',
                         'Manual Entry Locked',
                         'warning'
                     );
@@ -990,8 +1023,8 @@ unset($_SESSION['knitting_delivery_manual_entry_authorized']);
                 manualEntryAuthorized = isAuthorized;
                 rollInput.readOnly = !isAuthorized;
                 rollInput.placeholder = isAuthorized
-                    ? 'Enter roll number manually'
-                    : 'Unlock to enter roll number manually';
+                    ? 'Enter a Batch Card or roll number'
+                    : 'Unlock to enter a Batch Card or roll manually';
                 rollInput.setAttribute('aria-disabled', isAuthorized ? 'false' : 'true');
                 addRollBtn.disabled = !isAuthorized || delivered || processingRoll;
                 document.querySelector('.manual-scan').classList.toggle('manual-entry-locked', !isAuthorized);
