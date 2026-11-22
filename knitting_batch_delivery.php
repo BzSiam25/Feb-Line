@@ -118,8 +118,18 @@ unset($_SESSION['knitting_delivery_manual_entry_authorized']);
         .is-hidden { display: none !important; }
         .batch-summary { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 14px; }
         .summary-item { padding: 9px 12px; border-radius: 8px; background: #ecfdf5; font-weight: 800; }
-        .camera-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; justify-items: center; }
-        .scanner-stage { width: min(100%, 460px); }
+        .batch-selection { display: flex; grid-column: 1; flex-direction: column; gap: 0; align-self: stretch; overflow: hidden; border: 1px solid #0f766e; border-radius: 9px; background: #fff; }
+        .batch-selection-title { padding: 10px 9px; border-bottom: 1px solid #0f766e; color: #fff; background: #134e4a; font-weight: 800; text-align: center; }
+        .batch-selection-list { display: flex; flex: 1; flex-direction: column; gap: 8px; padding: 8px; }
+        .batch-selection-item { display: inline-flex; align-items: center; gap: 5px; padding: 4px; border: 1px solid #c9dedb; border-radius: 9px; background: #f8fffd; }
+        .batch-selection-item.is-active { border-color: #087f70; background: #ecfdf5; }
+        .batch-selection-item button { min-height: 34px; }
+        .batch-selection-item .batch-selection-number { flex: 1; padding: 6px 10px; color: #075e54; background: transparent; }
+        .batch-selection-item .batch-selection-number:hover { background: #d1fae5; }
+        .batch-selection-item .remove-batch-button { width: 34px; min-height: 34px; padding: 6px; }
+        .camera-layout { display: grid; grid-template-columns: minmax(120px, 180px) minmax(0, 1fr); gap: 18px; align-items: start; }
+        .camera-layout.has-batches .scanner-stage { grid-column: 2; }
+        .scanner-stage { grid-column: 1 / -1; justify-self: center; width: min(100%, 460px); }
         #qr-reader { width: 100%; min-height: 300px; overflow: hidden; border-radius: 12px; background: #f1f5f9; }
         .scanner-controls { display: flex; width: 100%; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin-top: 10px; }
         .manual-scan { width: 100%; margin-top: 12px; }
@@ -218,6 +228,10 @@ unset($_SESSION['knitting_delivery_manual_entry_authorized']);
             #qr-reader { min-height: 260px; }
             .table-wrap { max-height: 55vh; }
             .challan-fields { grid-template-columns: 1fr; }
+            .camera-layout { grid-template-columns: minmax(0, 1fr); }
+            .batch-selection { grid-column: 1; }
+            .batch-selection-list { flex-direction: row; flex-wrap: wrap; }
+            .camera-layout.has-batches .scanner-stage { grid-column: 1; }
         }
         @media print {
             @page { size: A4 portrait; margin: 8mm; }
@@ -246,12 +260,15 @@ unset($_SESSION['knitting_delivery_manual_entry_authorized']);
             <h2 class="panel-title">Scan a Batch Card QR first, then scan rolls from that batch. Scan another Batch Card QR to switch batches.</h2>
             <div class="message" id="message" role="status" aria-live="polite"></div>
             <div class="batch-summary">
-                <div class="summary-item">Batch: <span id="summaryCardNo">-</span></div>
                 <div class="summary-item">Rolls scanned: <span id="scannedCount">0</span> / <span id="expectedCount">0</span></div>
                 <div class="summary-item">Scanned QTY: <span id="scannedQty">0.000</span> KG</div>
                 <div class="summary-item">Batch Total QTY: <span id="expectedQty">0.000</span> KG</div>
             </div>
             <div class="camera-layout">
+                <div class="batch-selection is-hidden" id="batchSelectionPanel">
+                    <div class="batch-selection-title">Scanned Batches</div>
+                    <div class="batch-selection-list" id="batchSelectionList"></div>
+                </div>
                 <div class="scanner-stage">
                     <div id="qr-reader"></div>
                     <div class="scanner-controls">
@@ -331,11 +348,14 @@ unset($_SESSION['knitting_delivery_manual_entry_authorized']);
             var confirmBtn = document.getElementById('confirmBtn');
             var switchCameraBtn = document.getElementById('switchCameraBtn');
             var message = document.getElementById('message');
+            var batchSelectionPanel = document.getElementById('batchSelectionPanel');
+            var batchSelectionList = document.getElementById('batchSelectionList');
             var qrScanner = null;
             var batch = null;
             var scannedRolls = new Map();
             var expectedByRoll = new Map();
             var alreadyDeliveredRolls = new Set();
+            var loadedBatches = new Map();
             var completedBatches = [];
             var remarksByBatch = new Map();
             var processingRoll = false;
@@ -509,9 +529,6 @@ unset($_SESSION['knitting_delivery_manual_entry_authorized']);
                     });
                 });
 
-                document.getElementById('summaryCardNo').textContent = batch
-                    ? batch.card_no
-                    : (completedBatches.length ? completedBatches.length + ' batch(es) ready' : '-');
                 document.getElementById('scannedCount').textContent = String(scannedCount);
                 document.getElementById('expectedCount').textContent = String(expectedCount);
                 document.getElementById('scannedQty').textContent = formatQty(totalQty);
@@ -535,6 +552,28 @@ unset($_SESSION['knitting_delivery_manual_entry_authorized']);
             function trashIconMarkup() {
                 return '<svg class="trash-icon" viewBox="0 0 24 24" aria-hidden="true">' +
                     '<path d="M3 6h18M8 6V4h8v2m-11 0 1 14h12l1-14M10 11v5m4-5v5"></path></svg>';
+            }
+
+            function renderBatchSelection() {
+                var batchItems = [];
+                loadedBatches.forEach(function(loadedBatch, cardNo) {
+                    var activeClass = batch && String(batch.card_no) === String(cardNo)
+                        ? ' is-active'
+                        : '';
+                    batchItems.push(
+                        '<div class="batch-selection-item' + activeClass + '">' +
+                        '<button class="remove-roll-button remove-batch-button" type="button" data-remove-batch="' +
+                        escapeHtml(cardNo) + '" aria-label="Remove Batch ' + escapeHtml(cardNo) +
+                        '" title="Remove Batch ' + escapeHtml(cardNo) + '"' +
+                        (delivered ? ' disabled' : '') + '>' + trashIconMarkup() + '</button>' +
+                        '<button class="batch-selection-number" type="button" data-select-batch="' +
+                        escapeHtml(cardNo) + '">' + escapeHtml(cardNo) + '</button>' +
+                        '</div>'
+                    );
+                });
+                batchSelectionList.innerHTML = batchItems.join('');
+                batchSelectionPanel.classList.toggle('is-hidden', batchItems.length === 0);
+                    document.querySelector('.camera-layout').classList.toggle('has-batches', batchItems.length > 0);
             }
 
             function sizeBatchRemarkInputs() {
@@ -631,57 +670,102 @@ unset($_SESSION['knitting_delivery_manual_entry_authorized']);
                 rollInput.focus();
             }
 
+            function activateBatch(response) {
+                var sameBatch = batch && String(batch.card_no) === String(response.card_no);
+                if (sameBatch) {
+                    showMessage('Batch Card ' + response.card_no + ' is selected. Scan one of its rolls.', 'info');
+                    renderBatchSelection();
+                    return;
+                }
+                if (batch && scannedRolls.size && !batchAlreadyDelivered) {
+                    saveCurrentBatch();
+                }
+                loadedBatches.set(String(response.card_no), response);
+                batch = response;
+                scannedRolls.clear();
+                expectedByRoll.clear();
+                alreadyDeliveredRolls = new Set((response.delivered_rolls || []).map(function(deliveredRoll) {
+                    return String(deliveredRoll);
+                }));
+                batch.rows.forEach(function(row) {
+                    expectedByRoll.set(String(row.ROLL), row);
+                });
+                var savedBatchIndex = completedBatches.findIndex(function(savedBatch) {
+                    return String(savedBatch.card_no) === String(response.card_no);
+                });
+                if (savedBatchIndex !== -1) {
+                    var savedBatch = completedBatches.splice(savedBatchIndex, 1)[0];
+                    savedBatch.rows.forEach(function(savedRow) {
+                        scannedRolls.set(String(savedRow.ROLL), savedRow);
+                    });
+                }
+                if (alreadyDeliveredRolls.size === response.rows.length) {
+                    batchAlreadyDelivered = true;
+                    var delivery = response.delivery || {};
+                    alreadyDeliveredMessage = 'Batch Card ' + response.card_no + ' was already delivered' +
+                        (delivery.BUDAT ? ' on ' + delivery.BUDAT : '') +
+                        (delivery.DOP ? ' by ' + delivery.DOP : '') +
+                        (delivery.DID ? ' (ID: ' + delivery.DID + ')' : '') + '.';
+                } else {
+                    batchAlreadyDelivered = false;
+                    alreadyDeliveredMessage = '';
+                    var deliveredCount = alreadyDeliveredRolls.size;
+                    showMessage(
+                        'Batch Card ' + response.card_no + ' found. ' +
+                        (deliveredCount
+                            ? deliveredCount + ' roll(s) already delivered. Scan remaining rolls.'
+                            : 'Scan its rolls.'),
+                        'info'
+                    );
+                }
+                scannedPanel.classList.remove('is-hidden');
+                renderBatchSelection();
+                renderScannedRows();
+            }
+
             function loadBatchByCard(cardNo) {
                 return api('load_batch', null, {card_no: cardNo}).then(function(response) {
-                    var sameBatch = batch && String(batch.card_no) === String(response.card_no);
-                    if (sameBatch) {
-                        showMessage('Batch Card ' + response.card_no + ' is selected. Scan one of its rolls.', 'info');
-                        return batch;
-                    }
-                    if (batch && scannedRolls.size && !batchAlreadyDelivered) {
-                        saveCurrentBatch();
-                    }
-                    batch = response;
-                    scannedRolls.clear();
-                    expectedByRoll.clear();
-                    alreadyDeliveredRolls = new Set((response.delivered_rolls || []).map(function(deliveredRoll) {
-                        return String(deliveredRoll);
-                    }));
-                    batch.rows.forEach(function(row) {
-                        expectedByRoll.set(String(row.ROLL), row);
-                    });
-                    var savedBatchIndex = completedBatches.findIndex(function(savedBatch) {
-                        return String(savedBatch.card_no) === String(response.card_no);
-                    });
-                    if (savedBatchIndex !== -1) {
-                        var savedBatch = completedBatches.splice(savedBatchIndex, 1)[0];
-                        savedBatch.rows.forEach(function(savedRow) {
-                            scannedRolls.set(String(savedRow.ROLL), savedRow);
-                        });
-                    }
-                    if (alreadyDeliveredRolls.size === response.rows.length) {
-                        batchAlreadyDelivered = true;
-                        var delivery = response.delivery || {};
-                        alreadyDeliveredMessage = 'Batch Card ' + response.card_no + ' was already delivered' +
-                            (delivery.BUDAT ? ' on ' + delivery.BUDAT : '') +
-                            (delivery.DOP ? ' by ' + delivery.DOP : '') +
-                            (delivery.DID ? ' (ID: ' + delivery.DID + ')' : '') + '.';
-                    } else {
-                        batchAlreadyDelivered = false;
-                        alreadyDeliveredMessage = '';
-                        var deliveredCount = alreadyDeliveredRolls.size;
-                        showMessage(
-                            'Batch Card ' + response.card_no + ' found. ' +
-                            (deliveredCount
-                                ? deliveredCount + ' roll(s) already delivered. Scan remaining rolls.'
-                                : 'Scan its rolls.'),
-                            'info'
-                        );
-                    }
-                    scannedPanel.classList.remove('is-hidden');
-                    renderScannedRows();
+                    activateBatch(response);
                     return response;
                 });
+            }
+
+            function findLoadedBatchForRoll(roll) {
+                if (batch && expectedByRoll.has(roll)) return {batch: batch, ambiguous: false};
+
+                var matches = [];
+                loadedBatches.forEach(function(loadedBatch) {
+                    if (loadedBatch.rows.some(function(row) {
+                        return String(row.ROLL) === roll;
+                    })) {
+                        matches.push(loadedBatch);
+                    }
+                });
+                if (matches.length === 1) return {batch: matches[0], ambiguous: false};
+                return {batch: null, ambiguous: matches.length > 1};
+            }
+
+            function removeBatch(cardNo) {
+                if (delivered) return;
+                var batchKey = String(cardNo);
+                if (!loadedBatches.has(batchKey)) return;
+
+                loadedBatches.delete(batchKey);
+                completedBatches = completedBatches.filter(function(savedBatch) {
+                    return String(savedBatch.card_no) !== batchKey;
+                });
+                remarksByBatch.delete(batchKey);
+                if (batch && String(batch.card_no) === batchKey) {
+                    batch = null;
+                    scannedRolls.clear();
+                    expectedByRoll.clear();
+                    alreadyDeliveredRolls.clear();
+                    batchAlreadyDelivered = false;
+                    alreadyDeliveredMessage = '';
+                }
+                renderBatchSelection();
+                renderScannedRows();
+                showMessage('Batch Card ' + batchKey + ' and its scanned rolls were removed. Scan its Batch Card QR again to add it back.', 'info');
             }
 
             function addScannedRoll(rawRoll, isManualEntry) {
@@ -771,8 +855,27 @@ unset($_SESSION['knitting_delivery_manual_entry_authorized']);
                     return;
                 }
 
-                var isBatchCode = scannedCode.type === 'batch' ||
-                    (!scannedCode.type && (!batch || !expectedByRoll.has(scannedCode.value)));
+                var knownBatch = scannedCode.type === 'batch'
+                    ? {batch: null, ambiguous: false}
+                    : findLoadedBatchForRoll(scannedCode.value);
+                if (knownBatch.ambiguous) {
+                    showScanPopup(
+                        'Roll ' + scannedCode.value + ' exists in more than one scanned batch. Select the correct batch from the Batch list first.',
+                        'Batch Selection Required',
+                        'warning'
+                    );
+                    return;
+                }
+                if (knownBatch.batch) {
+                    if (!batch || String(batch.card_no) !== String(knownBatch.batch.card_no)) {
+                        activateBatch(knownBatch.batch);
+                    }
+                    addScannedRoll(scannedCode.value, isManualEntry);
+                    return;
+                }
+
+                var isBatchCode = scannedCode.type === 'batch' || scannedCode.type === '' ||
+                    (!batch && scannedCode.type !== 'roll');
                 if (!isBatchCode) {
                     addScannedRoll(scannedCode.value, isManualEntry);
                     return;
@@ -1086,6 +1189,18 @@ unset($_SESSION['knitting_delivery_manual_entry_authorized']);
                         Number(button.dataset.removeCompletedRowIndex)
                     );
                 }
+            });
+            batchSelectionList.addEventListener('click', function(event) {
+                var removeButton = event.target.closest('[data-remove-batch]');
+                if (removeButton && this.contains(removeButton)) {
+                    removeBatch(removeButton.dataset.removeBatch);
+                    return;
+                }
+                var selectButton = event.target.closest('[data-select-batch]');
+                if (!selectButton || !this.contains(selectButton) ||
+                    delivered || processingRoll || scanPopupActive) return;
+                var selectedBatch = loadedBatches.get(String(selectButton.dataset.selectBatch));
+                if (selectedBatch) activateBatch(selectedBatch);
             });
             document.getElementById('scannedRows').addEventListener('input', function(event) {
                 var input = event.target.closest('[data-remark-batch]');
