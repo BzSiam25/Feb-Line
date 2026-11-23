@@ -8,6 +8,54 @@ header('X-Content-Type-Options: nosniff');
 
 require_once 'config.php';
 
+function loadKnittingProgramAllocations($db, $booking)
+{
+    $stmt = mysqli_prepare(
+        $db,
+        "SELECT TRIM(COALESCE(KNIT_M_DESCRIPTION, '')) AS DESCRIPTION,
+                UPPER(TRIM(COALESCE(COLOR, ''))) AS COLOR,
+                IFNULL(SUM(QTY), 0) AS ALLOCATED_QTY
+         FROM knitting_program
+         WHERE PO_NUMBER = ?
+         GROUP BY TRIM(COALESCE(KNIT_M_DESCRIPTION, '')), UPPER(TRIM(COALESCE(COLOR, '')))"
+    );
+    if (!$stmt) {
+        throw new RuntimeException('Could not prepare knitting color allocation lookup: ' . mysqli_error($db));
+    }
+    if (!mysqli_stmt_bind_param($stmt, 's', $booking) || !mysqli_stmt_execute($stmt)) {
+        $error = mysqli_stmt_error($stmt);
+        mysqli_stmt_close($stmt);
+        throw new RuntimeException('Could not load knitting color allocations: ' . $error);
+    }
+
+    $result = mysqli_stmt_get_result($stmt);
+    if (!$result) {
+        $error = mysqli_stmt_error($stmt);
+        mysqli_stmt_close($stmt);
+        throw new RuntimeException('Could not read knitting color allocations: ' . $error);
+    }
+
+    $allocatedByDescription = [];
+    $allocatedByDescriptionColor = [];
+    while ($row = mysqli_fetch_assoc($result)) {
+        $description = trim((string)$row['DESCRIPTION']);
+        $descriptionKey = strtoupper($description);
+        $color = strtoupper(trim((string)$row['COLOR']));
+        $quantity = (float)$row['ALLOCATED_QTY'];
+        $allocatedByDescription[$description] = ($allocatedByDescription[$description] ?? 0) + $quantity;
+        if ($color !== '') {
+            if (!isset($allocatedByDescriptionColor[$descriptionKey])) {
+                $allocatedByDescriptionColor[$descriptionKey] = [];
+            }
+            $allocatedByDescriptionColor[$descriptionKey][$color] =
+                ($allocatedByDescriptionColor[$descriptionKey][$color] ?? 0) + $quantity;
+        }
+    }
+    mysqli_free_result($result);
+    mysqli_stmt_close($stmt);
+    return [$allocatedByDescription, $allocatedByDescriptionColor];
+}
+
 if (!$db) {
     http_response_code(500);
     echo json_encode([
@@ -66,13 +114,21 @@ $progRes = mysqli_query($db, $progQuery);
 
 if ($progRes && mysqli_num_rows($progRes) > 0) {
     $progData = mysqli_fetch_assoc($progRes);
-    $bookingVal = mysqli_real_escape_string($db, $progData['PO_NUMBER'] ?? '');
+    $bookingValue = (string)($progData['PO_NUMBER'] ?? '');
+    $bookingVal = mysqli_real_escape_string($db, $bookingValue);
     
     $inputData = [];
+    $programInputRows = [];
     if ($bookingVal !== '') {
-        $inQ = mysqli_query($db, "SELECT * FROM knitting_input WHERE PO_NUMBER = '$bookingVal' LIMIT 1");
+        $inQ = mysqli_query($db, "SELECT * FROM knitting_input WHERE PO_NUMBER = '$bookingVal' ORDER BY KITID ASC");
         if ($inQ && mysqli_num_rows($inQ) > 0) {
-            $inputData = mysqli_fetch_assoc($inQ);
+            while ($inputRow = mysqli_fetch_assoc($inQ)) {
+                $programInputRows[] = $inputRow;
+                if (!$inputData) {
+                    $inputData = $inputRow;
+                }
+            }
+            mysqli_free_result($inQ);
         }
     }
     
@@ -82,14 +138,27 @@ if ($progRes && mysqli_num_rows($progRes) > 0) {
     $mergedData['PO_NUMBER'] = $progData['PO_NUMBER'];
     $mergedData['BOOKING'] = $progData['PO_NUMBER'];
     
+    try {
+        list($allocatedByDescription, $allocatedByDescriptionColor) =
+            loadKnittingProgramAllocations($db, $bookingValue);
+    } catch (Throwable $error) {
+        http_response_code(500);
+        echo json_encode(['success' => false, 'error' => $error->getMessage()]);
+        exit();
+    }
+    $poTotalQty = 0;
+    foreach ($programInputRows as $inputRow) {
+        $poTotalQty += (float)($inputRow['QTY'] ?? 0);
+    }
     echo json_encode([
         'success' => true,
         'data' => $mergedData,
-        'all_data' => [$mergedData],
+        'all_data' => $programInputRows ?: [$mergedData],
         'descriptions' => [$mergedData['KNIT_M_DESCRIPTION'] ?? ''],
         'allocated_qty' => (float)($progData['QTY'] ?? 0),
-        'allocated_by_description' => [($mergedData['KNIT_M_DESCRIPTION'] ?? '') => (float)($progData['QTY'] ?? 0)],
-        'po_total_qty' => (float)($progData['QTY'] ?? ($mergedData['QTY'] ?? 0)),
+        'allocated_by_description' => $allocatedByDescription,
+        'allocated_by_description_color' => $allocatedByDescriptionColor,
+        'po_total_qty' => $poTotalQty > 0 ? $poTotalQty : (float)($progData['QTY'] ?? ($mergedData['QTY'] ?? 0)),
         'remaining_qty' => 0
     ]);
     exit();
@@ -166,24 +235,19 @@ $response = [
 ];
 
 $allocated = 0;
-$allocatedByDesc = [];
 try {
-    $allocQuery = "SELECT KNIT_M_DESCRIPTION, IFNULL(SUM(QTY),0) AS allocated_qty FROM knitting_program WHERE PO_NUMBER = '$s' GROUP BY KNIT_M_DESCRIPTION";
-    $allocRes = mysqli_query($db, $allocQuery);
-    if ($allocRes) {
-        while ($ar = mysqli_fetch_assoc($allocRes)) {
-            $desc = isset($ar['KNIT_M_DESCRIPTION']) ? $ar['KNIT_M_DESCRIPTION'] : '';
-            $qty = isset($ar['allocated_qty']) ? (float)$ar['allocated_qty'] : 0;
-            $allocatedByDesc[$desc] = $qty;
-            $allocated += $qty;
-        }
-    }
-} catch (Throwable $e) {
-    // knitting_program table is missing/unavailable - treat allocation as zero
+    list($allocatedByDesc, $allocatedByDescColor) =
+        loadKnittingProgramAllocations($db, $search);
+    $allocated = array_sum($allocatedByDesc);
+} catch (Throwable $error) {
+    http_response_code(500);
+    echo json_encode(['success' => false, 'error' => $error->getMessage()]);
+    exit();
 }
 
 $response['allocated_qty'] = $allocated;
 $response['allocated_by_description'] = $allocatedByDesc;
+$response['allocated_by_description_color'] = $allocatedByDescColor;
 $poTotalTarget = $totalPoQty > 0 ? $totalPoQty : ((float)($data['KNITTING_TARGET_QTY'] ?? $data['QTY'] ?? 0));
 $response['po_total_qty'] = $poTotalTarget;
 $response['remaining_qty'] = $poTotalTarget - ($allocatedByDesc[$data['KNIT_M_DESCRIPTION']] ?? 0);

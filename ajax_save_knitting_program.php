@@ -135,6 +135,25 @@ if (!is_array($mcnoQtyData) || empty($mcnoQtyData)) {
     exit();
 }
 
+$requestedQtyByColor = [];
+foreach ($mcnoQtyData as $row) {
+    if (!is_array($row)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Invalid color quantity row.']);
+        mysqli_close($db);
+        exit();
+    }
+    $rowColor = isset($row['color']) ? strtoupper(trim((string)$row['color'])) : '';
+    $qty = isset($row['qty']) && is_numeric($row['qty']) ? (float)$row['qty'] : 0;
+    if ($rowColor === '' || !is_finite($qty) || $qty <= 0) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Each quantity row needs a color and a valid positive QTY.']);
+        mysqli_close($db);
+        exit();
+    }
+    $requestedQtyByColor[$rowColor] = ($requestedQtyByColor[$rowColor] ?? 0) + $qty;
+}
+
 // Generate the next PROGRAM_NO (1000000000 format)
 $tidResult = mysqli_query($db, "SELECT COALESCE(MAX(PROGRAM_NO), 1000000000) AS max_program FROM knitting_program");
 
@@ -162,6 +181,81 @@ if (!mysqli_begin_transaction($db)) {
     mysqli_close($db);
     exit();
 }
+
+$targetStmt = mysqli_prepare(
+    $db,
+    "SELECT COALESCE(SUM(QTY), 0) AS TARGET_QTY
+     FROM knitting_input
+     WHERE PO_NUMBER = ?
+       AND UPPER(TRIM(COALESCE(KNIT_M_DESCRIPTION, ''))) = UPPER(TRIM(?))
+       AND UPPER(TRIM(COALESCE(COLOR, ''))) = ?"
+);
+$allocatedStmt = mysqli_prepare(
+    $db,
+    "SELECT COALESCE(SUM(QTY), 0) AS ALLOCATED_QTY
+     FROM knitting_program
+     WHERE PO_NUMBER = ?
+       AND UPPER(TRIM(COALESCE(KNIT_M_DESCRIPTION, ''))) = UPPER(TRIM(?))
+       AND UPPER(TRIM(COALESCE(COLOR, ''))) = ?"
+);
+if (!$targetStmt || !$allocatedStmt) {
+    $error = mysqli_error($db);
+    if ($targetStmt) mysqli_stmt_close($targetStmt);
+    if ($allocatedStmt) mysqli_stmt_close($allocatedStmt);
+    mysqli_rollback($db);
+    http_response_code(500);
+    echo json_encode(['success' => false, 'message' => 'Could not validate color-wise knitting quantities: ' . $error]);
+    mysqli_close($db);
+    exit();
+}
+
+foreach ($requestedQtyByColor as $rowColor => $requestedQty) {
+    if (!mysqli_stmt_bind_param($targetStmt, 'sss', $booking, $knitDescription, $rowColor) ||
+        !mysqli_stmt_execute($targetStmt)) {
+        $error = mysqli_stmt_error($targetStmt);
+        mysqli_stmt_close($targetStmt);
+        mysqli_stmt_close($allocatedStmt);
+        mysqli_rollback($db);
+        http_response_code(500);
+        echo json_encode(['success' => false, 'message' => 'Could not check the target for color ' . $rowColor . ': ' . $error]);
+        mysqli_close($db);
+        exit();
+    }
+    $targetResult = mysqli_stmt_get_result($targetStmt);
+    $targetRow = $targetResult ? mysqli_fetch_assoc($targetResult) : null;
+    if ($targetResult) mysqli_free_result($targetResult);
+
+    if (!mysqli_stmt_bind_param($allocatedStmt, 'sss', $booking, $knitDescription, $rowColor) ||
+        !mysqli_stmt_execute($allocatedStmt)) {
+        $error = mysqli_stmt_error($allocatedStmt);
+        mysqli_stmt_close($targetStmt);
+        mysqli_stmt_close($allocatedStmt);
+        mysqli_rollback($db);
+        http_response_code(500);
+        echo json_encode(['success' => false, 'message' => 'Could not check existing allocation for color ' . $rowColor . ': ' . $error]);
+        mysqli_close($db);
+        exit();
+    }
+    $allocatedResult = mysqli_stmt_get_result($allocatedStmt);
+    $allocatedRow = $allocatedResult ? mysqli_fetch_assoc($allocatedResult) : null;
+    if ($allocatedResult) mysqli_free_result($allocatedResult);
+
+    $availableQty = (float)($targetRow['TARGET_QTY'] ?? 0) - (float)($allocatedRow['ALLOCATED_QTY'] ?? 0);
+    if ($requestedQty - $availableQty > 0.000001) {
+        mysqli_stmt_close($targetStmt);
+        mysqli_stmt_close($allocatedStmt);
+        mysqli_rollback($db);
+        http_response_code(409);
+        echo json_encode([
+            'success' => false,
+            'message' => 'QTY for color ' . $rowColor . ' exceeds its remaining color-wise target of ' . number_format(max(0, $availableQty), 2) . '.'
+        ]);
+        mysqli_close($db);
+        exit();
+    }
+}
+mysqli_stmt_close($targetStmt);
+mysqli_stmt_close($allocatedStmt);
 
 // Prepare insert statement
 $insertSql = "INSERT INTO knitting_program (

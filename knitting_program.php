@@ -1126,6 +1126,7 @@
             var targetQty = 0;
             var originalTargetQty = 0;
             var allocatedByDescription = {};
+            var allocatedByDescriptionColor = {};
             var pendingColor = '';
             var colorOptions = [];
             var pendingFinishGsm = '';
@@ -1201,6 +1202,7 @@
                             bookingData = resp.data;
                             allRowsData = resp.all_data || [];
                             allocatedByDescription = resp.allocated_by_description || {};
+                            allocatedByDescriptionColor = resp.allocated_by_description_color || {};
                             var poTotal = parseFloat(resp.po_total_qty || resp.data.KNITTING_TARGET_QTY || resp.data.QTY) || 0;
                             originalTargetQty = poTotal;
                             var allocated = parseFloat(allocatedByDescription[resp.data.KNIT_M_DESCRIPTION]) || 0;
@@ -1349,8 +1351,8 @@ $('#mc_dia').val('');
                 $('#lot_no').val('');
 
                 var poTotal = parseFloat((window.bookingResponse && window.bookingResponse.po_total_qty) || rowData.KNITTING_TARGET_QTY || rowData.QTY) || 0;
-                originalTargetQty = poTotal;
-                var allocated = parseFloat(allocatedByDescription[description]) || 0;
+                originalTargetQty = getDescriptionTargetQty(description, poTotal);
+                var allocated = getDescriptionAllocatedQty(description);
                 targetQty = originalTargetQty - allocated;
                 $('#display_target_qty').text(targetQty > 0 ? targetQty.toFixed(2) : '0.00');
                 $('#knitting_target_qty').val(originalTargetQty);
@@ -1358,6 +1360,73 @@ $('#mc_dia').val('');
 
                 resetMcnoRows();
                 $('#detailsContainer').addClass('visible');
+            }
+
+            function normalizeColor(value) {
+                return $.trim(String(value || '')).toUpperCase();
+            }
+
+            function normalizeDescription(value) {
+                return $.trim(String(value || '')).toUpperCase();
+            }
+
+            function getDescriptionTargetQty(description, fallback) {
+                if (!allRowsData.length) return fallback;
+                var target = 0;
+                allRowsData.forEach(function(rowData) {
+                    if (normalizeDescription(rowData.KNIT_M_DESCRIPTION) === normalizeDescription(description)) {
+                        target += parseFloat(rowData.QTY) || 0;
+                    }
+                });
+                return target;
+            }
+
+            function getDescriptionAllocatedQty(description) {
+                var normalizedDescription = normalizeDescription(description);
+                var allocated = 0;
+                Object.keys(allocatedByDescription).forEach(function(key) {
+                    if (normalizeDescription(key) === normalizedDescription) {
+                        allocated += parseFloat(allocatedByDescription[key]) || 0;
+                    }
+                });
+                return allocated;
+            }
+
+            function getColorRemainingQty(description, color) {
+                var normalizedDescription = normalizeDescription(description);
+                var normalizedColor = normalizeColor(color);
+                if (!normalizedDescription || !normalizedColor) return 0;
+
+                var target = 0;
+                allRowsData.forEach(function(rowData) {
+                    if (normalizeDescription(rowData.KNIT_M_DESCRIPTION) === normalizedDescription &&
+                        normalizeColor(rowData.COLOR) === normalizedColor) {
+                        target += parseFloat(rowData.QTY) || 0;
+                    }
+                });
+                var allocations = allocatedByDescriptionColor[normalizedDescription] || {};
+                var allocated = parseFloat(allocations[normalizedColor]) || 0;
+                return Math.max(0, target - allocated);
+            }
+
+            function areRowsWithinColorTargets() {
+                var totalByColor = {};
+                var valid = true;
+                $('#mcnoQtyTableBody tr').each(function() {
+                    var color = normalizeColor($(this).find('.color_row').val());
+                    var qty = parseFloat($(this).find('.qty-input').val()) || 0;
+                    if (qty <= 0) return true;
+                    if (!color) {
+                        valid = false;
+                        return false;
+                    }
+                    totalByColor[color] = (totalByColor[color] || 0) + qty;
+                    if (totalByColor[color] - getColorRemainingQty($('#knit_m_description').val(), color) > 0.000001) {
+                        valid = false;
+                        return false;
+                    }
+                });
+                return valid;
             }
 
             function resetMcnoRows() {
@@ -1413,14 +1482,15 @@ $('#mc_dia').val('');
                     var qtyValue = $.trim($(this).find('.qty-input').val() || '');
                     var qty = parseFloat(qtyValue);
 
-                    if (!yarnCount || !yarnBrand || !lotNo || !qtyValue || isNaN(qty) || qty <= 0) {
+                    var color = normalizeColor($(this).find('.color_row').val());
+                    if (!yarnCount || !yarnBrand || !lotNo || !color || !qtyValue || isNaN(qty) || qty <= 0) {
                         allRowsComplete = false;
                     } else {
                         totalQty += qty;
                     }
                 });
 
-                var withinTarget = targetQty > 0 && totalQty <= targetQty;
+                var withinTarget = targetQty > 0 && totalQty <= targetQty && areRowsWithinColorTargets();
                 $('#addMcnoRowBtn').prop('disabled', !(allRowsComplete && withinTarget));
             }
 
@@ -1428,15 +1498,24 @@ $('#mc_dia').val('');
                 var totalQty = 0;
                 var rows = $('#mcnoQtyTableBody tr');
                 var overAlertShown = false;
-                rows.each(function(index) {
+                var usedByColor = {};
+                var description = $('#knit_m_description').val();
+                rows.each(function() {
                     var rowQty = parseFloat($(this).find('.qty-input').val()) || 0;
-                    var remainingBefore = targetQty - totalQty;
-                    if (!overAlertShown && rowQty > remainingBefore && remainingBefore >= 0) {
-                        showPageAlert('Over QTY. Available qty is ' + remainingBefore.toFixed(2) + '.', 'error', 3000);
+                    var color = normalizeColor($(this).find('.color_row').val());
+                    if (!color) {
+                        $(this).find('.remaining-qty').val('');
+                        totalQty += rowQty;
+                        return true;
+                    }
+                    var availableBefore = Math.max(0, getColorRemainingQty(description, color) - (usedByColor[color] || 0));
+                    if (!overAlertShown && rowQty > availableBefore) {
+                        showPageAlert('Over QTY for color ' + color + '. Remaining color quantity is ' + availableBefore.toFixed(2) + '.', 'error', 3000);
                         overAlertShown = true;
                     }
+                    usedByColor[color] = (usedByColor[color] || 0) + rowQty;
                     totalQty += rowQty;
-                    var newRemaining = targetQty - totalQty;
+                    var newRemaining = getColorRemainingQty(description, color) - usedByColor[color];
                     $(this).find('.remaining-qty').val(newRemaining >= 0 ? newRemaining.toFixed(2) : '0.00');
                 });
                 $('#totalQtyDisplay').text(totalQty.toFixed(2));
@@ -1487,6 +1566,10 @@ $('#mc_dia').val('');
                          allValid = false;
                          return false;
                      }
+                     if (!color) {
+                         allValid = false;
+                         return false;
+                     }
                      var qtyNum = parseFloat(qty);
                      if (isNaN(qtyNum) || qtyNum <= 0) {
                          allValid = false;
@@ -1499,7 +1582,7 @@ $('#mc_dia').val('');
                      var qty = parseFloat($(this).find('.qty-input').val()) || 0;
                      if (qty > 0) totalQty += qty;
                  });
-                 if (hasData && totalQty > targetQty) allValid = false;
+                 if (hasData && (totalQty > targetQty || !areRowsWithinColorTargets())) allValid = false;
 
                  var manualValid = isManualDataValid();
                  var submitEnabled = allValid && hasData && manualValid;
@@ -1523,6 +1606,10 @@ $('#mc_dia').val('');
                     var isEmpty = !qty && !yarnCount && !yarnBrand && !color && !lotNoRow;
                     if (isEmpty) return true;
                     if (!qty || !yarnCount || !yarnBrand || !lotNoRow) {
+                        isValid = false;
+                        return false;
+                    }
+                    if (!color) {
                         isValid = false;
                         return false;
                     }
@@ -1642,6 +1729,8 @@ var finishGsmSelect = $('#finish_gsm');
                     allRowsData = [];
                     window.bookingResponse = null;
                     targetQty = 0;
+                    allocatedByDescription = {};
+                    allocatedByDescriptionColor = {};
                     pendingColor = '';
                     pendingFinishGsm = '';
                     setColorOptions([]);
@@ -1732,8 +1821,8 @@ var finishGsmSelect = $('#finish_gsm');
                         totalQty += item.qty;
                     });
                     var targetVal = parseFloat($('#display_target_qty').text()) || 0;
-                    if (totalQty > targetVal) {
-                        showAlert('Total QTY exceeds target. Adjust.', 'error');
+                    if (totalQty > targetVal || !areRowsWithinColorTargets()) {
+                        showAlert('QTY exceeds the remaining target for its selected color. Adjust the color-wise quantities.', 'error');
                         return;
                     }
 
