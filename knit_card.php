@@ -7,6 +7,14 @@ if (!isset($_SESSION['username'])) {
     exit();
 }
 
+try {
+    ensure_knit_card_program_row_column($db);
+} catch (Throwable $error) {
+    error_log('Knit Card row reference initialization failed: ' . $error->getMessage());
+    http_response_code(500);
+    exit('Could not initialize Knit Card row references. Please contact the administrator.');
+}
+
 $knit_card_generation_success = $_SESSION['knit_card_generation_success'] ?? '';
 $knit_card_generation_error = $_SESSION['knit_card_generation_error'] ?? '';
 unset($_SESSION['knit_card_generation_success'], $_SESSION['knit_card_generation_error']);
@@ -386,8 +394,19 @@ $query = "SELECT kp.*,
                  MAX(kc.MCDIA) AS card_mcdia
           FROM knitting_program kp
           LEFT JOIN knit_card kc
-            ON (kp.PROGRAM_NO = kc.{$kc_prog_col} OR kp.KPTID = kc.{$kc_prog_col})
-           AND LOWER(TRIM(COALESCE(kc.COLOR, ''))) = LOWER(TRIM(COALESCE(kp.COLOR, '')))
+            ON (
+                kc.PROGRAM_ROW_ID = kp.KPTID
+                OR (
+                    kc.PROGRAM_ROW_ID IS NULL
+                    AND (kp.PROGRAM_NO = kc.{$kc_prog_col} OR kp.KPTID = kc.{$kc_prog_col})
+                    AND LOWER(TRIM(COALESCE(kc.COLOR, ''))) = LOWER(TRIM(COALESCE(kp.COLOR, '')))
+                    AND LOWER(TRIM(COALESCE(kc.SONO, ''))) = LOWER(TRIM(COALESCE(kp.SONO, '')))
+                    AND LOWER(TRIM(COALESCE(kc.YCOUNT, ''))) = LOWER(TRIM(COALESCE(kp.YCOUNT, '')))
+                    AND LOWER(TRIM(COALESCE(kc.YBRAND, ''))) = LOWER(TRIM(COALESCE(kp.YBRAND, '')))
+                    AND LOWER(TRIM(COALESCE(kc.LOT, ''))) = LOWER(TRIM(COALESCE(kp.LOT, '')))
+                    AND LOWER(TRIM(COALESCE(kc.KNIT_M_DESCRIPTION, ''))) = LOWER(TRIM(COALESCE(kp.KNIT_M_DESCRIPTION, '')))
+                )
+            )
           WHERE 1=1";
 $params = [];
 $types  = '';

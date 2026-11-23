@@ -205,5 +205,41 @@ if (!function_exists('get_knit_card_program_col')) {
     }
 }
 
+if (!function_exists('ensure_knit_card_program_row_column')) {
+    function ensure_knit_card_program_row_column($database_conn = null) {
+        global $db;
+        $conn = $database_conn ?: $db;
+        if (!$conn) {
+            throw new RuntimeException('Database connection is unavailable.');
+        }
+
+        $columnResult = mysqli_query($conn, "SHOW COLUMNS FROM knit_card LIKE 'PROGRAM_ROW_ID'");
+        if (!$columnResult) {
+            throw new RuntimeException('Could not inspect Knit Card row reference: ' . mysqli_error($conn));
+        }
+        $columnExists = mysqli_num_rows($columnResult) > 0;
+        mysqli_free_result($columnResult);
+        if (!$columnExists && !mysqli_query(
+            $conn,
+            'ALTER TABLE knit_card ADD COLUMN PROGRAM_ROW_ID INT(11) DEFAULT NULL AFTER ' . get_knit_card_program_col($conn)
+        )) {
+            throw new RuntimeException('Could not add Knit Card row reference: ' . mysqli_error($conn));
+        }
+
+        $indexResult = mysqli_query($conn, 'SHOW INDEX FROM knit_card WHERE Key_name = \'idx_knit_card_program_row_id\'');
+        if (!$indexResult) {
+            throw new RuntimeException('Could not inspect Knit Card row-reference index: ' . mysqli_error($conn));
+        }
+        $indexExists = mysqli_num_rows($indexResult) > 0;
+        mysqli_free_result($indexResult);
+        if (!$indexExists && !mysqli_query(
+            $conn,
+            'ALTER TABLE knit_card ADD INDEX idx_knit_card_program_row_id (PROGRAM_ROW_ID)'
+        )) {
+            throw new RuntimeException('Could not index Knit Card row references: ' . mysqli_error($conn));
+        }
+    }
+}
+
 // Return database connection for use in other files
 ?>

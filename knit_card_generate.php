@@ -34,6 +34,7 @@ if (!isset($_SESSION['username'])) {
     echo "<script>alert('You must be logged in'); window.location.href='login.php';</script>";
     exit();
 }
+ensure_knit_card_program_row_column($db);
 
 $program_id = isset($_GET['program_id']) ? intval($_GET['program_id']) : (isset($_POST['program_id']) ? intval($_POST['program_id']) : 0);
 
@@ -68,11 +69,38 @@ $p_kptid = intval($prog['KPTID']);
 $p_prog_no = !empty($prog['PROGRAM_NO']) ? strval($prog['PROGRAM_NO']) : strval($p_kptid);
 $sum_stmt = $db->prepare("SELECT SUM(QTY) AS total_carded, COUNT(*) AS rolls_complete
                           FROM knit_card
-                          WHERE ({$kc_prog_col} = ? OR {$kc_prog_col} = ?)
-                            AND LOWER(TRIM(COALESCE(COLOR, ''))) = LOWER(TRIM(?))");
+                          WHERE (
+                              PROGRAM_ROW_ID = ?
+                              OR (
+                                  PROGRAM_ROW_ID IS NULL
+                                  AND ({$kc_prog_col} = ? OR {$kc_prog_col} = ?)
+                                  AND LOWER(TRIM(COALESCE(COLOR, ''))) = LOWER(TRIM(?))
+                                  AND LOWER(TRIM(COALESCE(SONO, ''))) = LOWER(TRIM(?))
+                                  AND LOWER(TRIM(COALESCE(YCOUNT, ''))) = LOWER(TRIM(?))
+                                  AND LOWER(TRIM(COALESCE(YBRAND, ''))) = LOWER(TRIM(?))
+                                  AND LOWER(TRIM(COALESCE(LOT, ''))) = LOWER(TRIM(?))
+                                  AND LOWER(TRIM(COALESCE(KNIT_M_DESCRIPTION, ''))) = LOWER(TRIM(?))
+                              )
+                          )");
 if ($sum_stmt) {
     $program_color = trim((string)($prog['COLOR'] ?? ''));
-    $sum_stmt->bind_param("sss", $p_prog_no, $p_kptid, $program_color);
+    $program_sono = trim((string)($prog['SONO'] ?? ''));
+    $program_ycount = trim((string)($prog['YCOUNT'] ?? ''));
+    $program_ybrand = trim((string)($prog['YBRAND'] ?? ''));
+    $program_lot = trim((string)($prog['LOT'] ?? ''));
+    $program_description = trim((string)($prog['KNIT_M_DESCRIPTION'] ?? ''));
+    $sum_stmt->bind_param(
+        'issssssss',
+        $p_kptid,
+        $p_prog_no,
+        $p_kptid,
+        $program_color,
+        $program_sono,
+        $program_ycount,
+        $program_ybrand,
+        $program_lot,
+        $program_description
+    );
     $sum_stmt->execute();
     $res_sum = $sum_stmt->get_result();
     if ($res_sum && $row_sum = $res_sum->fetch_assoc()) {
@@ -230,12 +258,34 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 // Fetch current sum of QTY for this program from knit_card (using lock since it's in transaction)
                 $stmt_sum = $db->prepare("SELECT SUM(QTY) AS total_carded
                                           FROM knit_card
-                                          WHERE ({$kc_prog_col} = ? OR {$kc_prog_col} = ?)
-                                            AND LOWER(TRIM(COALESCE(COLOR, ''))) = LOWER(TRIM(?))");
+                                          WHERE (
+                                              PROGRAM_ROW_ID = ?
+                                              OR (
+                                                  PROGRAM_ROW_ID IS NULL
+                                                  AND ({$kc_prog_col} = ? OR {$kc_prog_col} = ?)
+                                                  AND LOWER(TRIM(COALESCE(COLOR, ''))) = LOWER(TRIM(?))
+                                                  AND LOWER(TRIM(COALESCE(SONO, ''))) = LOWER(TRIM(?))
+                                                  AND LOWER(TRIM(COALESCE(YCOUNT, ''))) = LOWER(TRIM(?))
+                                                  AND LOWER(TRIM(COALESCE(YBRAND, ''))) = LOWER(TRIM(?))
+                                                  AND LOWER(TRIM(COALESCE(LOT, ''))) = LOWER(TRIM(?))
+                                                  AND LOWER(TRIM(COALESCE(KNIT_M_DESCRIPTION, ''))) = LOWER(TRIM(?))
+                                              )
+                                          )");
                 if (!$stmt_sum) {
                     throw new Exception("Database query error: " . $db->error);
                 }
-                $stmt_sum->bind_param("sss", $p_prog_no, $p_kptid, $p_color);
+                $stmt_sum->bind_param(
+                    'issssssss',
+                    $p_kptid,
+                    $p_prog_no,
+                    $p_kptid,
+                    $p_color,
+                    $p_sono,
+                    $p_yarn_count,
+                    $p_yarn_brand,
+                    $p_lot_no,
+                    $p_knit_m_desc
+                );
                 $stmt_sum->execute();
                 $res_sum = $stmt_sum->get_result();
                 $already_carded_locked = 0.00;
@@ -267,11 +317,11 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                 // Insert into knit_card dynamically (including UID and UNAME)
                 $ins = $db->prepare("
                     INSERT INTO knit_card (
-                        {$kc_prog_col}, KNITCARD, MCNO, QTY, PO_NUMBER, SONO, BUYER, STYLE, COLOR,
+                        {$kc_prog_col}, PROGRAM_ROW_ID, KNITCARD, MCNO, QTY, PO_NUMBER, SONO, BUYER, STYLE, COLOR,
                         FGSM, FDIA, O_T, FTYPE, YTYPE, CUSTOMER, YCOUNT, SL, MCDIA,
                         FEEDER_PLAN, LOT, SHIFT, KNIT_MATERIAL_CODE, KNIT_M_DESCRIPTION, UNAME,
                         UID, YBRAND, CATEGORY
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ");
 
                 if (!$ins) {
@@ -292,8 +342,9 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST' &
                     $r_qty   = round($row_item['qty']);
 
                     $ins->bind_param(
-                        "sisdsssssssssssssssssssssss",
+                        'siisd' . str_repeat('s', 23),
                         $p_prog_no,
+                        $p_kptid,
                         $current_knitcard,
                         $r_mcno,
                         $r_qty,

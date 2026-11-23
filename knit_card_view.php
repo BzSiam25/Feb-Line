@@ -7,6 +7,13 @@ if (!isset($_SESSION['username'])) {
     echo "<script>alert('You must be logged in'); window.location.href='login.php';</script>";
     exit();
 }
+try {
+    ensure_knit_card_program_row_column($db);
+} catch (Throwable $error) {
+    error_log('Knit Card view row-reference initialization failed: ' . $error->getMessage());
+    http_response_code(500);
+    exit('Could not initialize Knit Card row references. Please contact the administrator.');
+}
 
 $raw_ids = '';
 $has_explicit_card_ids = !empty($_GET['ids']) || !empty($_GET['id']);
@@ -82,34 +89,50 @@ if (empty($card_ids)) {
     exit();
 }
 
-// Opened with a single ?id= (e.g. from the report): also show every knit card that was
-// generated in the same batch (same program, same user, created within a few seconds),
-// one under another, so the whole batch can be seen / printed together.
 $focus_card_id = $card_ids[0];
 if (empty($_GET['ids']) && count($card_ids) === 1) {
     $batch_col = get_knit_card_program_col($db);
     $batch_sql = "SELECT b.KCTID
                     FROM knit_card a
                     JOIN knit_card b
-                      ON b.{$batch_col} = a.{$batch_col}
+                      ON (
+                          (a.PROGRAM_ROW_ID IS NOT NULL AND b.PROGRAM_ROW_ID = a.PROGRAM_ROW_ID)
+                          OR (
+                              a.PROGRAM_ROW_ID IS NULL
+                              AND b.PROGRAM_ROW_ID IS NULL
+                              AND b.{$batch_col} = a.{$batch_col}
+                              AND LOWER(TRIM(COALESCE(b.COLOR, ''))) = LOWER(TRIM(COALESCE(a.COLOR, '')))
+                              AND LOWER(TRIM(COALESCE(b.SONO, ''))) = LOWER(TRIM(COALESCE(a.SONO, '')))
+                              AND LOWER(TRIM(COALESCE(b.YCOUNT, ''))) = LOWER(TRIM(COALESCE(a.YCOUNT, '')))
+                              AND LOWER(TRIM(COALESCE(b.YBRAND, ''))) = LOWER(TRIM(COALESCE(a.YBRAND, '')))
+                              AND LOWER(TRIM(COALESCE(b.LOT, ''))) = LOWER(TRIM(COALESCE(a.LOT, '')))
+                              AND LOWER(TRIM(COALESCE(b.KNIT_M_DESCRIPTION, ''))) = LOWER(TRIM(COALESCE(a.KNIT_M_DESCRIPTION, '')))
+                          )
+                      )
                      AND (b.UNAME <=> a.UNAME)
-                     AND LOWER(TRIM(COALESCE(b.COLOR, ''))) = LOWER(TRIM(COALESCE(a.COLOR, '')))
                      AND ABS(TIMESTAMPDIFF(SECOND, a.CREATED_DATE, b.CREATED_DATE)) <= 10
                    WHERE a.KCTID = ?
                    ORDER BY b.KCTID ASC";
     $batch_stmt = $db->prepare($batch_sql);
-    if ($batch_stmt) {
-        $batch_stmt->bind_param('i', $focus_card_id);
-        $batch_stmt->execute();
-        $batch_res = $batch_stmt->get_result();
-        $batch_ids = [];
-        while ($batch_res && ($br = $batch_res->fetch_assoc())) {
-            $batch_ids[] = intval($br['KCTID']);
-        }
-        $batch_stmt->close();
-        if (count($batch_ids) > 1 && in_array($focus_card_id, $batch_ids, true)) {
-            $card_ids = $batch_ids;
-        }
+    if (!$batch_stmt) {
+        error_log('Knit Card batch lookup failed: ' . $db->error);
+        http_response_code(500);
+        exit('Could not load Knit Card records. Please contact the administrator.');
+    }
+    $batch_stmt->bind_param('i', $focus_card_id);
+    if (!$batch_stmt->execute()) {
+        error_log('Knit Card batch lookup failed: ' . $batch_stmt->error);
+        http_response_code(500);
+        exit('Could not load Knit Card records. Please contact the administrator.');
+    }
+    $batch_res = $batch_stmt->get_result();
+    $batch_ids = [];
+    while ($batch_res && ($br = $batch_res->fetch_assoc())) {
+        $batch_ids[] = intval($br['KCTID']);
+    }
+    $batch_stmt->close();
+    if (count($batch_ids) > 1 && in_array($focus_card_id, $batch_ids, true)) {
+        $card_ids = $batch_ids;
     }
 }
 
@@ -142,7 +165,20 @@ $sql = "SELECT kc.*,
                kp.SONO AS prog_sono,
                kp.CATEGORY AS prog_category
          FROM knit_card kc
-         LEFT JOIN knitting_program kp ON (kc.{$kc_prog_col} = kp.PROGRAM_NO OR kc.{$kc_prog_col} = kp.KPTID)
+         LEFT JOIN knitting_program kp
+           ON (
+               kp.KPTID = kc.PROGRAM_ROW_ID
+               OR (
+                   kc.PROGRAM_ROW_ID IS NULL
+                   AND (kc.{$kc_prog_col} = kp.PROGRAM_NO OR kc.{$kc_prog_col} = kp.KPTID)
+                   AND LOWER(TRIM(COALESCE(kc.COLOR, ''))) = LOWER(TRIM(COALESCE(kp.COLOR, '')))
+                   AND LOWER(TRIM(COALESCE(kc.SONO, ''))) = LOWER(TRIM(COALESCE(kp.SONO, '')))
+                   AND LOWER(TRIM(COALESCE(kc.YCOUNT, ''))) = LOWER(TRIM(COALESCE(kp.YCOUNT, '')))
+                   AND LOWER(TRIM(COALESCE(kc.YBRAND, ''))) = LOWER(TRIM(COALESCE(kp.YBRAND, '')))
+                   AND LOWER(TRIM(COALESCE(kc.LOT, ''))) = LOWER(TRIM(COALESCE(kp.LOT, '')))
+                   AND LOWER(TRIM(COALESCE(kc.KNIT_M_DESCRIPTION, ''))) = LOWER(TRIM(COALESCE(kp.KNIT_M_DESCRIPTION, '')))
+               )
+           )
          WHERE kc.KCTID IN ($placeholders)";
 
 $stmt = $db->prepare($sql);
