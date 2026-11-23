@@ -256,12 +256,25 @@ session_start();
         </div>
 
         <div class="col-12 col-md-4 d-flex">
-          <div class="report-card-item w-100" style="background: linear-gradient(135deg, #2563eb, #7c3aed);">
+          <div class="report-card-item w-100" style="background: linear-gradient(135deg, #0f766e, #2dd4bf);">
             <form method="POST" action="users_dyeing_operator.php" class="h-100 w-100">
               <button type="submit" class="btn-report-style">
                 <i class="fa-solid fa-user-gear"></i>
                 <span class="floor-text">
                   <span>Dyeing Operators</span>
+                </span>
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <div class="col-12 col-md-4 d-flex">
+          <div class="report-card-item w-100" style="background: linear-gradient(135deg, #0369a1, #38bdf8);">
+            <form method="POST" action="users_finishing_operator.php" class="h-100 w-100">
+              <button type="submit" class="btn-report-style">
+                <i class="fa-solid fa-user-check"></i>
+                <span class="floor-text">
+                  <span>Finishing Operators</span>
                 </span>
               </button>
             </form>
