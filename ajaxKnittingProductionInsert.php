@@ -18,6 +18,24 @@ if (!$db) {
     exit;
 }
 
+if (!isset($_SESSION['username'])) {
+    http_response_code(401);
+    echo json_encode([
+        "success" => false,
+        "message" => "Unauthorized. Please login."
+    ]);
+    exit;
+}
+
+if (empty($_SESSION['knitting_production_manual_entry_authorized'])) {
+    http_response_code(403);
+    echo json_encode([
+        "success" => false,
+        "message" => "Unlock manual Scale QTY entry before saving production."
+    ]);
+    exit;
+}
+
 mysqli_set_charset($db, "utf8");
 $raw=file_get_contents("php://input");
 $data=json_decode($raw,true);

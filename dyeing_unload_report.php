@@ -270,6 +270,7 @@ function dyeingReportEscape($value)
             ['COLOR', 'Color'],
             ['QTY', 'QTY'],
             ['MCNO', 'MCNO'],
+            ['DCOUNT', 'Load Count'],
             ['SONO', 'SONO'],
             ['BUYER', 'Buyer'],
             ['STYLE', 'Style'],
@@ -288,7 +289,6 @@ function dyeingReportEscape($value)
             <?php foreach ($reportTimeColumns as $timeColumn): ?>
             [<?php echo json_encode($timeColumn); ?>, <?php echo json_encode($timeColumnLabels[$timeColumn]); ?>],
             <?php endforeach; ?>
-            ['DCOUNT', 'DCount'],
             ['OPERATOR', 'Operator'],
             ['OP_ID', 'OP Id']
         ];

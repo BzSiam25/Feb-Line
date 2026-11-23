@@ -319,7 +319,10 @@ if ($action === 'save_verified_rolls') {
     ]);
 }
 
-if ($action !== 'load_batch_by_roll' || $_SERVER['REQUEST_METHOD'] !== 'GET') {
+if (
+    !in_array($action, ['load_batch_by_card', 'load_batch_by_roll'], true) ||
+    $_SERVER['REQUEST_METHOD'] !== 'GET'
+) {
     respond(['success' => false, 'message' => 'Unsupported Roll Verification request.'], 400);
 }
 
@@ -328,46 +331,86 @@ if (
     $_GET['manual'] === '1' &&
     empty($_SESSION['roll_manual_entry_authorized'])
 ) {
-    respond(['success' => false, 'message' => 'Verify the manual-entry password before entering a roll.'], 403);
+    respond(['success' => false, 'message' => 'Verify the manual-entry password before entering a BCARD or roll.'], 403);
 }
 
-$roll = isset($_GET['roll']) ? trim((string) $_GET['roll']) : '';
-if ($roll === '' || strlen($roll) > 50) {
-    respond(['success' => false, 'message' => 'Enter a valid roll number.'], 400);
-}
-$currentCard = isset($_GET['current_batch']) ? trim((string) $_GET['current_batch']) : '';
+$card = '';
+$dcount = 0;
+if ($action === 'load_batch_by_card') {
+    $card = isset($_GET['card_no']) ? trim((string) $_GET['card_no']) : '';
+    if ($card === '' || strlen($card) > 30) {
+        respond(['success' => false, 'message' => 'Scan or enter a valid BCARD number.'], 400);
+    }
 
-$batchStmt = $db->prepare(
-    'SELECT v.BCARD, v.DCOUNT
-     FROM dyeing_batch_verification v
-     WHERE TRIM(v.ROLL) = ? AND v.BCARD IS NOT NULL AND TRIM(v.BCARD) <> \'\'
-       AND v.DCOUNT = (
-           SELECT MAX(v2.DCOUNT)
-           FROM dyeing_batch_verification v2
-           WHERE v2.BCARD = v.BCARD
-       )
-     ORDER BY (v.BCARD = ?) DESC, v.DBVTID DESC
-     LIMIT 1'
-);
-if (!$batchStmt) {
-    respond(['success' => false, 'message' => 'Could not prepare roll lookup: ' . $db->error], 500);
-}
-$batchStmt->bind_param('ss', $roll, $currentCard);
-if (!$batchStmt->execute()) {
-    $error = $batchStmt->error;
+    $batchStmt = $db->prepare(
+        'SELECT BCARD, DCOUNT
+         FROM dyeing_batch_verification
+         WHERE TRIM(BCARD) = ? AND BCARD IS NOT NULL AND TRIM(BCARD) <> \'\'
+         ORDER BY DCOUNT DESC, DBVTID DESC
+         LIMIT 1'
+    );
+    if (!$batchStmt) {
+        respond(['success' => false, 'message' => 'Could not prepare BCARD lookup: ' . $db->error], 500);
+    }
+    $batchStmt->bind_param('s', $card);
+    if (!$batchStmt->execute()) {
+        $error = $batchStmt->error;
+        $batchStmt->close();
+        respond(['success' => false, 'message' => 'Could not look up BCARD: ' . $error], 500);
+    }
+    $batchResult = $batchStmt->get_result();
+    $batchRow = $batchResult ? $batchResult->fetch_assoc() : null;
+    if ($batchResult) {
+        $batchResult->free();
+    }
     $batchStmt->close();
-    respond(['success' => false, 'message' => 'Could not look up the roll: ' . $error], 500);
-}
-$batchResult = $batchStmt->get_result();
-$batchRow = $batchResult->fetch_assoc();
-$card = $batchRow ? trim((string) $batchRow['BCARD']) : '';
-$batchResult->free();
-$batchStmt->close();
+    $card = $batchRow ? trim((string) $batchRow['BCARD']) : '';
+    $dcount = $batchRow ? (int) $batchRow['DCOUNT'] : 0;
+    if ($card === '') {
+        respond(['success' => false, 'message' => 'BCARD ' . trim((string) $_GET['card_no']) . ' was not found in Batch Verification.'], 404);
+    }
+} else {
+    $roll = isset($_GET['roll']) ? trim((string) $_GET['roll']) : '';
+    if ($roll === '' || strlen($roll) > 50) {
+        respond(['success' => false, 'message' => 'Enter a valid roll number.'], 400);
+    }
+    $currentCard = isset($_GET['current_batch']) ? trim((string) $_GET['current_batch']) : '';
 
-if ($card === '') {
-    respond(['success' => false, 'message' => 'Roll ' . $roll . ' was not found in the current Batch Verification cycle.'], 404);
+    $batchStmt = $db->prepare(
+        'SELECT v.BCARD, v.DCOUNT
+         FROM dyeing_batch_verification v
+         WHERE TRIM(v.ROLL) = ? AND v.BCARD IS NOT NULL AND TRIM(v.BCARD) <> \'\'
+           AND v.DCOUNT = (
+               SELECT MAX(v2.DCOUNT)
+               FROM dyeing_batch_verification v2
+               WHERE v2.BCARD = v.BCARD
+           )
+         ORDER BY (v.BCARD = ?) DESC, v.DBVTID DESC
+         LIMIT 1'
+    );
+    if (!$batchStmt) {
+        respond(['success' => false, 'message' => 'Could not prepare roll lookup: ' . $db->error], 500);
+    }
+    $batchStmt->bind_param('ss', $roll, $currentCard);
+    if (!$batchStmt->execute()) {
+        $error = $batchStmt->error;
+        $batchStmt->close();
+        respond(['success' => false, 'message' => 'Could not look up the roll: ' . $error], 500);
+    }
+    $batchResult = $batchStmt->get_result();
+    $batchRow = $batchResult ? $batchResult->fetch_assoc() : null;
+    if ($batchResult) {
+        $batchResult->free();
+    }
+    $batchStmt->close();
+    $card = $batchRow ? trim((string) $batchRow['BCARD']) : '';
+    $dcount = $batchRow ? (int) $batchRow['DCOUNT'] : 0;
+    if ($card === '') {
+        respond(['success' => false, 'message' => 'Roll ' . $roll . ' was not found in the current Batch Verification cycle.'], 404);
+    }
 }
-requirePassedBatchVerification($db, $card, (int)$batchRow['DCOUNT']);
+
+requirePassedBatchVerification($db, $card, $dcount);
 
 $rowsStmt = $db->prepare(
     'SELECT DBVTID, BCARD, ROLL, DCOUNT, PO_NUMBER, COLOR, QTY, DYMCNO, SONO, BUYER, STYLE,
@@ -375,14 +418,13 @@ $rowsStmt = $db->prepare(
             SILICON, NONSILICON, NWASH, EWASH, ENZYME, NONENZYME, PEACH, BRUSH,
             AOP, SOFTENER, NONSOFTENER, OTHERS, DOP, DID
      FROM dyeing_batch_verification
-     WHERE BCARD = ?
-       AND DCOUNT = (SELECT MAX(DCOUNT) FROM dyeing_batch_verification WHERE BCARD = ?)
+     WHERE BCARD = ? AND DCOUNT = ?
      ORDER BY DBVTID ASC'
 );
 if (!$rowsStmt) {
     respond(['success' => false, 'message' => 'Could not prepare batch roll lookup: ' . $db->error], 500);
 }
-$rowsStmt->bind_param('ss', $card, $card);
+$rowsStmt->bind_param('si', $card, $dcount);
 if (!$rowsStmt->execute()) {
     $error = $rowsStmt->error;
     $rowsStmt->close();

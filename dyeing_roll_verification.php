@@ -57,6 +57,7 @@ unset($_SESSION['roll_manual_entry_authorized']);
             text-decoration: none;
             cursor: pointer;
         }
+        .refresh-button { margin-left: auto; }
         .back { color: #fff; background: #000; border: 2px solid #000; }
         .back:hover { color: #000; background: #fff; border-color: #000; }
         .button:disabled { background: #94a3b8; cursor: not-allowed; }
@@ -217,6 +218,9 @@ unset($_SESSION['roll_manual_entry_authorized']);
         <header class="header">
             <a class="back" href="initialPage.php"><i class="fas fa-arrow-left"></i> Back</a>
             <h1><i class="fas fa-qrcode"></i> Roll Verification</h1>
+            <button class="button refresh-button" type="button" id="refreshPageButton" aria-label="Refresh page" title="Refresh page">
+                <i class="fas fa-arrows-rotate" aria-hidden="true"></i> Refresh
+            </button>
         </header>
 
         <div class="message" id="message" role="status" aria-live="polite" aria-hidden="true">
@@ -229,7 +233,7 @@ unset($_SESSION['roll_manual_entry_authorized']);
         </div>
 
         <section class="panel" id="verificationPanel">
-            <h2 class="panel-title">Scan or Enter a Roll to Find Its Batch, Then Verify Every Roll</h2>
+            <h2 class="panel-title" id="verificationStepTitle">Scan the BCARD QR First, Then Verify Every Roll in That Batch</h2>
             <div class="summary">
                 <div class="summary-item">Batch: <span id="batchNumber">-</span></div>
                 <div class="summary-item">Total QTY: <span id="batchTotalQty">-</span></div>
@@ -252,10 +256,10 @@ unset($_SESSION['roll_manual_entry_authorized']);
                 <div class="manual-scan">
                     <form class="scan-form" id="rollForm">
                         <div class="field">
-                            <label for="rollInput">Roll Number</label>
+                            <label for="rollInput" id="scanInputLabel">Batch Card (BCARD)</label>
                             <div class="roll-input-group">
-                                <input type="text" id="rollInput" autocomplete="off" placeholder="Scan or enter roll number" readonly aria-disabled="true">
-                                <button class="button" type="submit" id="verifyButton" disabled>Verify Roll</button>
+                                <input type="text" id="rollInput" autocomplete="off" placeholder="Scan or enter BCARD" readonly aria-disabled="true">
+                                <button class="button" type="submit" id="verifyButton" disabled>Load Batch</button>
                             </div>
                         </div>
                     </form>
@@ -276,7 +280,7 @@ unset($_SESSION['roll_manual_entry_authorized']);
                         </tr>
                     </thead>
                     <tbody id="batchRows">
-                        <tr><td class="empty" colspan="21">Scan or enter a roll number to load its batch.</td></tr>
+                        <tr><td class="empty" colspan="21">Scan or enter a BCARD to load its rolls.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -306,6 +310,8 @@ unset($_SESSION['roll_manual_entry_authorized']);
             var batchRows = document.getElementById('batchRows');
             var batchPanel = document.getElementById('batchPanel');
             var batch = null;
+            var scanInputLabel = document.getElementById('scanInputLabel');
+            var verificationStepTitle = document.getElementById('verificationStepTitle');
             var expectedByRoll = new Map();
             var fulfilled = new Set();
             var messageTimer = null;
@@ -332,6 +338,14 @@ unset($_SESSION['roll_manual_entry_authorized']);
                 if (!text) return '';
                 if (text.indexOf('|') !== -1) text = text.split('|')[0].trim();
                 var match = text.match(/ROLL\s*:\s*([^\r\n]+)/i);
+                return match && match[1] ? match[1].trim() : text;
+            }
+
+            function extractBatchValue(value) {
+                var text = String(value || '').trim();
+                if (!text) return '';
+                if (text.indexOf('|') !== -1) text = text.split('|')[0].trim();
+                var match = text.match(/(?:BCARD|BATCH(?:\s*(?:CARD|NO))?)\s*[:#-]?\s*([^\r\n]+)/i);
                 return match && match[1] ? match[1].trim() : text;
             }
 
@@ -394,7 +408,7 @@ unset($_SESSION['roll_manual_entry_authorized']);
             function renderRows() {
                 if (!batch || !batch.rows.length) {
                     batchPanel.hidden = true;
-                    batchRows.innerHTML = '<tr><td class="empty" colspan="21">Scan or enter a roll number to load its batch.</td></tr>';
+                    batchRows.innerHTML = '<tr><td class="empty" colspan="21">Scan or enter a BCARD to load its rolls.</td></tr>';
                     updateSummary();
                     return;
                 }
@@ -457,12 +471,11 @@ unset($_SESSION['roll_manual_entry_authorized']);
                 updateSummary();
             }
 
-            function loadBatchByRoll(roll, isManualEntry) {
+            function loadBatchByCard(cardNo, isManualEntry) {
                 var url = new URL('ajaxDyeing_roll_verification.php', window.location.href);
-                url.searchParams.set('action', 'load_batch_by_roll');
-                url.searchParams.set('roll', roll);
+                url.searchParams.set('action', 'load_batch_by_card');
+                url.searchParams.set('card_no', cardNo);
                 if (isManualEntry) url.searchParams.set('manual', '1');
-                if (batch) url.searchParams.set('current_batch', batch.card_no);
                 return fetch(url.toString()).then(function(response) {
                     return response.json().then(function(data) {
                         if (!response.ok || !data.success) {
@@ -473,46 +486,33 @@ unset($_SESSION['roll_manual_entry_authorized']);
                 });
             }
 
-            function verifyRoll(rawValue, isManualEntry) {
-                var roll = extractRollValue(rawValue);
-                if (!roll || processing) return;
+            function loadScannedBatch(rawValue, isManualEntry) {
+                var cardNo = extractBatchValue(rawValue);
+                if (!cardNo || processing) return;
                 if (isManualEntry && !manualEntryAuthorized) {
                     showMessage('Enter a valid password and select Unlock first.', 'warning', 2000, 'Manual Entry Locked');
                     return;
                 }
                 processing = true;
                 verifyButton.disabled = true;
-                loadBatchByRoll(roll, isManualEntry).then(function(foundBatch) {
-                    var isDifferentBatch = !batch || String(foundBatch.card_no) !== String(batch.card_no);
-                    if (isDifferentBatch) {
-                        fulfilled.clear();
-                    }
-                    batch = foundBatch;
+                loadBatchByCard(cardNo, isManualEntry).then(function(loadedBatch) {
+                    batch = loadedBatch;
+                    fulfilled.clear();
                     expectedByRoll.clear();
                     batch.rows.forEach(function(batchRow) {
                         expectedByRoll.set(String(batchRow.ROLL), batchRow);
                     });
-                    var row = expectedByRoll.get(roll);
-                    if (!row) {
-                        showMessage('Roll ' + roll + ' not matched with this batch.', 'warning');
-                        return;
-                    }
-                    if (fulfilled.has(roll)) {
-                        showMessage('Roll ' + roll + ' already verified.', 'warning');
-                        return;
-                    }
-                    fulfilled.add(roll);
+                    scanInputLabel.textContent = 'Roll Number';
+                    rollInput.placeholder = 'Scan or enter roll number';
+                    verifyButton.textContent = 'Verify Roll';
+                    verificationStepTitle.textContent = 'Scan Every Roll in Batch ' + batch.card_no;
                     renderRows();
-                    if (fulfilled.size === batch.rows.length) {
-                        showMessage('Roll ' + roll + ' verified. All rolls in this batch are complete.', 'success');
-                    } else {
-                        showMessage('Roll ' + roll + ' verified successfully.', 'success');
-                    }
+                    showMessage(
+                        'Batch ' + batch.card_no + ' loaded. Now scan each roll in this batch.',
+                        'success'
+                    );
                 }).catch(function(error) {
-                    var errorMessage = error.message || 'Could not verify this roll.';
-                    showMessage(errorMessage.indexOf(roll) !== -1
-                        ? errorMessage
-                        : 'Roll ' + roll + ': ' + errorMessage, 'error');
+                    showMessage(error.message || 'Could not load the scanned batch.', 'error');
                 }).finally(function() {
                     processing = false;
                     verifyButton.disabled = !manualEntryAuthorized;
@@ -521,9 +521,48 @@ unset($_SESSION['roll_manual_entry_authorized']);
                 });
             }
 
+            function verifyRoll(rawValue, isManualEntry) {
+                var roll = extractRollValue(rawValue);
+                if (!roll || processing) return;
+                if (!batch) {
+                    showMessage('Scan or enter the BCARD first, then scan its rolls.', 'warning', 2000, 'Batch Required');
+                    return;
+                }
+                if (isManualEntry && !manualEntryAuthorized) {
+                    showMessage('Enter a valid password and select Unlock first.', 'warning', 2000, 'Manual Entry Locked');
+                    return;
+                }
+                var row = expectedByRoll.get(roll);
+                if (!row) {
+                    showMessage('Roll ' + roll + ' does not belong to Batch ' + batch.card_no + '.', 'warning');
+                    rollInput.value = '';
+                    if (manualEntryAuthorized) rollInput.focus();
+                    return;
+                }
+                if (fulfilled.has(roll)) {
+                    showMessage('Roll ' + roll + ' already verified.', 'warning');
+                    rollInput.value = '';
+                    if (manualEntryAuthorized) rollInput.focus();
+                    return;
+                }
+                fulfilled.add(roll);
+                renderRows();
+                rollInput.value = '';
+                if (manualEntryAuthorized) rollInput.focus();
+                if (fulfilled.size === batch.rows.length) {
+                    showMessage('Roll ' + roll + ' verified. All rolls in this batch are complete.', 'success');
+                } else {
+                    showMessage('Roll ' + roll + ' verified successfully.', 'success');
+                }
+            }
+
             rollForm.addEventListener('submit', function(event) {
                 event.preventDefault();
-                verifyRoll(rollInput.value, true);
+                if (batch) {
+                    verifyRoll(rollInput.value, true);
+                } else {
+                    loadScannedBatch(rollInput.value, true);
+                }
             });
 
             function setManualEntryAuthorized(isAuthorized) {
@@ -636,16 +675,24 @@ unset($_SESSION['roll_manual_entry_authorized']);
             });
 
             function handleScannerResult(decodedText) {
-                var roll = extractRollValue(decodedText);
+                var scanValue = batch ? extractRollValue(decodedText) : extractBatchValue(decodedText);
                 var now = Date.now();
-                if (!roll || fulfilled.has(roll) ||
-                    (roll === lastScannerRoll && now - lastScannerTime < 2000)) return;
-                lastScannerRoll = roll;
+                if (!scanValue || (batch && fulfilled.has(scanValue)) ||
+                    (scanValue === lastScannerRoll && now - lastScannerTime < 2000)) return;
+                lastScannerRoll = scanValue;
                 lastScannerTime = now;
-                verifyRoll(roll, false);
+                if (batch) {
+                    verifyRoll(scanValue, false);
+                } else {
+                    loadScannedBatch(scanValue, false);
+                }
             }
 
             document.getElementById('anotherBatchButton').addEventListener('click', function() {
+                window.location.reload();
+            });
+
+            document.getElementById('refreshPageButton').addEventListener('click', function() {
                 window.location.reload();
             });
 

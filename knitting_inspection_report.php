@@ -492,6 +492,9 @@ if (isset($db) && $db) {
                 padding: 0 !important;
                 margin: 0 !important;
             }
+            body.printing-inspection-report > :not(#reportModal) {
+                display: none !important;
+            }
             body * {
                 visibility: hidden !important;
             }
@@ -510,6 +513,12 @@ if (isset($db) && $db) {
                 padding: 0 !important;
                 margin: 0 !important;
                 display: block !important;
+                overflow: visible !important;
+            }
+            body.printing-inspection-report #rejectionLabelModal,
+            body.printing-inspection-report #knitCardPrintArea {
+                display: none !important;
+                visibility: hidden !important;
             }
             #reportModal > div {
                 box-shadow: none !important;
@@ -517,6 +526,7 @@ if (isset($db) && $db) {
                 width: 100% !important;
                 padding: 0 !important;
                 margin: 0 !important;
+                overflow: visible !important;
             }
             #rowPdfCard {
                 margin: 0 auto !important;
@@ -526,13 +536,14 @@ if (isset($db) && $db) {
                 box-sizing: border-box !important;
                 display: flex !important;
                 flex-direction: column !important;
-                min-height: 190mm !important;
+                min-height: 0 !important;
+                height: auto !important;
             }
 
-            /* Pin the QA signatures to the bottom of the printed page */
             #reportSignatures {
-                margin-top: auto !important;
+                margin-top: 16px !important;
                 page-break-inside: avoid;
+                break-inside: avoid;
             }
 
             /* Scenario 2: Rejection / Good QR Card Modal */
@@ -795,7 +806,6 @@ if (isset($db) && $db) {
                             <th>ACTION</th>
                             <th>BUDAT</th>
                             <th>ROLL</th>
-                            <th>PASS / REJ</th>
                             <th>KNITTING QTY</th>
                             <th>REJECT QTY</th>
                             <th>UPDATE QTY</th>
@@ -844,7 +854,7 @@ if (isset($db) && $db) {
                     </thead>
                     <tbody id="tableBody">
                         <tr>
-                            <td colspan="48" class="loading-cell">Loading inspection data...</td>
+                            <td colspan="47" class="loading-cell">Loading inspection data...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -862,7 +872,6 @@ if (isset($db) && $db) {
         var COLS = [
             { key: 'BUDAT', label: 'BUDAT' },
             { key: 'ROLL', label: 'ROLL' },
-            { key: 'INSPECTION_CATEGORY', label: 'PASS / REJ' },
             { key: 'OQTY',   label: 'MAIN QTY'   },
             { key: 'RQTY', label: 'REJECT QTY'  },
             { key: 'UQTY', label: 'UPDATE QTY'  },
@@ -1464,6 +1473,10 @@ if (isset($db) && $db) {
         }
 
         function printModalReport() {
+            document.body.classList.add('printing-inspection-report');
+            window.addEventListener('afterprint', function removePrintMode() {
+                document.body.classList.remove('printing-inspection-report');
+            }, { once: true });
             window.print();
         }
 
@@ -1539,12 +1552,14 @@ if (isset($db) && $db) {
             tbody.empty();
             currentData = data || [];
             if (!currentData.length) {
-                tbody.append('<tr class="empty-row"><td colspan="48"><i class="fa-regular fa-folder-open me-2"></i>No inspection records found for the selected filters</td></tr>');
+                tbody.append('<tr class="empty-row"><td colspan="47"><i class="fa-regular fa-folder-open me-2"></i>No inspection records found for the selected filters</td></tr>');
                 return;
             }
             currentData.forEach(function(row) {
                 var tr = $('<tr>');
                 var isReject = (row.INSPECTION_CATEGORY === 'Rejection');
+                var isQcPassed = String(row.QC_STATUS || '').trim().toLowerCase() === 'passed';
+                var qrColorClass = isQcPassed ? ' btn-qr-pass' : '';
                 var kitIdEsc = esc(row.KITID);
 
                 // Action Column
@@ -1552,9 +1567,9 @@ if (isset($db) && $db) {
                 actHtml += '<button class="btn-print-row" onclick="openReportModal(\'' + kitIdEsc + '\')"><i class="fa-solid fa-file-invoice"></i> Report</button>';
                 // Only the split reject roll (-R) gets a Rejection QR; single rolls print the good (pass) qty
                 if (isReject) {
-                    actHtml += '<button class="btn-qr-action" onclick="openRejectionQrFromReport(\'' + kitIdEsc + '\')" title="Generate & Print Rejection QR Code"><i class="fa-solid fa-qrcode"></i> Rejection QR</button>';
+                    actHtml += '<button class="btn-qr-action' + qrColorClass + '" onclick="openRejectionQrFromReport(\'' + kitIdEsc + '\')" title="Generate & Print Rejection QR Code"><i class="fa-solid fa-qrcode"></i> Rejection QR</button>';
                 } else {
-                    actHtml += '<button class="btn-qr-action btn-qr-pass" onclick="openPassQrFromReport(\'' + kitIdEsc + '\')" title="Generate & Print Pass QR Code"><i class="fa-solid fa-qrcode"></i> QR</button>';
+                    actHtml += '<button class="btn-qr-action' + qrColorClass + '" onclick="openPassQrFromReport(\'' + kitIdEsc + '\')" title="Generate & Print Pass QR Code"><i class="fa-solid fa-qrcode"></i> QR</button>';
                 }
                 actHtml += '</div>';
                 tr.append($('<td>').html(actHtml));
@@ -1569,12 +1584,6 @@ if (isset($db) && $db) {
                             ? '<span class="badge-roll-reject">' + esc(val) + '</span>'
                             : '<span class="badge-roll-pass">' + esc(val) + '</span>';
                         tr.append($('<td>').html(rollBadge));
-                    } else if (c.key === 'INSPECTION_CATEGORY') {
-                        // Category Badge
-                        var catBadge = isReject
-                            ? '<span class="badge-cat-reject"><i class="fa-solid fa-circle-xmark"></i> Rejection (-R)</span>'
-                            : '<span class="badge-cat-pass"><i class="fa-solid fa-circle-check"></i> Pass (-P)</span>';
-                        tr.append($('<td>').html(catBadge));
                     } else if (c.key === 'RQTY' || c.key === 'REJECT_QTY') {
                         // Highlight non-zero rejection qty
                         var numRqty = parseFloat(val) || 0;
@@ -1615,7 +1624,7 @@ if (isset($db) && $db) {
 
         function loadInspectionData(silent) {
             if (!silent) {
-                $('#tableBody').html('<tr><td colspan="48" class="loading-cell"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading inspection report data...</td></tr>');
+                $('#tableBody').html('<tr><td colspan="47" class="loading-cell"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading inspection report data...</td></tr>');
             }
             var payload = getFilterPayload();
             $.ajax({
@@ -1629,12 +1638,12 @@ if (isset($db) && $db) {
                     renderTableRows(resp.data);
                     updateStatsBar(resp.stats);
                 } else if (!silent) {
-                    $('#tableBody').html('<tr class="empty-row"><td colspan="48">No data returned from server</td></tr>');
+                    $('#tableBody').html('<tr class="empty-row"><td colspan="47">No data returned from server</td></tr>');
                 }
             })
             .fail(function() {
                 if (!silent) {
-                    $('#tableBody').html('<tr class="empty-row"><td colspan="48" style="color:#dc2626;"><i class="fa-solid fa-triangle-exclamation me-2"></i>Error loading inspection data</td></tr>');
+                    $('#tableBody').html('<tr class="empty-row"><td colspan="47" style="color:#dc2626;"><i class="fa-solid fa-triangle-exclamation me-2"></i>Error loading inspection data</td></tr>');
                 }
             })
             .always(function() {

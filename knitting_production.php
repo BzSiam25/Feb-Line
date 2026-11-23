@@ -495,6 +495,11 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
       min-width: 0;
     }
 
+    .data-row.default-row.scale-qty-row>.field-block {
+      grid-column: 1 / -1;
+      width: 100%;
+    }
+
     .data-row.default-row div div:first-child {
       font-size: 11px;
       color: #475569;
@@ -664,6 +669,59 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
 
     .field-input.scale-qty-pending {
       animation: scale-qty-attention 1s ease-in-out infinite;
+    }
+
+    .scale-qty-controls {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px;
+      align-items: center;
+    }
+
+    .scale-qty-controls input,
+    .scale-qty-controls button {
+      min-width: 0;
+      min-height: 44px;
+    }
+
+    .scale-qty-controls input[readonly] {
+      cursor: text;
+      caret-color: #0f172a;
+    }
+
+    .scale-qty-controls .scale-qty-password {
+      padding: 9px 10px;
+      border: 1px solid #afc8c4;
+      border-radius: 8px;
+      font-size: 0.95rem;
+    }
+
+    .scale-qty-controls .scale-qty-unlock {
+      border: 0;
+      border-radius: 8px;
+      background: #087f70;
+      color: #fff;
+      padding: 9px 14px;
+      font-weight: 800;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .scale-qty-controls .scale-qty-unlock:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .scale-qty-unlock-message {
+      grid-column: 1 / -1;
+      color: #b91c1c;
+      font-size: 0.8rem;
+      font-weight: 700;
+      line-height: 1.3;
+    }
+
+    .scale-qty-unlock-message[hidden] {
+      display: none;
     }
 
     @keyframes scale-qty-attention {
@@ -1311,6 +1369,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
         const operatorButton = document.getElementById('manualOperatorBtn');
         const rollInput = document.getElementById('manualRollInput');
         const rollButton = document.getElementById('manualRollBtn');
+        const scaleQtyInput = document.getElementById('scaleQtyInput');
 
         [operatorInput, rollInput].forEach(input => {
           if (!input) return;
@@ -1324,6 +1383,10 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
           button.disabled = false;
           button.classList.toggle('manual-locked-button', !manualEntryAuthorized);
         });
+        if (scaleQtyInput) {
+          scaleQtyInput.readOnly = !manualEntryAuthorized;
+          scaleQtyInput.setAttribute('aria-readonly', manualEntryAuthorized ? 'false' : 'true');
+        }
       }
 
       function showManualEntryLocked() {
@@ -1336,19 +1399,24 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
         }
       }
 
-      function unlockManualEntry() {
-        const password = manualPassword.value;
+      function unlockManualEntry(passwordInput = manualPassword, unlockButton = unlockManualButton, focusInput = null) {
+        const password = passwordInput.value;
         if (!password) {
+          if (passwordInput.id === 'scaleQtyManualPassword') {
+            showScaleQtyMessage('Enter the password before selecting Unlock.', 'scaleQtyManualPassword');
+            passwordInput.focus();
+            return;
+          }
           if (typeof Swal !== 'undefined') {
             Swal.fire({ icon: 'warning', title: 'Password Required', text: 'Enter the password to unlock manual entry.' });
           } else {
             alert('Enter the password to unlock manual entry.');
           }
-          manualPassword.focus();
+          passwordInput.focus();
           return;
         }
 
-        unlockManualButton.disabled = true;
+        unlockButton.disabled = true;
         fetch('ajaxDyeing_roll_verification.php', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1361,20 +1429,22 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
           if (!response.ok || !data.success) {
             throw new Error(data.message || 'Could not unlock manual entry.');
           }
-          manualPassword.value = '';
+          passwordInput.value = '';
           manualEntryAuthorized = true;
           syncManualEntryControls();
           if (typeof Swal !== 'undefined') {
             Swal.fire({ icon: 'success', title: 'Manual Entry Unlocked', timer: 1600, showConfirmButton: false });
           }
+          if (focusInput) focusInput.focus();
         })).catch(error => {
           if (typeof Swal !== 'undefined') {
             Swal.fire({ icon: 'error', title: 'Manual Entry Locked', text: error.message });
           } else {
             alert(error.message);
           }
+          passwordInput.focus();
         }).finally(() => {
-          unlockManualButton.disabled = false;
+          unlockButton.disabled = false;
         });
       }
 
@@ -1704,7 +1774,12 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
           <div class="data-row default-row scale-qty-row">
             <div class="field-block">
               <span class="field-label">Scale QTY</span>
-              <input type="number" id="scaleQtyInput" class="field-input" min="0.01" max="${remaining}" step="0.01" placeholder="Max ${remaining}">
+              <div class="scale-qty-controls">
+                <input type="number" id="scaleQtyInput" class="field-input" min="0.01" max="${remaining}" step="0.01" placeholder="Max ${remaining}" readonly aria-readonly="true">
+                <input type="password" id="scaleQtyManualPassword" class="scale-qty-password" autocomplete="off" placeholder="Pass For Entry" aria-label="Password to unlock Scale QTY">
+                <button type="button" id="unlockScaleQtyButton" class="scale-qty-unlock">Unlock</button>
+                <div id="scaleQtyUnlockMessage" class="scale-qty-unlock-message" role="status" aria-live="polite" hidden></div>
+              </div>
             </div>
           </div>
         `;
@@ -2049,6 +2124,8 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
       function setupScaleQtyInput() {
         const scaleQtyInput = document.getElementById('scaleQtyInput');
         if (!scaleQtyInput) return;
+        const scaleQtyManualPassword = document.getElementById('scaleQtyManualPassword');
+        const unlockScaleQtyButton = document.getElementById('unlockScaleQtyButton');
 
         const updatePendingState = () => {
           const qty = Number(scaleQtyInput.value);
@@ -2058,15 +2135,77 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
           );
         };
 
+        syncManualEntryControls();
         scaleQtyInput.addEventListener('input', updatePendingState);
+        scaleQtyInput.addEventListener('click', function() {
+          if (!manualEntryAuthorized) showScaleQtyMessage(undefined, 'scaleQtyManualPassword');
+        });
         scaleQtyInput.addEventListener('keydown', function(event) {
+          if (!manualEntryAuthorized) {
+            if (event.key.length === 1 || ['Backspace', 'Delete', 'Enter', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
+              event.preventDefault();
+              showScaleQtyMessage(undefined, 'scaleQtyManualPassword');
+            }
+            return;
+          }
           if (event.key === 'Enter') {
             event.preventDefault();
             handleProductionSave();
           }
         });
+        scaleQtyInput.addEventListener('beforeinput', function(event) {
+          if (!manualEntryAuthorized) event.preventDefault();
+        });
+        unlockScaleQtyButton.addEventListener('click', function() {
+          unlockManualEntry(scaleQtyManualPassword, unlockScaleQtyButton, scaleQtyInput);
+        });
+        scaleQtyManualPassword.addEventListener('keydown', function(event) {
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            unlockManualEntry(scaleQtyManualPassword, unlockScaleQtyButton, scaleQtyInput);
+          }
+        });
         updatePendingState();
         scaleQtyInput.focus();
+      }
+
+      function showScaleQtyMessage(
+        message = 'Enter the password and select Unlock before entering Scale QTY.',
+        focusTargetId = 'scaleQtyInput'
+      ) {
+        const messageElement = document.getElementById('scaleQtyUnlockMessage');
+        const clearScaleQty = function() {
+          const scaleQtyInput = document.getElementById('scaleQtyInput');
+          if (scaleQtyInput) {
+            scaleQtyInput.value = '';
+            scaleQtyInput.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+          if (messageElement) messageElement.hidden = true;
+          const focusTarget = document.getElementById(focusTargetId);
+          if (focusTarget) focusTarget.focus();
+        };
+
+        if (typeof Swal !== 'undefined') {
+          Swal.fire({
+            icon: 'error',
+            title: message,
+            showConfirmButton: false,
+            timer: 2000,
+            timerProgressBar: true
+          }).then(clearScaleQty);
+          return;
+        }
+
+        if (!messageElement) {
+          clearScaleQty();
+          return;
+        }
+        messageElement.textContent = message;
+        messageElement.hidden = false;
+        window.clearTimeout(messageElement.hideTimer);
+        messageElement.hideTimer = window.setTimeout(function() {
+          clearScaleQty();
+        }, 2000);
       }
 
       function hideActionContent() {
@@ -2080,25 +2219,30 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
           return;
         }
 
+        if (!manualEntryAuthorized) {
+          showScaleQtyMessage('Enter the password and select Unlock before saving Scale QTY.', 'scaleQtyManualPassword');
+          return;
+        }
+
         const scaleQtyInput = document.getElementById('scaleQtyInput');
         const pqty = scaleQtyInput ? parseFloat(scaleQtyInput.value) : 0;
 
         if (!Number.isFinite(pqty) || pqty <= 0) {
-          alert('Please enter a valid Scale QTY.');
-          if (scaleQtyInput) scaleQtyInput.focus();
+          showScaleQtyMessage('Please enter a valid Scale QTY.');
           return;
         }
 
         const remainingQty = scannedInfo ? parseFloat(scannedInfo.REMAINING_QTY) : NaN;
         if (Number.isFinite(remainingQty)) {
           if (remainingQty <= 0) {
-            alert('QTY not available! Remaining qty is 0 for this Knit Card.');
-            window.location.reload();
+            showScaleQtyMessage('QTY not available! Remaining qty is 0 for this Knit Card.');
+            window.setTimeout(function() { window.location.reload(); }, 2000);
             return;
           }
           if (pqty > remainingQty) {
-            alert('Scale QTY (' + pqty + ') exceeds Remaining QTY (' + remainingQty + ').\nOriginal - Produced = ' + remainingQty);
-            if (scaleQtyInput) scaleQtyInput.focus();
+            showScaleQtyMessage(
+              'Scale QTY (' + pqty + ') exceeds Remaining QTY (' + remainingQty + '). Original - Produced = ' + remainingQty
+            );
             return;
           }
         }
@@ -2604,7 +2748,9 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_operator') {
         });
       }
 
-      unlockManualButton.addEventListener('click', unlockManualEntry);
+      unlockManualButton.addEventListener('click', function() {
+        unlockManualEntry();
+      });
       manualPassword.addEventListener('keydown', function(event) {
         if (event.key === 'Enter') {
           event.preventDefault();

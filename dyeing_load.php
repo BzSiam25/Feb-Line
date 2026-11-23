@@ -299,7 +299,7 @@ if (!isset($_SESSION['username'])) {
             var loadStarted = false;
             var columns = [
                 ['ROLL', 'Roll'], ['BCARD', 'Batch'], ['PO_NUMBER', 'PO Number'], ['COLOR', 'Color'],
-                ['QTY', 'QTY'], ['MCNO', 'MC NO'], ['SONO', 'SONO'], ['BUYER', 'Buyer'],
+                ['QTY', 'QTY'], ['MCNO', 'MC NO'], ['DCOUNT', 'Load Count'], ['SONO', 'SONO'], ['BUYER', 'Buyer'],
                 ['STYLE', 'Style'], ['MCDIA', 'MC Dia'], ['CUSTOMER', 'Customer'], ['O_T', 'O / T'],
                 ['SL', 'SL/VQ'], ['FTYPE', 'Fabrics Type'], ['FGSM', 'GSM'], ['FDIA', 'Dia'],
                 ['YTYPE', 'Yarn Type'], ['YCOUNT', 'Yarn Count'], ['YBRAND', 'Yarn Brand'],
