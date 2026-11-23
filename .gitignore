@@ -1,5 +1,44 @@
-vendor/
+# Dependencies
+/vendor/
+composer.phar
+
+# Environment & Local Configuration
+config.local.php
+.env
+.env.*
+!.env.example
+
+# Temporary & Cache files
 tmp/
 *.tmp
 *.log
+logs/
+.cache/
 fab_line_-main/
+
+# Exported / Generated Temporary Files
+temp/
+exports/*.xlsx
+exports/*.pdf
+
+# IDE & Editor Configurations
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+*~
+
+# Operating System Files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
